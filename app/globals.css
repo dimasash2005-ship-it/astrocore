@@ -1,26 +1,109 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --astro-bg-base: #09090c;
+    --astro-bg-surface: #0e0e14;
+    --astro-bg-elevated: #111116;
+    --astro-border-dim: #1a1a24;
+    --astro-border-base: #22222e;
+    --astro-border-strong: #2e2e3c;
+    --astro-text-primary: #c8c8d8;
+    --astro-text-secondary: #888899;
+    --astro-text-muted: #444455;
+    --astro-red: #e8002a;
+    --astro-red-bright: #ff1a3e;
+    --astro-red-dim: rgba(232, 0, 42, 0.15);
+    --astro-green: #22c55e;
+  }
+
+  * {
+    border-color: var(--astro-border-dim);
+  }
+
+  html {
+    background-color: var(--astro-bg-base);
+  }
+
+  body {
+    background-color: var(--astro-bg-base);
+    color: var(--astro-text-primary);
+    font-family: var(--font-geist-sans), -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--astro-border-strong);
+    border-radius: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .astro-surface {
+    background-color: var(--astro-bg-surface);
+    border: 0.5px solid var(--astro-border-dim);
+  }
+
+  .astro-elevated {
+    background-color: var(--astro-bg-elevated);
+    border: 0.5px solid var(--astro-border-base);
+  }
+
+  .astro-red-border {
+    border-color: rgba(232, 0, 42, 0.25);
+  }
+
+  .astro-red-glow {
+    box-shadow: 0 0 20px rgba(232, 0, 42, 0.08);
+  }
+
+  .astro-pulse {
+    animation: astroPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes astroPulse {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 0 0 rgba(232, 0, 42, 0.4);
+    }
+    50% {
+      opacity: 0.6;
+      box-shadow: 0 0 0 4px rgba(232, 0, 42, 0.08);
+    }
+  }
+
+  .astro-scan::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(232, 0, 42, 0.5);
+    animation: astroScan 3s linear infinite;
+  }
+
+  @keyframes astroScan {
+    0% {
+      top: 0;
+      opacity: 1;
+    }
+    85% {
+      opacity: 0.2;
+    }
+    100% {
+      top: 100%;
+      opacity: 0;
+    }
+  }
 }
