@@ -245,13 +245,15 @@ export function Sidebar() {
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 12,
-              background: "linear-gradient(145deg,#C0001A 0%,#720010 100%)",
+              overflow: "hidden",
+              background: "#000",
               boxShadow: "0 0 0 1.5px rgba(232,0,42,0.40), 0 0 20px rgba(232,0,42,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               {!logoErr ? (
-                <Image src="/astrocore-logo.png" alt="AstroCore" width={20} height={20}
-                  style={{ objectFit: "contain" }} onError={() => setLogoErr(true)} />
+                <Image src="/astrocore-logo.png" alt="AstroCore" width={38} height={38}
+                  style={{ objectFit: "cover", objectPosition: "center 18%" }}
+                  onError={() => setLogoErr(true)} />
               ) : (
                 <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-0.05em" }}>A</span>
               )}
