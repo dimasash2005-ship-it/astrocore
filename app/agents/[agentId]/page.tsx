@@ -25,7 +25,17 @@ import {
   type ChatSession,
 } from "@/lib/store"
 import { AstroButton } from "@/components/ui/astro-button"
-import { AVATAR_COLORS } from "../page"
+
+const AVATAR_COLORS = [
+  "#E8002A",
+  "#10A37F",
+  "#D97757",
+  "#4285F4",
+  "#8B5CF6",
+  "#F59E0B",
+  "#06B6D4",
+  "#EC4899",
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -139,7 +149,6 @@ function AgentProfile({
       }}
     >
       <div className="flex items-start gap-4">
-        {/* Large avatar */}
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-medium text-2xl flex-shrink-0"
           style={{ backgroundColor: agent.avatarColor }}
@@ -147,7 +156,6 @@ function AgentProfile({
           {agent.name.charAt(0).toUpperCase()}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <h1
             className="text-xl font-medium mb-1"
@@ -164,7 +172,6 @@ function AgentProfile({
             </p>
           )}
 
-          {/* Badges */}
           <div className="flex items-center gap-2 flex-wrap">
             {provider ? (
               <>
@@ -216,14 +223,12 @@ function AgentProfile({
           </div>
         </div>
 
-        {/* New chat button */}
         <AstroButton onClick={onNewChat}>
           <Plus size={14} />
           Новий чат
         </AstroButton>
       </div>
 
-      {/* System prompt preview (if exists) */}
       {agent.systemPrompt && (
         <div
           className="mt-4 px-3 py-2.5 rounded-lg"
@@ -296,7 +301,6 @@ function EditForm({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Avatar color + live preview */}
       <div>
         <FieldLabel>Колір аватара</FieldLabel>
         <div className="flex gap-2 flex-wrap mb-3">
@@ -317,7 +321,6 @@ function EditForm({
             />
           ))}
         </div>
-        {/* Live preview */}
         <div
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
           style={{
@@ -337,7 +340,6 @@ function EditForm({
         </div>
       </div>
 
-      {/* Name */}
       <div>
         <FieldLabel>Назва агента *</FieldLabel>
         <input
@@ -350,7 +352,6 @@ function EditForm({
         />
       </div>
 
-      {/* Description */}
       <div>
         <FieldLabel>Опис</FieldLabel>
         <input
@@ -363,7 +364,6 @@ function EditForm({
         />
       </div>
 
-      {/* Provider */}
       <div>
         <FieldLabel>Провайдер</FieldLabel>
         {providers.length === 0 ? (
@@ -401,7 +401,6 @@ function EditForm({
         )}
       </div>
 
-      {/* System prompt */}
       <div>
         <FieldLabel>Системний промпт</FieldLabel>
         <textarea
@@ -426,7 +425,6 @@ function EditForm({
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
@@ -441,7 +439,6 @@ function EditForm({
         </div>
       )}
 
-      {/* Saved confirmation */}
       {saved && (
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
@@ -456,20 +453,12 @@ function EditForm({
         </div>
       )}
 
-      {/* Buttons */}
       <div className="flex gap-2">
-        <AstroButton
-          variant="ghost"
-          onClick={onCancel}
-          className="flex-1"
-        >
+        <AstroButton variant="ghost" onClick={onCancel} className="flex-1">
           <X size={13} />
           Скасувати
         </AstroButton>
-        <AstroButton
-          onClick={handleSave}
-          className="flex-1"
-        >
+        <AstroButton onClick={handleSave} className="flex-1">
           <Save size={13} />
           Зберегти зміни
         </AstroButton>
@@ -738,7 +727,6 @@ export default function AgentDetailPage() {
     router.push("/agents")
   }
 
-  // ── Not found state ──
   if (notFound) {
     return (
       <div className="p-5 max-w-2xl">
@@ -764,7 +752,6 @@ export default function AgentDetailPage() {
     )
   }
 
-  // ── Loading state ──
   if (!agent) {
     return (
       <div className="p-5">
@@ -784,7 +771,6 @@ export default function AgentDetailPage() {
 
   return (
     <div className="p-5 max-w-2xl">
-      {/* Back navigation */}
       <button
         onClick={() => router.push("/agents")}
         className="flex items-center gap-1.5 mb-5 text-sm transition-opacity opacity-60 hover:opacity-100"
@@ -795,7 +781,6 @@ export default function AgentDetailPage() {
       </button>
 
       <div className="flex flex-col gap-4">
-        {/* Profile header */}
         <AgentProfile
           agent={agent}
           provider={provider}
@@ -803,7 +788,6 @@ export default function AgentDetailPage() {
           onNewChat={handleNewChat}
         />
 
-        {/* Edit section */}
         <Section
           title="Налаштування агента"
           action={
@@ -827,13 +811,9 @@ export default function AgentDetailPage() {
               onCancel={() => setIsEditing(false)}
             />
           ) : (
-            /* Read-only view */
             <div className="flex flex-col gap-3">
               <Row label="Назва" value={agent.name} />
-              <Row
-                label="Опис"
-                value={agent.description || "—"}
-              />
+              <Row label="Опис" value={agent.description || "—"} />
               <Row
                 label="Провайдер"
                 value={provider ? `${provider.name} — ${provider.model}` : "Не знайдено"}
@@ -883,7 +863,6 @@ export default function AgentDetailPage() {
           )}
         </Section>
 
-        {/* Chat sessions */}
         <Section
           title={`Чат-сесії (${sessions.length})`}
           action={
@@ -900,7 +879,6 @@ export default function AgentDetailPage() {
           />
         </Section>
 
-        {/* Danger zone */}
         <Section title="Небезпечна зона">
           <DangerZone
             agentName={agent.name}
