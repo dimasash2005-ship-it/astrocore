@@ -70,7 +70,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [title,   setTitle]   = useState("")
   const [content, setContent] = useState("")
   const [type,    setType]    = useState<"text" | "code" | "image">("text")
-  const [prompt,  setPrompt]  = useState("")
+
   const [error,   setError]   = useState("")
 
   const inp: React.CSSProperties = {
@@ -82,7 +82,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   function handleAdd() {
     if (!title.trim())   { setError("Введіть назву"); return }
     if (!content.trim()) { setError("Введіть вміст"); return }
-    galleryStore.add({ title: title.trim(), content: content.trim(), type, prompt: prompt.trim() })
+    galleryStore.add({ title: title.trim(), content: content.trim(), type })
     onAdded()
     onClose()
   }
@@ -145,16 +145,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Назва *</label>
             <input value={title} onChange={e => setTitle(e.target.value)}
               placeholder="Назва виводу..."
-              style={inp}
-              onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-              onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Промпт</label>
-            <input value={prompt} onChange={e => setPrompt(e.target.value)}
-              placeholder="Який промпт використовувався?"
               style={inp}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -299,16 +289,6 @@ function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => vo
             </button>
           </div>
         </div>
-
-        {/* prompt tag */}
-        {item.prompt && (
-          <div style={{
-            fontSize: 10.5, color: T.t4, fontStyle: "italic",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
-            ↳ {cut(item.prompt, 60)}
-          </div>
-        )}
 
         {/* content preview */}
         {!isImage && (
