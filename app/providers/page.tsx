@@ -1,404 +1,695 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react"
 import {
-  CheckCircle,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  Key,
-  Plus,
-  Trash2,
-  XCircle,
-} from "lucide-react";
+  Key, Plus, Trash2, Eye, EyeOff, Check,
+  Zap, Activity, Shield, ChevronDown, ChevronUp, X,
+} from "lucide-react"
+import { providerStore, type Provider, type ProviderSlug } from "@/lib/store"
+import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
-import { providerStore, type Provider, type ProviderSlug } from "@/lib/store";
-import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
-import { AstroButton } from "@/components/ui/astro-button";
+const T = {
+  bg:   "#08080F",
+  s1:   "#11111C",
+  s2:   "#16162A",
+  b1:   "rgba(255,255,255,0.10)",
+  b2:   "rgba(255,255,255,0.16)",
+  bRed: "rgba(232,0,42,0.30)",
+  t1:   "#F0EDF8",
+  t2:   "#C8C4D8",
+  t3:   "#A8A4BC",
+  t4:   "#585878",
+  red:  "#E8002A",
+  green:"#22C55E",
+}
 
-const PROVIDERS: Record<
-  ProviderSlug,
+// ─── Provider presets ─────────────────────────────────────────────
+
+const PRESETS: {
+  slug: ProviderSlug
+  name: string
+  models: string[]
+  color: string
+  desc: string
+  placeholder: string
+}[] = [
   {
-    label: string;
-    color: string;
-    placeholder: string;
-    models: string[];
-  }
-> = {
-  openai: {
-    label: "OpenAI",
+    slug: "openai",
+    name: "OpenAI",
+    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
     color: "#10A37F",
+    desc: "GPT-4o, GPT-4 Turbo та інші моделі OpenAI",
     placeholder: "sk-...",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
   },
-  anthropic: {
-    label: "Claude / Anthropic",
+  {
+    slug: "anthropic",
+    name: "Anthropic Claude",
+    models: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-3-5-sonnet-20241022"],
     color: "#D97757",
+    desc: "Claude Opus, Sonnet та Haiku від Anthropic",
     placeholder: "sk-ant-...",
-    models: ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"],
   },
-  google: {
-    label: "Google Gemini",
+  {
+    slug: "google",
+    name: "Google Gemini",
+    models: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
     color: "#4285F4",
+    desc: "Gemini 2.0 Flash та Gemini Pro від Google",
     placeholder: "AIza...",
-    models: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
   },
-  custom: {
-    label: "OpenClaw / Custom Agent",
+  {
+    slug: "custom",
+    name: "Custom / Webhook",
+    models: ["custom"],
     color: "#8B5CF6",
-    placeholder: "secret-token або лишіть пустим",
-    models: ["default", "custom-agent", "gpt-4o", "claude-sonnet-4-5"],
+    desc: "Власний AI провайдер або OpenAI-сумісний endpoint",
+    placeholder: "sk-...",
   },
-};
+]
 
-export default function ProvidersPage() {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [slug, setSlug] = useState<ProviderSlug>("openai");
-  const [model, setModel] = useState(PROVIDERS.openai.models[0]);
-  const [apiKey, setApiKey] = useState("");
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [authHeader, setAuthHeader] = useState("Authorization");
-  const [customHeaders, setCustomHeaders] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+const inp: React.CSSProperties = {
+  background: "#09090F",
+  border: "0.5px solid rgba(255,255,255,0.10)",
+  borderRadius: 9, padding: "9px 12px",
+  fontSize: 13, color: T.t1, outline: "none", width: "100%",
+}
 
-  const current = PROVIDERS[slug];
-  const isCustom = slug === "custom";
+// ─── Add provider modal ───────────────────────────────────────────
 
-  function refresh() {
-    setProviders(providerStore.getAll());
+function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [slug,    setSlug]    = useState<ProviderSlug>("openai")
+  const [apiKey,  setApiKey]  = useState("")
+  const [model,   setModel]   = useState(PRESETS[0].models[0])
+  const [name,    setName]    = useState("")
+  const [baseUrl, setBaseUrl] = useState("")
+  const [showKey, setShowKey] = useState(false)
+  const [error,   setError]   = useState("")
+
+  const preset = PRESETS.find(p => p.slug === slug)!
+
+  function handleSlugChange(s: ProviderSlug) {
+    setSlug(s)
+    setModel(PRESETS.find(p => p.slug === s)!.models[0])
+    setError("")
   }
 
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  function changeProvider(next: ProviderSlug) {
-    setSlug(next);
-    setModel(PROVIDERS[next].models[0]);
-    setApiKey("");
-    setWebhookUrl("");
-    setCustomHeaders("");
-    setAuthHeader("Authorization");
-    setError("");
-    setSaved(false);
-  }
-
-  function isValidJsonObject(value: string) {
-    if (!value.trim()) return true;
-
-    try {
-      const parsed = JSON.parse(value);
-      return typeof parsed === "object" && !Array.isArray(parsed);
-    } catch {
-      return false;
-    }
-  }
-
-  function saveProvider() {
-    const key = apiKey.trim();
-    const url = webhookUrl.trim();
-
-    if (isCustom && !url) {
-      setError("Введіть Webhook URL OpenClaw / Custom Agent");
-      return;
-    }
-
-    if (isCustom && !url.startsWith("http")) {
-      setError("Webhook URL має починатися з http або https");
-      return;
-    }
-
-    if (!isCustom && !key) {
-      setError("Введіть API ключ або токен");
-      return;
-    }
-
-    if (!isCustom && key.length < 8) {
-      setError("Ключ виглядає занадто коротким");
-      return;
-    }
-
-    if (customHeaders && !isValidJsonObject(customHeaders)) {
-      setError("Custom Headers мають бути валідним JSON обʼєктом");
-      return;
-    }
-
+  function handleAdd() {
+    if (!apiKey.trim()) { setError("Введіть API ключ"); return }
+    if (slug === "custom" && !baseUrl.trim()) { setError("Введіть URL для Custom провайдера"); return }
     providerStore.add({
-      name: current.label,
       slug,
-      apiKey: key,
+      name: name.trim() || preset.name,
+      apiKey: apiKey.trim(),
       model,
+      baseUrl: slug === "custom" ? baseUrl.trim() : undefined,
       isActive: true,
-      webhookUrl: isCustom ? url : undefined,
-      authHeader: isCustom ? authHeader : undefined,
-      customHeaders: isCustom && customHeaders.trim() ? customHeaders.trim() : undefined,
-    });
-
-    setApiKey("");
-    setWebhookUrl("");
-    setCustomHeaders("");
-    setError("");
-    setSaved(true);
-    refresh();
-
-    setTimeout(() => setSaved(false), 2500);
-  }
-
-  function removeProvider(id: string) {
-    providerStore.remove(id);
-    refresh();
-  }
-
-  function toggleProvider(id: string) {
-    providerStore.toggle(id);
-    refresh();
+    })
+    onAdded()
+    onClose()
   }
 
   return (
-    <div className="p-8 max-w-4xl">
-      <PageHeader
-        title="API Ключі"
-        description="Підключіть AI сервіси або OpenClaw агентів. AstroCore буде працювати як один інтерфейс для всіх."
-      />
-
-      <div className="astro-surface rounded-xl p-5">
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--astro-text-muted)] mb-4">
-          Додати провайдера
-        </p>
-
-        <div className="grid grid-cols-4 gap-3">
-          {(Object.keys(PROVIDERS) as ProviderSlug[]).map((item) => (
-            <button
-              key={item}
-              onClick={() => changeProvider(item)}
-              className="rounded-xl p-4 text-left border transition-all"
-              style={{
-                backgroundColor:
-                  slug === item ? "rgba(232,0,42,0.08)" : "var(--astro-bg-base)",
-                borderColor:
-                  slug === item ? "rgba(232,0,42,0.35)" : "var(--astro-border-dim)",
-              }}
-            >
-              <div
-                className="h-2 w-2 rounded-full mb-3"
-                style={{ backgroundColor: PROVIDERS[item].color }}
-              />
-              <p className="text-sm text-[var(--astro-text-primary)]">
-                {PROVIDERS[item].label}
-              </p>
-            </button>
-          ))}
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 100,
+        background: "rgba(0,0,0,0.78)",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+      }}>
+      <div style={{
+        width: "100%", maxWidth: 520, borderRadius: 16,
+        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
+        border: "1px solid rgba(232,0,42,0.22)",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.85)",
+        padding: "24px 24px 20px",
+        maxHeight: "92vh", overflowY: "auto",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: "rgba(232,0,42,0.12)", border: "0.5px solid rgba(232,0,42,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Key size={15} style={{ color: T.red }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Підключити провайдера</div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>API Control Layer</div>
+          </div>
+          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
+            <X size={16} />
+          </button>
         </div>
 
-        <div className="mt-5 grid gap-4">
-          {isCustom && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Provider selector */}
+          <div>
+            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
+              Провайдер
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {PRESETS.map(p => (
+                <button key={p.slug} onClick={() => handleSlugChange(p.slug)} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "9px 12px", borderRadius: 9, border: "none", cursor: "pointer",
+                  background: slug === p.slug ? `${p.color}18` : "rgba(255,255,255,0.03)",
+                  outline: slug === p.slug ? `1px solid ${p.color}44` : "1px solid rgba(255,255,255,0.07)",
+                  transition: "background 130ms ease",
+                  textAlign: "left",
+                }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: slug === p.slug ? 500 : 400, color: slug === p.slug ? T.t1 : T.t3 }}>
+                    {p.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: T.t4, marginTop: 7 }}>{preset.desc}</div>
+          </div>
+
+          {/* Custom name */}
+          {slug === "custom" && (
             <div>
-              <label className="text-xs text-[var(--astro-text-muted)]">
-                Webhook URL агента
+              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                Назва провайдера
               </label>
-
-              <input
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                placeholder="https://your-vps.com/api/agent/chat"
-                className="mt-2 w-full rounded-xl bg-[var(--astro-bg-base)] border border-[var(--astro-border-base)] px-4 py-3 text-sm text-[var(--astro-text-primary)] outline-none"
+              <input value={name} onChange={e => setName(e.target.value)}
+                placeholder="Мій AI провайдер..."
+                style={inp}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
               />
-
-              <p className="mt-2 text-xs text-[var(--astro-text-muted)]">
-                Це endpoint OpenClaw Gateway, який приймає POST і повертає {"{ reply: \"...\" }"}.
-              </p>
             </div>
           )}
 
+          {/* Model */}
           <div>
-            <label className="text-xs text-[var(--astro-text-muted)]">
-              {isCustom ? "Модель / ідентифікатор агента" : "Модель"}
+            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+              Модель
             </label>
-
-            <div className="relative mt-2">
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full appearance-none rounded-xl bg-[var(--astro-bg-base)] border border-[var(--astro-border-base)] px-4 py-3 text-sm text-[var(--astro-text-primary)] outline-none"
-              >
-                {current.models.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-
-              <ChevronDown
-                size={16}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--astro-text-muted)]"
-              />
-            </div>
+            <select value={model} onChange={e => setModel(e.target.value)}
+              style={{ ...inp, cursor: "pointer" }}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+              onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}>
+              {preset.models.map(m => (
+                <option key={m} value={m} style={{ background: "#111118" }}>{m}</option>
+              ))}
+            </select>
           </div>
 
+          {/* API Key */}
           <div>
-            <label className="text-xs text-[var(--astro-text-muted)]">
-              {isCustom ? "Auth Token optional" : "API ключ / token"}
+            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+              API Ключ *
             </label>
-
-            <div className="relative mt-2">
+            <div style={{ position: "relative" }}>
               <input
-                type={showKey ? "text" : "password"}
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={current.placeholder}
-                className="w-full rounded-xl bg-[var(--astro-bg-base)] border border-[var(--astro-border-base)] px-4 py-3 pr-12 text-sm text-[var(--astro-text-primary)] outline-none"
+                onChange={e => setApiKey(e.target.value)}
+                type={showKey ? "text" : "password"}
+                placeholder={preset.placeholder}
+                style={{ ...inp, paddingRight: 40 }}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
               />
-
-              <button
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--astro-text-muted)]"
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              <button onClick={() => setShowKey(v => !v)} style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0,
+              }}>
+                {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
-
-            <p className="mt-2 text-xs text-[var(--astro-text-muted)]">
-              {isCustom
-                ? "Якщо OpenClaw має захист, токен піде як Authorization: Bearer token."
-                : "Поки що ключ зберігається локально у браузері через localStorage."}
-            </p>
           </div>
 
-          {isCustom && (
+          {/* Base URL for custom */}
+          {slug === "custom" && (
             <div>
-              <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="text-xs text-[var(--astro-red)]"
-              >
-                {showAdvanced ? "Приховати розширені налаштування" : "Розширені налаштування"}
-              </button>
-
-              {showAdvanced && (
-                <div className="mt-4 grid gap-4 rounded-xl border border-[var(--astro-border-dim)] bg-[var(--astro-bg-base)] p-4">
-                  <div>
-                    <label className="text-xs text-[var(--astro-text-muted)]">
-                      Auth Header
-                    </label>
-
-                    <input
-                      value={authHeader}
-                      onChange={(e) => setAuthHeader(e.target.value)}
-                      placeholder="Authorization"
-                      className="mt-2 w-full rounded-xl bg-[var(--astro-bg-surface)] border border-[var(--astro-border-base)] px-4 py-3 text-sm text-[var(--astro-text-primary)] outline-none"
-                    />
-
-                    <p className="mt-2 text-xs text-[var(--astro-text-muted)]">
-                      Наприклад: Authorization, X-Api-Key, X-Token
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-[var(--astro-text-muted)]">
-                      Custom Headers JSON
-                    </label>
-
-                    <textarea
-                      value={customHeaders}
-                      onChange={(e) => setCustomHeaders(e.target.value)}
-                      placeholder='{"X-Agent-Id":"main","X-Tenant-Id":"demo"}'
-                      rows={3}
-                      className="mt-2 w-full resize-none rounded-xl bg-[var(--astro-bg-surface)] border border-[var(--astro-border-base)] px-4 py-3 font-mono text-sm text-[var(--astro-text-primary)] outline-none"
-                    />
-
-                    <p className="mt-2 text-xs text-[var(--astro-text-muted)]">
-                      Додаткові headers для OpenClaw Gateway.
-                    </p>
-                  </div>
-                </div>
-              )}
+              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                Base URL *
+              </label>
+              <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
+                placeholder="https://api.example.com/v1"
+                style={inp}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+              />
             </div>
           )}
+
+          {/* Security note */}
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            padding: "9px 12px", borderRadius: 8,
+            background: "rgba(255,255,255,0.03)", border: "0.5px solid rgba(255,255,255,0.07)",
+          }}>
+            <Shield size={12} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontSize: 11, color: T.t4, lineHeight: 1.5 }}>
+              Ключі зберігаються локально у вашому браузері (localStorage) і ніколи не передаються на сервер.
+            </span>
+          </div>
 
           {error && (
-            <div className="rounded-xl border border-red-900/40 bg-red-950/20 p-3 text-sm text-red-400">
+            <div style={{ fontSize: 12, color: "#FF4D6A", padding: "7px 10px", borderRadius: 7, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.2)" }}>
               {error}
             </div>
           )}
 
-          {saved && (
-            <div className="rounded-xl border border-green-900/40 bg-green-950/20 p-3 text-sm text-green-400">
-              Провайдера збережено ✅
-            </div>
-          )}
-
-          <AstroButton onClick={saveProvider}>
-            <Plus size={14} />
-            Зберегти провайдера
-          </AstroButton>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onClose} style={{
+              flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer",
+              background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.10)", color: T.t2,
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
+            >Скасувати</button>
+            <button onClick={handleAdd} style={{
+              flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
+              background: T.red, border: "none", color: "#fff", cursor: "pointer",
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+            >Підключити</button>
+          </div>
         </div>
       </div>
+    </div>
+  )
+}
 
-      <div className="mt-6">
-        {providers.length === 0 ? (
-          <EmptyState
-            icon={Key}
-            title="Провайдерів ще немає"
-            description="Додайте OpenAI, Claude, Gemini або OpenClaw агента через webhook."
-          />
-        ) : (
-          <div className="grid gap-3">
-            {providers.map((provider) => (
-              <div
-                key={provider.id}
-                className="astro-surface rounded-xl p-5 flex items-center justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-[var(--astro-text-primary)]">
-                      {provider.name}
-                    </p>
+// ─── Provider card ────────────────────────────────────────────────
 
-                    <span className="rounded-full border border-[var(--astro-border-dim)] px-2 py-0.5 text-xs text-[var(--astro-text-muted)]">
-                      {provider.model}
-                    </span>
-                  </div>
+function ProviderCard({ provider, onDelete, onToggle }: {
+  provider: Provider
+  onDelete: () => void
+  onToggle: () => void
+}) {
+  const [showKey,   setShowKey]   = useState(false)
+  const [expanded,  setExpanded]  = useState(false)
+  const preset = PRESETS.find(p => p.slug === provider.slug)
+  const color  = preset?.color ?? T.t4
 
-                  <p className="mt-2 text-xs font-mono text-[var(--astro-text-muted)]">
-                    {provider.slug === "custom"
-                      ? provider.webhookUrl || "Webhook не вказано"
-                      : `${provider.apiKey.slice(0, 8)}••••••${provider.apiKey.slice(-4)}`}
-                  </p>
-                </div>
+  function maskKey(key: string) {
+    if (!key) return "—"
+    if (key.length <= 8) return "•".repeat(key.length)
+    return key.slice(0, 6) + "•".repeat(Math.min(key.length - 8, 16)) + key.slice(-4)
+  }
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleProvider(provider.id)}
-                    className="flex items-center gap-1 text-xs"
-                    style={{
-                      color: provider.isActive
-                        ? "var(--astro-green)"
-                        : "var(--astro-text-muted)",
-                    }}
-                  >
-                    {provider.isActive ? (
-                      <CheckCircle size={15} />
-                    ) : (
-                      <XCircle size={15} />
-                    )}
-                    {provider.isActive ? "Активний" : "Вимкнено"}
-                  </button>
+  return (
+    <div style={{
+      background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
+      border: `0.5px solid ${provider.isActive ? `${color}33` : T.b1}`,
+      borderRadius: 14, overflow: "hidden",
+      transition: "border-color 200ms ease",
+      position: "relative",
+    }}>
+      {/* color accent top bar */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 2,
+        background: provider.isActive
+          ? `linear-gradient(90deg,transparent,${color},transparent)`
+          : "transparent",
+        transition: "background 300ms ease",
+      }} />
 
-                  <button
-                    onClick={() => removeProvider(provider.id)}
-                    className="text-[var(--astro-text-muted)] hover:text-[var(--astro-red)]"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+      <div style={{ padding: "16px 18px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            {/* status dot */}
+            <div style={{
+              width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
+              background: provider.isActive ? T.green : "#2E2E4A",
+              boxShadow: provider.isActive ? `0 0 8px ${T.green}80` : "none",
+              transition: "background 200ms ease, box-shadow 200ms ease",
+            }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.t1 }}>{provider.name}</div>
+              <div style={{ fontSize: 11, color: T.t4, marginTop: 1 }}>{provider.model}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* active badge */}
+            <span style={{
+              fontSize: 10, padding: "2px 8px", borderRadius: 5, fontWeight: 500,
+              background: provider.isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+              color: provider.isActive ? T.green : T.t4,
+              border: `0.5px solid ${provider.isActive ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}`,
+              transition: "all 200ms ease",
+            }}>
+              {provider.isActive ? "Активний" : "Вимкнено"}
+            </span>
+
+            {/* expand toggle */}
+            <button onClick={() => setExpanded(v => !v)} style={{
+              padding: 5, borderRadius: 6, border: "none",
+              background: "rgba(255,255,255,0.05)", cursor: "pointer", lineHeight: 0, color: T.t4,
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+            >
+              {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded details */}
+        {expanded && (
+          <div style={{
+            borderTop: `0.5px solid ${T.b1}`, paddingTop: 12,
+            display: "flex", flexDirection: "column", gap: 10,
+          }}>
+            {/* API Key row */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "8px 12px", borderRadius: 8,
+              background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
+            }}>
+              <div>
+                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>API Ключ</div>
+                <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", letterSpacing: "0.05em" }}>
+                  {showKey ? provider.apiKey : maskKey(provider.apiKey)}
                 </div>
               </div>
-            ))}
+              <button onClick={() => setShowKey(v => !v)} style={{
+                padding: 5, borderRadius: 6, border: "none",
+                background: "rgba(255,255,255,0.06)", cursor: "pointer", lineHeight: 0, color: T.t4,
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+              >
+                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
+
+            {/* Base URL for custom */}
+            {provider.slug === "custom" && provider.baseUrl && (
+              <div style={{
+                padding: "8px 12px", borderRadius: 8,
+                background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>Base URL</div>
+                <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", wordBreak: "break-all" }}>{provider.baseUrl}</div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={onToggle} style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                background: provider.isActive ? "rgba(255,255,255,0.05)" : "rgba(34,197,94,0.10)",
+                border: `0.5px solid ${provider.isActive ? "rgba(255,255,255,0.09)" : "rgba(34,197,94,0.25)"}`,
+                color: provider.isActive ? T.t2 : T.green,
+                transition: "all 150ms ease",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
+              >
+                {provider.isActive ? "Вимкнути" : <><Check size={12} /> Увімкнути</>}
+              </button>
+              <button onClick={() => { if (window.confirm(`Видалити провайдера "${provider.name}"?`)) onDelete() }}
+                style={{
+                  padding: "8px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)",
+                  color: T.t4, display: "flex", alignItems: "center", gap: 6,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.color = "#FF4D6A"
+                  ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.25)"
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.color = T.t4
+                  ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.08)"
+                }}
+              >
+                <Trash2 size={12} /> Видалити
+              </button>
+            </div>
           </div>
         )}
       </div>
     </div>
-  );
+  )
+}
+
+// ─── Empty state ──────────────────────────────────────────────────
+
+function EmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", padding: "80px 24px", textAlign: "center",
+      width: "100%",
+    }}>
+      <div style={{
+        width: 72, height: 72, borderRadius: 20, marginBottom: 20,
+        background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 0 32px rgba(232,0,42,0.07)",
+      }}>
+        <Key size={28} style={{ color: T.red, opacity: 0.7 }} />
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
+        Немає підключених провайдерів
+      </div>
+      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 8 }}>
+        Підключіть OpenAI, Anthropic, Google Gemini або власний AI провайдер щоб агенти могли відповідати.
+      </div>
+      <div style={{
+        fontSize: 11, color: T.t4, marginBottom: 28,
+        padding: "5px 12px", borderRadius: 8,
+        background: "rgba(232,0,42,0.06)", border: "0.5px solid rgba(232,0,42,0.14)",
+      }}>
+        API Control Layer · Model Gateway
+      </div>
+      <button onClick={onAdd} style={{
+        display: "flex", alignItems: "center", gap: 7,
+        background: T.red, color: "#fff", border: "none",
+        borderRadius: 10, padding: "10px 22px",
+        fontSize: 13, fontWeight: 500, cursor: "pointer",
+      }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+      >
+        <Plus size={14} /> Підключити провайдера
+      </button>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────
+
+export default function ProvidersPage() {
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [showModal, setShowModal] = useState(false)
+  const [pulse,     setPulse]     = useState(false)
+
+  useEffect(() => {
+    const id = setInterval(() => setPulse(p => !p), 2000)
+    return () => clearInterval(id)
+  }, [])
+
+  function load() { setProviders(providerStore.getAll()) }
+  useEffect(() => { load() }, [])
+
+  function handleDelete(id: string) {
+    providerStore.remove(id)
+    load()
+  }
+
+  function handleToggle(id: string) {
+    const p = providers.find(x => x.id === id)
+    if (!p) return
+    providerStore.update(id, { isActive: !p.isActive })
+    load()
+  }
+
+  const active = providers.filter(p => p.isActive)
+
+  return (
+    <>
+      <style>{`
+        @keyframes scanline {
+          0%   { transform: translateX(-100%); opacity: 0; }
+          10%  { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { transform: translateX(200%); opacity: 0; }
+        }
+      `}</style>
+
+      <div style={{
+        marginLeft: SIDEBAR_W,
+        minHeight: "100vh",
+        background: T.bg,
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
+        backgroundSize: "24px 24px",
+      }}>
+
+        {/* scan line */}
+        <div aria-hidden style={{
+          position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
+          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
+          animation: "scanline 6s linear infinite",
+          pointerEvents: "none", zIndex: 10,
+        }} />
+
+        {/* ── Hero ── */}
+        <div style={{
+          position: "relative",
+          padding: "36px 48px 28px",
+          borderBottom: `0.5px solid ${T.b1}`,
+          overflow: "hidden",
+        }}>
+          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
+          <div aria-hidden style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: 120, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.055) 0%,transparent 100%)" }} />
+
+          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
+                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+              }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: "50%", background: T.red,
+                  display: "inline-block",
+                  opacity: pulse ? 1 : 0.3,
+                  transition: "opacity 900ms ease, box-shadow 900ms ease",
+                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
+                }} />
+                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  {active.length > 0 ? "Provider Gateway Active" : "No Active Providers"} · {providers.length} підключено
+                </span>
+              </div>
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+                Провайдери
+              </h1>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
+                API Control Layer · Model Gateway · підключіть AI моделі до агентів
+              </p>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {active.length > 0 && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "7px 13px", borderRadius: 9, fontSize: 12,
+                  background: "rgba(34,197,94,0.07)", border: "0.5px solid rgba(34,197,94,0.18)",
+                  color: T.green,
+                }}>
+                  <Activity size={12} />
+                  {active.length} активних
+                </div>
+              )}
+              <button onClick={() => setShowModal(true)} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                background: T.red, color: "#fff", border: "none",
+                borderRadius: 9, padding: "9px 18px",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+                transition: "background 130ms ease",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+              >
+                <Plus size={14} /> Підключити
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Body ── */}
+        {providers.length === 0 ? (
+          <EmptyState onAdd={() => setShowModal(true)} />
+        ) : (
+          <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
+
+            {/* Stats */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
+              {[
+                { label: "Всього провайдерів", value: providers.length, icon: Key      },
+                { label: "Активних",            value: active.length,   icon: Zap      },
+                { label: "Вимкнених",           value: providers.length - active.length, icon: Activity },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label} style={{
+                  display: "flex", alignItems: "center", gap: 9,
+                  padding: "8px 14px", borderRadius: 9,
+                  background: T.s1, border: `0.5px solid ${T.b1}`,
+                }}>
+                  <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
+                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                  <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Security note */}
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 10,
+              padding: "11px 14px", borderRadius: 10, marginBottom: 20,
+              background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
+            }}>
+              <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
+                API ключі зберігаються виключно у вашому браузері (localStorage) і ніколи не передаються на зовнішні сервери. Доступ до ключів мають тільки запити які ви ініціюєте.
+              </span>
+            </div>
+
+            {/* Provider grid */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+              gap: 14,
+            }}>
+              {providers.map(p => (
+                <ProviderCard
+                  key={p.id}
+                  provider={p}
+                  onDelete={() => handleDelete(p.id)}
+                  onToggle={() => handleToggle(p.id)}
+                />
+              ))}
+            </div>
+
+            {/* Add another */}
+            <div onClick={() => setShowModal(true)} style={{
+              marginTop: 14,
+              borderRadius: 14, padding: "18px",
+              border: "0.5px dashed rgba(232,0,42,0.22)",
+              background: "rgba(232,0,42,0.03)",
+              cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center", gap: 8,
+              transition: "background 150ms ease, border-color 150ms ease",
+            }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)"
+                ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.40)"
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.03)"
+                ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.22)"
+              }}
+            >
+              <div style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.22)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <Plus size={14} style={{ color: T.red }} />
+              </div>
+              <span style={{ fontSize: 12.5, color: T.t3 }}>Підключити ще одного провайдера</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showModal && (
+        <AddModal
+          onClose={() => setShowModal(false)}
+          onAdded={load}
+        />
+      )}
+    </>
+  )
 }

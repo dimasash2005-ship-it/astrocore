@@ -1,448 +1,484 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
-  Bot,
-  ChevronRight,
-  Clock,
-  MessageSquare,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
-
+  MessageSquare, Plus, Bot, Clock,
+  Search, Trash2, ArrowRight, Zap,
+} from "lucide-react"
 import {
-  agentStore,
-  chatStore,
-  providerStore,
-  type Agent,
-  type ChatSession,
-  type Provider,
-} from "@/lib/store";
+  chatStore, agentStore,
+  type ChatSession, type Agent,
+} from "@/lib/store"
+import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
-import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState } from "@/components/ui/empty-state";
-import { AstroButton } from "@/components/ui/astro-button";
-
-function formatTime(iso: string): string {
-  if (!iso) return "";
-
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffMin < 1) return "щойно";
-  if (diffMin < 60) return `${diffMin} хв тому`;
-  if (diffHour < 24) return `${diffHour} год тому`;
-  if (diffDay === 1) return "вчора";
-  if (diffDay < 7) return `${diffDay} дні тому`;
-
-  return date.toLocaleDateString("uk-UA", {
-    day: "numeric",
-    month: "short",
-  });
+const T = {
+  bg:   "#08080F",
+  s1:   "#11111C",
+  s2:   "#16162A",
+  b1:   "rgba(255,255,255,0.10)",
+  b2:   "rgba(255,255,255,0.16)",
+  bRed: "rgba(232,0,42,0.30)",
+  t1:   "#F0EDF8",
+  t2:   "#C8C4D8",
+  t3:   "#A8A4BC",
+  t4:   "#585878",
+  red:  "#E8002A",
 }
 
-function truncate(text: string, max: number): string {
-  if (!text) return "";
-  return text.length > max ? text.slice(0, max) + "..." : text;
+function ago(iso: string): string {
+  if (!iso) return ""
+  const d = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(d / 60000)
+  if (m < 1)  return "щойно"
+  if (m < 60) return `${m} хв`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} год`
+  const dy = Math.floor(h / 24)
+  if (dy === 1) return "вчора"
+  if (dy < 7)  return `${dy}д`
+  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
 }
 
-type SessionCardProps = {
-  session: ChatSession;
-  agent: Agent | undefined;
-  provider: Provider | undefined;
-  onClick: () => void;
-  onDelete: () => void;
-};
+function cut(s: string, n: number) {
+  return s && s.length > n ? s.slice(0, n) + "…" : (s || "")
+}
+
+function groupByDate(sessions: ChatSession[]): { label: string; items: ChatSession[] }[] {
+  const now = new Date()
+  const today     = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const yesterday = today - 86400000
+  const week      = today - 6 * 86400000
+
+  const groups: Record<string, ChatSession[]> = {
+    "Сьогодні": [],
+    "Вчора": [],
+    "Цей тиждень": [],
+    "Раніше": [],
+  }
+
+  for (const s of sessions) {
+    const t = new Date(s.updatedAt ?? s.createdAt).getTime()
+    if (t >= today)     groups["Сьогодні"].push(s)
+    else if (t >= yesterday) groups["Вчора"].push(s)
+    else if (t >= week) groups["Цей тиждень"].push(s)
+    else                groups["Раніше"].push(s)
+  }
+
+  return Object.entries(groups)
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => ({ label, items }))
+}
 
 function SessionCard({
   session,
   agent,
-  provider,
-  onClick,
+  onOpen,
   onDelete,
-}: SessionCardProps) {
-  const [hovered, setHovered] = useState(false);
-
-  const lastMessage = session.messages[session.messages.length - 1];
-  const lastContent = lastMessage?.content ?? "";
-  const lastTime = lastMessage?.createdAt ?? session.createdAt;
-  const messageCount = session.messages.length;
-
-  const agentInitial = agent ? agent.name.charAt(0).toUpperCase() : "?";
-  const avatarColor = agent?.avatarColor ?? "#444455";
-
-  function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-
-    const ok = window.confirm(`Видалити сесію "${session.title}"?`);
-
-    if (ok) {
-      onDelete();
-    }
-  }
+}: {
+  session: ChatSession
+  agent?: Agent
+  onOpen: () => void
+  onDelete: (e: React.MouseEvent) => void
+}) {
+  const last   = session.messages[session.messages.length - 1]
+  const isUser = last?.role === "user"
+  const count  = session.messages.length
 
   return (
     <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3.5 transition-all"
+      onClick={onOpen}
       style={{
-        backgroundColor: hovered ? "#111116" : "#0E0E14",
-        border: `0.5px solid ${hovered ? "#2E2E3C" : "#1A1A24"}`,
+        display: "flex", alignItems: "center", gap: 14,
+        padding: "13px 16px", borderRadius: 12, cursor: "pointer",
+        background: "transparent",
+        border: "0.5px solid transparent",
+        transition: "background 140ms ease, border-color 140ms ease",
+        position: "relative",
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget as HTMLElement
+        el.style.background = "rgba(255,255,255,0.04)"
+        el.style.borderColor = "rgba(255,255,255,0.08)"
+        const del = el.querySelector(".del-btn") as HTMLElement
+        if (del) del.style.opacity = "1"
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement
+        el.style.background = "transparent"
+        el.style.borderColor = "transparent"
+        const del = el.querySelector(".del-btn") as HTMLElement
+        if (del) del.style.opacity = "0"
       }}
     >
-      <div
-        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-medium text-white"
-        style={{ backgroundColor: avatarColor }}
-      >
-        {agentInitial}
+      {/* Avatar */}
+      <div style={{
+        width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+        background: agent?.avatarColor ?? "rgba(232,0,42,0.12)",
+        border: agent ? "none" : "0.5px solid rgba(232,0,42,0.22)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 15, fontWeight: 700, color: "#fff",
+      }}>
+        {agent
+          ? agent.name.charAt(0).toUpperCase()
+          : <MessageSquare size={16} style={{ color: T.red, opacity: 0.7 }} />}
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-[var(--astro-text-primary)]">
-            {session.title}
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+            {cut(session.title, 60)}
           </span>
-
-          <span className="flex flex-shrink-0 items-center gap-1 text-[10px] text-[var(--astro-text-muted)]">
-            <Clock size={9} />
-            {formatTime(lastTime)}
-          </span>
-        </div>
-
-        <div className="mb-1 flex items-center gap-2">
           {agent && (
-            <span className="flex items-center gap-1 text-[10px] text-[var(--astro-text-secondary)]">
-              <Bot size={9} />
+            <span style={{
+              fontSize: 10, padding: "1px 6px", borderRadius: 4, flexShrink: 0,
+              background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.08)",
+              color: T.t4,
+            }}>
               {agent.name}
             </span>
           )}
-
-          {provider && (
-            <span className="rounded border border-[var(--astro-border-dim)] px-1.5 py-0.5 text-[10px] text-[var(--astro-text-muted)]">
-              {provider.model}
-            </span>
-          )}
         </div>
-
-        <p className="truncate text-xs leading-relaxed text-[var(--astro-text-muted)]">
-          {messageCount === 0
-            ? "Немає повідомлень"
-            : `${lastMessage.role === "user" ? "Ви: " : "AI: "}${truncate(
-                lastContent,
-                80
-              )}`}
-        </p>
-      </div>
-
-      <div className="flex flex-shrink-0 items-center gap-2">
-        {messageCount > 0 && (
-          <span className="min-w-[20px] rounded-full border border-[var(--astro-border-dim)] px-1.5 py-0.5 text-center text-[10px] text-[var(--astro-text-muted)]">
-            {messageCount}
-          </span>
-        )}
-
-        {hovered ? (
-          <button
-            onClick={handleDelete}
-            className="rounded-md p-1.5 text-[var(--astro-text-muted)] hover:text-[var(--astro-red)]"
-            title="Видалити сесію"
-          >
-            <Trash2 size={13} />
-          </button>
+        {last ? (
+          <div style={{ fontSize: 11.5, color: T.t4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ color: isUser ? T.t3 : T.t4, fontWeight: isUser ? 500 : 400 }}>
+              {isUser ? "Ви: " : "AI: "}
+            </span>
+            {cut(last.content, 80)}
+          </div>
         ) : (
-          <ChevronRight size={14} className="text-[var(--astro-border-strong)]" />
+          <div style={{ fontSize: 11.5, color: T.t4, fontStyle: "italic" }}>Порожня сесія</div>
         )}
       </div>
-    </div>
-  );
-}
 
-function StatsBar({
-  total,
-  totalMessages,
-}: {
-  total: number;
-  totalMessages: number;
-}) {
-  if (total === 0) return null;
-
-  return (
-    <div className="mb-4 flex items-center gap-6 rounded-lg border border-[var(--astro-border-dim)] bg-[var(--astro-bg-surface)] px-4 py-2.5">
-      <div className="flex items-center gap-2">
-        <div className="h-1 w-1 rounded-full bg-[var(--astro-red)]" />
-        <span className="text-[10px] text-[var(--astro-text-muted)]">
-          Сесій:{" "}
-          <span className="text-[var(--astro-text-secondary)]">{total}</span>
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="h-1 w-1 rounded-full bg-[var(--astro-text-muted)]" />
-        <span className="text-[10px] text-[var(--astro-text-muted)]">
-          Повідомлень:{" "}
-          <span className="text-[var(--astro-text-secondary)]">
-            {totalMessages}
+      {/* Meta */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
+          <Clock size={10} />
+          {ago(last?.createdAt ?? session.createdAt)}
+        </div>
+        {count > 0 && (
+          <span style={{
+            fontSize: 10, padding: "1px 6px", borderRadius: 4,
+            background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)",
+            color: T.t4,
+          }}>
+            {count}
           </span>
-        </span>
+        )}
+        <button
+          className="del-btn"
+          onClick={onDelete}
+          style={{
+            opacity: 0, padding: 4, borderRadius: 6, border: "none",
+            background: "none", cursor: "pointer", lineHeight: 0,
+            transition: "opacity 140ms ease, color 140ms ease",
+            color: T.t4,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
-  );
+  )
 }
 
-function SearchInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="relative mb-3">
-      <Search
-        size={13}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--astro-text-muted)]"
-      />
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", padding: "80px 24px", textAlign: "center",
+      width: "100%",
+    }}>
+      {/* Icon */}
+      <div style={{
+        width: 72, height: 72, borderRadius: 20, marginBottom: 20,
+        background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 0 32px rgba(232,0,42,0.07)",
+      }}>
+        <MessageSquare size={28} style={{ color: T.red, opacity: 0.7 }} />
+      </div>
 
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Пошук сесій..."
-        className="w-full rounded-lg border border-[var(--astro-border-dim)] bg-[var(--astro-bg-surface)] py-2 pl-9 pr-3 text-sm text-[var(--astro-text-primary)] outline-none focus:border-[var(--astro-red)]"
-      />
+      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
+        Чатів ще немає
+      </div>
+      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
+        Оберіть агента і почніть розмову. Всі сесії зберігаються автоматично.
+      </div>
 
-      {value && (
-        <button
-          onClick={() => onChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--astro-text-muted)]"
-        >
-          ✕
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AgentFilter({
-  agents,
-  selected,
-  onSelect,
-}: {
-  agents: Agent[];
-  selected: string | null;
-  onSelect: (id: string | null) => void;
-}) {
-  if (agents.length === 0) return null;
-
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
       <button
-        onClick={() => onSelect(null)}
-        className="rounded-full px-3 py-1 text-xs font-medium transition-all"
+        onClick={onNew}
         style={{
-          backgroundColor:
-            selected === null ? "rgba(232,0,42,0.1)" : "#0E0E14",
-          border:
-            selected === null
-              ? "0.5px solid rgba(232,0,42,0.3)"
-              : "0.5px solid #1A1A24",
-          color: selected === null ? "#E8002A" : "#444455",
+          display: "flex", alignItems: "center", gap: 7,
+          background: T.red, color: "#fff", border: "none",
+          borderRadius: 10, padding: "10px 22px",
+          fontSize: 13, fontWeight: 500, cursor: "pointer",
+          transition: "background 130ms ease",
         }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
       >
-        Всі
+        <Plus size={14} /> Новий чат
       </button>
 
-      {agents.map((agent) => (
-        <button
-          key={agent.id}
-          onClick={() => onSelect(selected === agent.id ? null : agent.id)}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all"
-          style={{
-            backgroundColor:
-              selected === agent.id ? "rgba(232,0,42,0.1)" : "#0E0E14",
-            border:
-              selected === agent.id
-                ? "0.5px solid rgba(232,0,42,0.3)"
-                : "0.5px solid #1A1A24",
-            color: selected === agent.id ? "#E8002A" : "#444455",
-          }}
-        >
-          <div
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: agent.avatarColor }}
-          />
-          {agent.name}
-        </button>
-      ))}
+      <div style={{ marginTop: 18, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.10em" }}>
+        Chat Layer · AI Conversations
+      </div>
     </div>
-  );
+  )
 }
 
 export default function ChatPage() {
-  const router = useRouter();
-
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [search, setSearch] = useState("");
-  const [agentFilter, setAgentFilter] = useState<string | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
-
-  function refresh() {
-    setSessions(chatStore.getAll());
-    setAgents(agentStore.getAll());
-    setProviders(providerStore.getAll());
-  }
+  const router = useRouter()
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [agents,   setAgents]   = useState<Agent[]>([])
+  const [search,   setSearch]   = useState("")
+  const [pulse,    setPulse]    = useState(false)
 
   useEffect(() => {
-    refresh();
-  }, []);
+    const id = setInterval(() => setPulse(p => !p), 2000)
+    return () => clearInterval(id)
+  }, [])
 
-  const filtered = useMemo(() => {
-    let result = sessions;
+  function load() {
+    const all = chatStore.getAll()
+    const sorted = [...all].sort((a, b) => {
+      const ta = new Date(a.updatedAt ?? a.createdAt).getTime()
+      const tb = new Date(b.updatedAt ?? b.createdAt).getTime()
+      return tb - ta
+    })
+    setSessions(sorted)
+    setAgents(agentStore.getAll())
+  }
 
-    if (agentFilter) {
-      result = result.filter((session) => session.agentId === agentFilter);
+  useEffect(() => { load() }, [])
+
+  function getAgent(agentId: string) {
+    return agents.find(a => a.id === agentId)
+  }
+
+  function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation()
+    if (window.confirm("Видалити цю сесію?")) {
+      chatStore.remove(id)
+      load()
     }
+  }
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-
-      result = result.filter((session) => {
-        const titleMatch = session.title.toLowerCase().includes(q);
-
-        const messageMatch = session.messages.some((message) =>
-          message.content.toLowerCase().includes(q)
-        );
-
-        const agent = agents.find((a) => a.id === session.agentId);
-        const agentMatch = agent?.name.toLowerCase().includes(q) ?? false;
-
-        return titleMatch || messageMatch || agentMatch;
-      });
+  function handleNewChat() {
+    const agentList = agentStore.getAll()
+    if (agentList.length === 0) {
+      router.push("/agents")
+      return
     }
-
-    return result;
-  }, [sessions, search, agentFilter, agents]);
-
-  const agentsWithSessions = useMemo(() => {
-    const ids = new Set(sessions.map((session) => session.agentId));
-    return agents.filter((agent) => ids.has(agent.id));
-  }, [sessions, agents]);
-
-  const totalMessages = useMemo(
-    () => sessions.reduce((sum, session) => sum + session.messages.length, 0),
-    [sessions]
-  );
-
-  function getAgent(agentId: string): Agent | undefined {
-    return agents.find((agent) => agent.id === agentId);
+    const agent = agentList[0]
+    const session = chatStore.create(agent.id, "Новий чат")
+    router.push(`/chat/${session.id}`)
   }
 
-  function getProvider(agent: Agent | undefined): Provider | undefined {
-    if (!agent) return undefined;
-    return providers.find((provider) => provider.id === agent.providerId);
-  }
+  const filtered = sessions.filter(s =>
+    !search || s.title.toLowerCase().includes(search.toLowerCase())
+  )
 
-  function handleDelete(id: string) {
-    chatStore.remove(id);
-    refresh();
-  }
-
-  function handleOpen(sessionId: string) {
-    router.push(`/chat/${sessionId}`);
-  }
+  const groups = groupByDate(filtered)
 
   return (
-    <div className="p-8 max-w-3xl">
-      <PageHeader
-        title="Чат"
-        description="Всі ваші розмови з AI агентами"
-        action={
-          <AstroButton
-            variant="secondary"
-            onClick={() => router.push("/agents")}
-          >
-            <Plus size={13} />
-            Новий агент
-          </AstroButton>
+    <>
+      <style>{`
+        @keyframes scanline {
+          0%   { transform: translateX(-100%); opacity: 0; }
+          10%  { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { transform: translateX(200%); opacity: 0; }
         }
-      />
+      `}</style>
 
-      {sessions.length === 0 ? (
-        <EmptyState
-          icon={MessageSquare}
-          title="Сесій ще немає"
-          description="Перейдіть на сторінку Агентів і натисніть «Розпочати чат», щоб почати першу розмову"
-          action={
-            <AstroButton onClick={() => router.push("/agents")}>
-              <Bot size={13} />
-              До агентів
-            </AstroButton>
-          }
-        />
-      ) : (
-        <>
-          <StatsBar total={sessions.length} totalMessages={totalMessages} />
+      <div style={{
+        marginLeft: SIDEBAR_W,
+        minHeight: "100vh",
+        background: T.bg,
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
+        backgroundSize: "24px 24px",
+      }}>
 
-          <SearchInput value={search} onChange={setSearch} />
+        {/* scan line */}
+        <div aria-hidden style={{
+          position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
+          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
+          animation: "scanline 6s linear infinite",
+          pointerEvents: "none", zIndex: 10,
+        }} />
 
-          <AgentFilter
-            agents={agentsWithSessions}
-            selected={agentFilter}
-            onSelect={setAgentFilter}
-          />
+        {/* ── Hero ─────────────────────────────────────────── */}
+        <div style={{
+          position: "relative",
+          padding: "36px 48px 28px",
+          borderBottom: `0.5px solid ${T.b1}`,
+          overflow: "hidden",
+        }}>
+          <div aria-hidden style={{
+            position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none",
+            background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)",
+          }} />
+          <div aria-hidden style={{
+            position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none",
+            background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)",
+          }} />
 
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--astro-border-dim)] py-12 text-center">
-              <p className="text-sm text-[var(--astro-text-muted)]">
-                Нічого не знайдено
+          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              {/* badge */}
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
+                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+              }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: "50%", background: T.red,
+                  display: "inline-block",
+                  transition: "box-shadow 900ms ease, opacity 900ms ease",
+                  opacity: pulse ? 1 : 0.3,
+                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
+                }} />
+                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  Chat Layer · {sessions.length} сесій
+                </span>
+              </div>
+
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+                Чати
+              </h1>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
+                AI Conversations · всі розмови з агентами в одному місці
               </p>
+            </div>
 
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {agents.length === 0 && (
+                <div onClick={() => router.push("/agents")} style={{
+                  display: "flex", alignItems: "center", gap: 7, cursor: "pointer",
+                  padding: "7px 12px", borderRadius: 9, fontSize: 12,
+                  background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.2)",
+                  color: "#FF4D6A",
+                }}>
+                  <Bot size={12} /> Спочатку створіть агента
+                </div>
+              )}
               <button
-                onClick={() => {
-                  setSearch("");
-                  setAgentFilter(null);
+                onClick={handleNewChat}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  background: T.red, color: "#fff", border: "none",
+                  borderRadius: 9, padding: "9px 18px",
+                  fontSize: 13, fontWeight: 500, cursor: "pointer",
+                  transition: "background 130ms ease",
                 }}
-                className="mt-3 text-xs text-[var(--astro-red)]"
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                Очистити фільтри
+                <Plus size={14} /> Новий чат
               </button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {(search || agentFilter) && (
-                <p className="mb-1 px-1 text-[10px] text-[var(--astro-text-muted)]">
-                  Знайдено: {filtered.length} з {sessions.length}
-                </p>
+          </div>
+        </div>
+
+        {/* ── Body ─────────────────────────────────────────── */}
+        {sessions.length === 0 ? (
+          <EmptyState onNew={handleNewChat} />
+        ) : (
+        <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
+              {/* Search bar */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10,
+                background: T.s1, border: `0.5px solid ${T.b1}`,
+                borderRadius: 11, padding: "0 14px",
+                marginBottom: 24, height: 42,
+              }}>
+                <Search size={15} style={{ color: T.t4, flexShrink: 0 }} />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Пошук по чатах..."
+                  style={{
+                    flex: 1, background: "none", border: "none", outline: "none",
+                    fontSize: 13, color: T.t1,
+                  }}
+                />
+                {search && (
+                  <button onClick={() => setSearch("")} style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: T.t4, lineHeight: 0, padding: 2,
+                  }}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Stats row */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
+                {[
+                  { label: "Всього сесій",   value: sessions.length,                                      icon: MessageSquare },
+                  { label: "Агентів",          value: agents.length,                                        icon: Bot           },
+                  { label: "Повідомлень",      value: sessions.reduce((s, c) => s + c.messages.length, 0),  icon: Zap           },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} style={{
+                    display: "flex", alignItems: "center", gap: 9,
+                    padding: "8px 14px", borderRadius: 9,
+                    background: T.s1, border: `0.5px solid ${T.b1}`,
+                  }}>
+                    <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
+                    <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                    <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Groups */}
+              {filtered.length === 0 ? (
+                <div style={{ padding: "48px 0", textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: T.t4 }}>Нічого не знайдено за "{search}"</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+                  {groups.map(({ label, items }) => (
+                    <div key={label}>
+                      {/* Group label */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        marginBottom: 4,
+                      }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, color: T.t4,
+                          textTransform: "uppercase", letterSpacing: "0.10em",
+                        }}>
+                          {label}
+                        </span>
+                        <div style={{ flex: 1, height: "0.5px", background: "rgba(255,255,255,0.06)" }} />
+                      </div>
+
+                      {/* Session cards */}
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {items.map(session => (
+                          <SessionCard
+                            key={session.id}
+                            session={session}
+                            agent={getAgent(session.agentId)}
+                            onOpen={() => router.push(`/chat/${session.id}`)}
+                            onDelete={e => handleDelete(e, session.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-
-              {filtered.map((session) => {
-                const agent = getAgent(session.agentId);
-                const provider = getProvider(agent);
-
-                return (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    agent={agent}
-                    provider={provider}
-                    onClick={() => handleOpen(session.id)}
-                    onDelete={() => handleDelete(session.id)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+        </div>
+        )}
+      </div>
+    </>
+  )
 }
