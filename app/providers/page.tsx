@@ -81,7 +81,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [apiKey,  setApiKey]  = useState("")
   const [model,   setModel]   = useState(PRESETS[0].models[0])
   const [name,    setName]    = useState("")
-  const [baseUrl, setBaseUrl] = useState("")
   const [showKey, setShowKey] = useState(false)
   const [error,   setError]   = useState("")
 
@@ -95,13 +94,11 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
   function handleAdd() {
     if (!apiKey.trim()) { setError("Введіть API ключ"); return }
-    if (slug === "custom" && !baseUrl.trim()) { setError("Введіть URL для Custom провайдера"); return }
     providerStore.add({
       slug,
       name: name.trim() || preset.name,
       apiKey: apiKey.trim(),
       model,
-      baseUrl: slug === "custom" ? baseUrl.trim() : undefined,
       isActive: true,
     })
     onAdded()
@@ -220,21 +217,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               </button>
             </div>
           </div>
-
-          {/* Base URL for custom */}
-          {slug === "custom" && (
-            <div>
-              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-                Base URL *
-              </label>
-              <input value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
-                placeholder="https://api.example.com/v1"
-                style={inp}
-                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
-              />
-            </div>
-          )}
 
           {/* Security note */}
           <div style={{
@@ -381,17 +363,6 @@ function ProviderCard({ provider, onDelete, onToggle }: {
                 {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
               </button>
             </div>
-
-            {/* Base URL for custom */}
-            {provider.slug === "custom" && provider.baseUrl && (
-              <div style={{
-                padding: "8px 12px", borderRadius: 8,
-                background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-              }}>
-                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>Base URL</div>
-                <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", wordBreak: "break-all" }}>{provider.baseUrl}</div>
-              </div>
-            )}
 
             {/* Actions */}
             <div style={{ display: "flex", gap: 8 }}>

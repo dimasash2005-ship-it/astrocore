@@ -82,7 +82,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   function handleAdd() {
     if (!title.trim())   { setError("Введіть назву"); return }
     if (!content.trim()) { setError("Введіть вміст"); return }
-    galleryStore.add({ title: title.trim(), content: content.trim(), type })
+    galleryStore.add({ title: title.trim(), content: content.trim(), type, tags: [] })
     onAdded()
     onClose()
   }

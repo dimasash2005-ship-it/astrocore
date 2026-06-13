@@ -84,7 +84,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   function handleAdd() {
     if (!title.trim())   { setError("Введіть назву запису"); return }
     if (!content.trim()) { setError("Введіть вміст запису"); return }
-    vaultStore.add({ title: title.trim(), content: content.trim(), tags })
+    vaultStore.add({ title: title.trim(), content: content.trim(), tags, source: "" })
     onAdded()
     onClose()
   }
@@ -582,7 +582,6 @@ export default function VaultPage() {
                         fontSize: 11, padding: "5px 11px", borderRadius: 7, border: "none", cursor: "pointer",
                         background: activeTag === t ? "rgba(232,0,42,0.18)" : "rgba(255,255,255,0.05)",
                         color: activeTag === t ? T.t1 : T.t3,
-                        border: activeTag === t ? "0.5px solid rgba(232,0,42,0.30)" : "0.5px solid transparent",
                         transition: "background 130ms ease",
                       }}>
                       #{t}
