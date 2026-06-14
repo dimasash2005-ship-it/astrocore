@@ -11,29 +11,27 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/";
 
-  const [email, setEmail] = useState("");
+  const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
 
   async function login() {
     if (!email.trim() || !password.trim()) {
       setError("Заповніть email і пароль");
       return;
     }
-
     setLoading(true);
     setError("");
 
-    const supabase = getSupabase();
-
-    const { error } = await supabase.auth.signInWithPassword({
+    const sb = getSupabase();
+    const { error: authError } = await sb.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
-    if (error) {
+    if (authError) {
       setError("Невірний email або пароль");
       setLoading(false);
       return;
@@ -44,82 +42,132 @@ function LoginForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--astro-bg-base)] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--astro-red)] text-white font-semibold">
+    <div style={{
+      minHeight: "100vh", background: "#08080F",
+      backgroundImage: "radial-gradient(rgba(255,255,255,0.035) 1px,transparent 1px)",
+      backgroundSize: "24px 24px",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <div style={{
+        width: "100%", maxWidth: 400,
+        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
+        border: "1px solid rgba(232,0,42,0.20)",
+        borderRadius: 18,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.8)",
+        padding: "36px 32px 30px",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div aria-hidden style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 160, pointerEvents: "none",
+          background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.08) 0%,transparent 100%)",
+        }} />
+
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 15, margin: "0 auto 14px",
+            background: "linear-gradient(145deg,#C0001A 0%,#720010 100%)",
+            boxShadow: "0 0 0 1.5px rgba(232,0,42,0.40), 0 0 24px rgba(232,0,42,0.30)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 22, fontWeight: 800, color: "#fff",
+          }}>
             A
           </div>
-
-          <h1 className="mt-4 text-xl font-medium text-[var(--astro-text-primary)]">
-            AstroCore
-          </h1>
-
-          <p className="mt-1 text-xs text-[var(--astro-text-muted)]">
-            AI Agent Workspace
-          </p>
-        </div>
-
-        <div className="astro-surface rounded-xl p-6">
-          <p className="mb-5 text-sm font-medium text-[var(--astro-text-primary)]">
-            Увійти в акаунт
-          </p>
-
-          <div className="grid gap-4">
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="rounded-xl bg-[var(--astro-bg-base)] border border-[var(--astro-border-base)] px-4 py-3 text-sm outline-none"
-            />
-
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Пароль"
-                className="w-full rounded-xl bg-[var(--astro-bg-base)] border border-[var(--astro-border-base)] px-4 py-3 pr-12 text-sm outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") login();
-                }}
-              />
-
-              <button
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--astro-text-muted)]"
-              >
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 p-3 text-sm text-red-400">
-                <AlertCircle size={14} />
-                {error}
-              </div>
-            )}
-
-            <button
-              onClick={login}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 rounded-xl bg-[var(--astro-red)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {loading && <Loader2 size={14} className="animate-spin" />}
-              {loading ? "Входимо..." : "Увійти"}
-            </button>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#F0EDF8", letterSpacing: "-0.03em" }}>
+            Astro<span style={{ color: "#E8002A" }}>Core</span>
+          </div>
+          <div style={{ fontSize: 11, color: "#585878", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+            AI Workspace
           </div>
         </div>
 
-        <p className="mt-4 text-center text-xs text-[var(--astro-text-muted)]">
-          Немає акаунту?{" "}
-          <Link href="/register" className="text-[var(--astro-red)]">
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#F0EDF8", marginBottom: 4 }}>Вхід в акаунт</div>
+          <div style={{ fontSize: 12, color: "#585878" }}>Operator Authentication Layer</div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Email"
+            autoComplete="email"
+            style={{
+              background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
+              borderRadius: 10, padding: "11px 14px", fontSize: 14,
+              color: "#F0EDF8", outline: "none", width: "100%",
+            }}
+            onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+            onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+          />
+
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Пароль"
+              autoComplete="current-password"
+              onKeyDown={e => { if (e.key === "Enter") login() }}
+              style={{
+                background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
+                borderRadius: 10, padding: "11px 44px 11px 14px", fontSize: 14,
+                color: "#F0EDF8", outline: "none", width: "100%",
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+              onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              style={{
+                position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                background: "none", border: "none", cursor: "pointer", color: "#585878", lineHeight: 0,
+              }}
+            >
+              {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+
+          {error && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              fontSize: 12.5, color: "#FF4D6A", padding: "8px 12px", borderRadius: 8,
+              background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)",
+            }}>
+              <AlertCircle size={13} /> {error}
+            </div>
+          )}
+
+          <button
+            onClick={login}
+            disabled={loading}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "12px", borderRadius: 11, fontSize: 14, fontWeight: 600,
+              background: loading ? "rgba(232,0,42,0.3)" : "#E8002A",
+              border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
+              boxShadow: loading ? "none" : "0 0 20px rgba(232,0,42,0.30)",
+              marginTop: 4,
+            }}
+            onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+            onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#E8002A" }}
+          >
+            {loading && <Loader2 size={14} style={{ animation: "aspin 0.8s linear infinite" }} />}
+            {loading ? "Входимо..." : "Увійти"}
+          </button>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 20, fontSize: 12.5, color: "#585878" }}>
+          Немає акаунта?{" "}
+          <Link href="/register" style={{ color: "#E8002A", textDecoration: "none", fontWeight: 500 }}>
             Зареєструватись
           </Link>
-        </p>
+        </div>
       </div>
-    </main>
-  );
+    </div>
+  )
 }
 
 export default function LoginPage() {

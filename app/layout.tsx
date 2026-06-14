@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,8 +34,7 @@ export default function RootLayout({
           color: "#E4E0F4",
         }}
       >
-        <Sidebar />
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
