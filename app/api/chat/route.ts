@@ -1,285 +1,248 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server"
 
-type ChatMessage = {
-  role: "user" | "assistant" | "system";
-  content: string;
-};
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { messages, systemPrompt, provider } = body
 
-type ProviderPayload = {
-  slug: "openai" | "anthropic" | "google" | "custom";
-  apiKey: string;
-  model: string;
-  webhookUrl?: string;
-  authHeader?: string;
-  customHeaders?: string;
-};
+    if (!provider?.slug || !provider?.apiKey) {
+      return NextResponse.json(
+        { error: "Провайдер не вказано або відсутній API ключ." },
+        { status: 400 }
+      )
+    }
 
-type RequestBody = {
-  provider?: ProviderPayload;
-  messages?: ChatMessage[];
-  systemPrompt?: string;
-  memory?: string;
+    const { slug, apiKey, model } = provider
+    const finalModel = model || getDefaultModel(slug)
+    const finalSystemPrompt = systemPrompt || ""
 
-  apiKey?: string;
-  model?: string;
-  providerSlug?: ProviderPayload["slug"];
-};
+    let content: string
 
-function buildSystemPrompt(systemPrompt?: string, memory?: string) {
-  return `
-Ти AI агент всередині AstroCore.
+    switch (slug) {
+      case "anthropic":
+        content = await callAnthropic(apiKey, finalModel, messages, finalSystemPrompt)
+        break
+      case "openai":
+        content = await callOpenAI(apiKey, finalModel, messages, finalSystemPrompt)
+        break
+      case "google":
+        content = await callGoogle(apiKey, finalModel, messages, finalSystemPrompt)
+        break
+      case "custom":
+        content = await callCustom(provider, messages, finalSystemPrompt)
+        break
+      default:
+        return NextResponse.json({ error: `Невідомий провайдер: ${slug}` }, { status: 400 })
+    }
 
-Відповідай українською, чітко і корисно.
-
-Інструкції агента:
-${systemPrompt || "Немає окремих інструкцій."}
-
-Памʼять AstroCore:
-${memory || "Памʼять поки порожня."}
-
-Використовуй памʼять тільки коли вона релевантна до запиту.
-`.trim();
-}
-
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  messages: ChatMessage[],
-  finalSystemPrompt: string
-) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model || "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: finalSystemPrompt,
-        },
-        ...messages,
-      ],
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || "OpenAI request failed");
+    return NextResponse.json({ content })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[API/chat] error:", msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
-
-  return data.choices?.[0]?.message?.content || "Немає відповіді";
 }
+
+// ─── Default models ───────────────────────────────────────────────
+
+function getDefaultModel(slug: string): string {
+  switch (slug) {
+    case "anthropic": return "claude-sonnet-4-5"
+    case "openai":    return "gpt-4o"
+    case "google":    return "gemini-2.0-flash"
+    default:          return "gpt-4o"
+  }
+}
+
+// ─── Anthropic ────────────────────────────────────────────────────
 
 async function callAnthropic(
   apiKey: string,
   model: string,
-  messages: ChatMessage[],
-  finalSystemPrompt: string
-) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: model || "claude-sonnet-4-5",
-      max_tokens: 2048,
-      system: finalSystemPrompt,
-      messages: messages
-        .filter((message) => message.role !== "system")
-        .map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
-    }),
-  });
+  messages: { role: string; content: string }[],
+  systemPrompt: string
+): Promise<string> {
+  // Filter out any system messages — Anthropic takes system separately
+  const filtered = messages.filter(m => m.role === "user" || m.role === "assistant")
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Anthropic request failed");
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: 4096,
+    messages: filtered,
   }
 
-  return data.content?.[0]?.text || "Немає відповіді";
+  if (systemPrompt) {
+    body.system = systemPrompt
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type":         "application/json",
+      "x-api-key":            apiKey,
+      "anthropic-version":    "2023-06-01",
+    },
+    body: JSON.stringify(body),
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    const errMsg = data?.error?.message ?? JSON.stringify(data)
+    throw new Error(`Anthropic error ${res.status}: ${errMsg}`)
+  }
+
+  // Robust parsing: collect all text blocks
+  if (Array.isArray(data.content)) {
+    const textBlocks = data.content
+      .filter((block: { type: string; text?: string }) => block.type === "text" && block.text)
+      .map((block: { type: string; text?: string }) => block.text as string)
+
+    if (textBlocks.length > 0) {
+      return textBlocks.join("\n")
+    }
+
+    // No text blocks found — throw with raw preview
+    throw new Error(
+      `Anthropic returned no text blocks. Raw: ${JSON.stringify(data).slice(0, 300)}`
+    )
+  }
+
+  throw new Error(
+    `Unexpected Anthropic response format. Raw: ${JSON.stringify(data).slice(0, 300)}`
+  )
 }
+
+// ─── OpenAI ───────────────────────────────────────────────────────
+
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  messages: { role: string; content: string }[],
+  systemPrompt: string
+): Promise<string> {
+  const msgs: { role: string; content: string }[] = []
+
+  if (systemPrompt) {
+    msgs.push({ role: "system", content: systemPrompt })
+  }
+
+  for (const m of messages) {
+    if (m.role === "user" || m.role === "assistant") {
+      msgs.push(m)
+    }
+  }
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, messages: msgs, max_tokens: 4096 }),
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    const errMsg = data?.error?.message ?? JSON.stringify(data)
+    throw new Error(`OpenAI error ${res.status}: ${errMsg}`)
+  }
+
+  const text = data.choices?.[0]?.message?.content
+  if (!text) {
+    throw new Error(`OpenAI returned no content. Raw: ${JSON.stringify(data).slice(0, 300)}`)
+  }
+  return text
+}
+
+// ─── Google Gemini ────────────────────────────────────────────────
 
 async function callGoogle(
   apiKey: string,
   model: string,
-  messages: ChatMessage[],
-  finalSystemPrompt: string
-) {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${
-    model || "gemini-1.5-flash"
-  }:generateContent?key=${apiKey}`;
+  messages: { role: string; content: string }[],
+  systemPrompt: string
+): Promise<string> {
+  const contents = messages
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }))
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: finalSystemPrompt }],
-      },
-      contents: messages
-        .filter((message) => message.role !== "system")
-        .map((message) => ({
-          role: message.role === "assistant" ? "model" : "user",
-          parts: [{ text: message.content }],
-        })),
-    }),
-  });
+  const body: Record<string, unknown> = { contents }
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || "Google Gemini request failed");
+  if (systemPrompt) {
+    body.systemInstruction = { parts: [{ text: systemPrompt }] }
   }
 
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Немає відповіді";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+
+  const data = await res.json()
+
+  if (!res.ok) {
+    const errMsg = data?.error?.message ?? JSON.stringify(data)
+    throw new Error(`Google error ${res.status}: ${errMsg}`)
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!text) {
+    throw new Error(`Google returned no content. Raw: ${JSON.stringify(data).slice(0, 300)}`)
+  }
+  return text
 }
 
-async function callCustomWebhook(
-  provider: ProviderPayload,
-  messages: ChatMessage[],
-  finalSystemPrompt: string,
-  memory?: string
-) {
-  if (!provider.webhookUrl) {
-    throw new Error("Webhook URL не вказано для Custom Agent");
-  }
+// ─── Custom / webhook ─────────────────────────────────────────────
+
+async function callCustom(
+  provider: { apiKey: string; model: string; webhookUrl?: string; authHeader?: string; customHeaders?: Record<string, string> },
+  messages: { role: string; content: string }[],
+  systemPrompt: string
+): Promise<string> {
+  const endpoint = provider.webhookUrl || "https://api.openai.com/v1/chat/completions"
+
+  const msgs: { role: string; content: string }[] = []
+  if (systemPrompt) msgs.push({ role: "system", content: systemPrompt })
+  msgs.push(...messages.filter(m => m.role === "user" || m.role === "assistant"))
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-AstroCore-Version": "1.0",
-    "X-AstroCore-Timestamp": Date.now().toString(),
-  };
-
-  if (provider.apiKey) {
-    const headerName = provider.authHeader || "Authorization";
-    headers[headerName] =
-      headerName === "Authorization" ? `Bearer ${provider.apiKey}` : provider.apiKey;
+    ...(provider.customHeaders ?? {}),
   }
 
-  if (provider.customHeaders) {
-    try {
-      const extraHeaders = JSON.parse(provider.customHeaders) as Record<
-        string,
-        string
-      >;
-
-      Object.assign(headers, extraHeaders);
-    } catch {
-      // ignore invalid custom headers
-    }
+  if (provider.authHeader) {
+    headers["Authorization"] = provider.authHeader
+  } else {
+    headers["Authorization"] = `Bearer ${provider.apiKey}`
   }
 
-  const lastUserMessage =
-    messages.filter((message) => message.role === "user").at(-1)?.content || "";
-
-  const response = await fetch(provider.webhookUrl, {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      message: lastUserMessage,
-      messages,
-      systemPrompt: finalSystemPrompt,
-      memory: memory || "",
-      model: provider.model || "default",
-      source: "astrocore",
+      model: provider.model,
+      messages: msgs,
+      max_tokens: 4096,
     }),
-    signal: AbortSignal.timeout(30000),
-  });
+  })
 
-  const text = await response.text();
+  const data = await res.json()
 
-  if (!response.ok) {
-    throw new Error(
-      `OpenClaw відповів помилкою ${response.status}${
-        text ? `: ${text.slice(0, 200)}` : ""
-      }`
-    );
+  if (!res.ok) {
+    const errMsg = data?.error?.message ?? JSON.stringify(data)
+    throw new Error(`Custom provider error ${res.status}: ${errMsg}`)
   }
 
-  try {
-    const data = JSON.parse(text);
-
-    if (typeof data === "string") return data;
-    if (data.reply) return data.reply;
-    if (data.message) return data.message;
-    if (data.response) return data.response;
-    if (data.content) return data.content;
-
-    throw new Error(
-      `Невідомий формат відповіді OpenClaw: ${JSON.stringify(data).slice(
-        0,
-        200
-      )}`
-    );
-  } catch {
-    return text;
+  const text = data.choices?.[0]?.message?.content
+  if (!text) {
+    throw new Error(`Custom provider returned no content. Raw: ${JSON.stringify(data).slice(0, 300)}`)
   }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = (await req.json()) as RequestBody;
-
-    const provider: ProviderPayload =
-      body.provider ||
-      ({
-        slug: body.providerSlug || "openai",
-        apiKey: body.apiKey || "",
-        model: body.model || "gpt-4o-mini",
-      } as ProviderPayload);
-
-    const messages = body.messages || [];
-    const finalSystemPrompt = buildSystemPrompt(body.systemPrompt, body.memory);
-
-    if (!provider.slug) {
-      return NextResponse.json({ error: "Не вказано провайдера" }, { status: 400 });
-    }
-
-    if (!messages.length) {
-      return NextResponse.json({ error: "Повідомлення відсутні" }, { status: 400 });
-    }
-
-    let reply = "";
-
-    if (provider.slug === "openai") {
-      reply = await callOpenAI(provider.apiKey, provider.model, messages, finalSystemPrompt);
-    }
-
-    if (provider.slug === "anthropic") {
-      reply = await callAnthropic(
-        provider.apiKey,
-        provider.model,
-        messages,
-        finalSystemPrompt
-      );
-    }
-
-    if (provider.slug === "google") {
-      reply = await callGoogle(provider.apiKey, provider.model, messages, finalSystemPrompt);
-    }
-
-    if (provider.slug === "custom") {
-      reply = await callCustomWebhook(provider, messages, finalSystemPrompt, body.memory);
-    }
-
-    return NextResponse.json({ reply });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Server error";
-
-    console.error("[AstroCore API]", message);
-
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return text
 }
