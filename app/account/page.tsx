@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import {
   User, Shield, LogOut, Key, Mail,
   Edit3, Check, X, Eye, EyeOff,
-  Activity, Clock, ChevronRight, AlertCircle,
+  Activity, ChevronRight, AlertCircle,
 } from "lucide-react"
+import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
@@ -211,48 +212,27 @@ export default function AccountPage() {
   const [savedName,    setSavedName]    = useState(false)
   const [user,         setUser]         = useState<{ email: string; id: string } | null>(null)
   const [loading,      setLoading]      = useState(true)
-  const [supabase,     setSupabase]     = useState<any>(null)
 
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 2000)
     return () => clearInterval(id)
   }, [])
 
-  // Load profile from localStorage
+  // Load user from Supabase
   useEffect(() => {
-    const saved = localStorage.getItem("astrocore_profile")
-    if (saved) {
+    async function load() {
       try {
-        const p = JSON.parse(saved)
-        setDisplayName(p.name ?? "")
-        setEmail(p.email ?? "")
-      } catch {}
-    }
-  }, [])
-
-  // Try to load Supabase if available
-  useEffect(() => {
-    async function trySupabase() {
-      try {
-        const { createClient } = await import("@supabase/supabase-js")
-        const url  = process.env.NEXT_PUBLIC_SUPABASE_URL
-        const key  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        if (!url || !key) { setLoading(false); return }
-        const sb = createClient(url, key)
-        setSupabase(sb)
+        const sb = getSupabase()
         const { data: { user: u } } = await sb.auth.getUser()
         if (u) {
           setUser({ email: u.email ?? "", id: u.id })
           setEmail(u.email ?? "")
-          if (!displayName) setDisplayName(u.user_metadata?.full_name ?? "")
+          setDisplayName(u.user_metadata?.full_name ?? "")
         }
-      } catch {
-        // Supabase not configured — use localStorage only
-      } finally {
-        setLoading(false)
-      }
+      } catch {}
+      finally { setLoading(false) }
     }
-    trySupabase()
+    load()
   }, [])
 
   function saveName(name: string) {
@@ -270,16 +250,27 @@ export default function AccountPage() {
   }
 
   async function handleLogout() {
-    if (supabase) {
-      try { await supabase.auth.signOut() } catch {}
-    }
-    localStorage.removeItem("astrocore_profile")
+    try {
+      const sb = getSupabase()
+      await sb.auth.signOut()
+    } catch {}
+
+    // Clear all local app data
+    const keys = [
+      "astro:providers", "astro:agents", "astro:chats",
+      "astro:vault", "astro:gallery", "astrocore_profile",
+    ]
+    keys.forEach(k => localStorage.removeItem(k))
+
     router.push("/login")
+    router.refresh()
   }
 
   async function handlePasswordChange(newPassword: string) {
-    if (!supabase) return
-    try { await supabase.auth.updateUser({ password: newPassword }) } catch {}
+    try {
+      const sb = getSupabase()
+      await sb.auth.updateUser({ password: newPassword })
+    } catch {}
   }
 
   const initials = displayName
@@ -487,7 +478,7 @@ export default function AccountPage() {
 
               {/* ── Security ── */}
               <Card title="Безпека" icon={Shield}>
-                {supabase ? (
+                {user ? (
                   <EditableField
                     label="Пароль"
                     value=""
