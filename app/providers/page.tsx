@@ -5,7 +5,8 @@ import {
   Key, Plus, Trash2, Eye, EyeOff, Check,
   Zap, Activity, Shield, ChevronDown, ChevronUp, X,
 } from "lucide-react"
-import { providerStore, type Provider, type ProviderSlug } from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
+import { type ProviderSlug } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
@@ -21,6 +22,22 @@ const T = {
   t4:   "#585878",
   red:  "#E8002A",
   green:"#22C55E",
+}
+
+// ─── Local Provider type (from Supabase rows) ─────────────────────
+
+type Provider = {
+  id:             string
+  user_id:        string
+  name:           string
+  slug:           ProviderSlug
+  api_key:        string
+  model:          string
+  is_active:      boolean
+  created_at:     string
+  webhook_url?:   string | null
+  auth_header?:   string | null
+  custom_headers?: Record<string, string> | null
 }
 
 // ─── Provider presets ─────────────────────────────────────────────
@@ -83,6 +100,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [name,    setName]    = useState("")
   const [showKey, setShowKey] = useState(false)
   const [error,   setError]   = useState("")
+  const [loading, setLoading] = useState(false)
 
   const preset = PRESETS.find(p => p.slug === slug)!
 
@@ -92,15 +110,24 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
     setError("")
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!apiKey.trim()) { setError("Введіть API ключ"); return }
-    providerStore.add({
+    setLoading(true)
+    setError("")
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+
+    const { error: dbErr } = await sb.from("providers").insert({
+      user_id:   user.id,
       slug,
-      name: name.trim() || preset.name,
-      apiKey: apiKey.trim(),
+      name:      name.trim() || preset.name,
+      api_key:   apiKey.trim(),
       model,
-      isActive: true,
+      is_active: true,
     })
+
+    if (dbErr) { setError(dbErr.message); setLoading(false); return }
     onAdded()
     onClose()
   }
@@ -120,7 +147,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
         padding: "24px 24px 20px",
         maxHeight: "92vh", overflowY: "auto",
       }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
@@ -139,7 +165,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Provider selector */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
               Провайдер
@@ -151,7 +176,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
                   padding: "9px 12px", borderRadius: 9, border: "none", cursor: "pointer",
                   background: slug === p.slug ? `${p.color}18` : "rgba(255,255,255,0.03)",
                   outline: slug === p.slug ? `1px solid ${p.color}44` : "1px solid rgba(255,255,255,0.07)",
-                  transition: "background 130ms ease",
                   textAlign: "left",
                 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
@@ -164,7 +188,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <div style={{ fontSize: 11, color: T.t4, marginTop: 7 }}>{preset.desc}</div>
           </div>
 
-          {/* Custom name */}
           {slug === "custom" && (
             <div>
               <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
@@ -179,7 +202,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             </div>
           )}
 
-          {/* Model */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
               Модель
@@ -194,7 +216,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             </select>
           </div>
 
-          {/* API Key */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
               API Ключ *
@@ -218,7 +239,6 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             </div>
           </div>
 
-          {/* Security note */}
           <div style={{
             display: "flex", alignItems: "flex-start", gap: 8,
             padding: "9px 12px", borderRadius: 8,
@@ -226,7 +246,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           }}>
             <Shield size={12} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
             <span style={{ fontSize: 11, color: T.t4, lineHeight: 1.5 }}>
-              Ключі зберігаються локально у вашому браузері (localStorage) і ніколи не передаються на сервер.
+              Ключі зберігаються у захищеній базі даних Supabase і прив'язані до вашого акаунта.
             </span>
           </div>
 
@@ -244,13 +264,14 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
             >Скасувати</button>
-            <button onClick={handleAdd} style={{
+            <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
-              background: T.red, border: "none", color: "#fff", cursor: "pointer",
+              background: loading ? "rgba(232,0,42,0.3)" : T.red,
+              border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >Підключити</button>
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
+            >{loading ? "Зберігаємо..." : "Підключити"}</button>
           </div>
         </div>
       </div>
@@ -265,8 +286,8 @@ function ProviderCard({ provider, onDelete, onToggle }: {
   onDelete: () => void
   onToggle: () => void
 }) {
-  const [showKey,   setShowKey]   = useState(false)
-  const [expanded,  setExpanded]  = useState(false)
+  const [showKey,  setShowKey]  = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const preset = PRESETS.find(p => p.slug === provider.slug)
   const color  = preset?.color ?? T.t4
 
@@ -279,29 +300,26 @@ function ProviderCard({ provider, onDelete, onToggle }: {
   return (
     <div style={{
       background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-      border: `0.5px solid ${provider.isActive ? `${color}33` : T.b1}`,
+      border: `0.5px solid ${provider.is_active ? `${color}33` : T.b1}`,
       borderRadius: 14, overflow: "hidden",
       transition: "border-color 200ms ease",
       position: "relative",
     }}>
-      {/* color accent top bar */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, height: 2,
-        background: provider.isActive
+        background: provider.is_active
           ? `linear-gradient(90deg,transparent,${color},transparent)`
           : "transparent",
         transition: "background 300ms ease",
       }} />
 
       <div style={{ padding: "16px 18px" }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-            {/* status dot */}
             <div style={{
               width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
-              background: provider.isActive ? T.green : "#2E2E4A",
-              boxShadow: provider.isActive ? `0 0 8px ${T.green}80` : "none",
+              background: provider.is_active ? T.green : "#2E2E4A",
+              boxShadow: provider.is_active ? `0 0 8px ${T.green}80` : "none",
               transition: "background 200ms ease, box-shadow 200ms ease",
             }} />
             <div>
@@ -311,18 +329,14 @@ function ProviderCard({ provider, onDelete, onToggle }: {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* active badge */}
             <span style={{
               fontSize: 10, padding: "2px 8px", borderRadius: 5, fontWeight: 500,
-              background: provider.isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
-              color: provider.isActive ? T.green : T.t4,
-              border: `0.5px solid ${provider.isActive ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}`,
-              transition: "all 200ms ease",
+              background: provider.is_active ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+              color: provider.is_active ? T.green : T.t4,
+              border: `0.5px solid ${provider.is_active ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}`,
             }}>
-              {provider.isActive ? "Активний" : "Вимкнено"}
+              {provider.is_active ? "Активний" : "Вимкнено"}
             </span>
-
-            {/* expand toggle */}
             <button onClick={() => setExpanded(v => !v)} style={{
               padding: 5, borderRadius: 6, border: "none",
               background: "rgba(255,255,255,0.05)", cursor: "pointer", lineHeight: 0, color: T.t4,
@@ -335,13 +349,8 @@ function ProviderCard({ provider, onDelete, onToggle }: {
           </div>
         </div>
 
-        {/* Expanded details */}
         {expanded && (
-          <div style={{
-            borderTop: `0.5px solid ${T.b1}`, paddingTop: 12,
-            display: "flex", flexDirection: "column", gap: 10,
-          }}>
-            {/* API Key row */}
+          <div style={{ borderTop: `0.5px solid ${T.b1}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "8px 12px", borderRadius: 8,
@@ -350,7 +359,7 @@ function ProviderCard({ provider, onDelete, onToggle }: {
               <div>
                 <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>API Ключ</div>
                 <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", letterSpacing: "0.05em" }}>
-                  {showKey ? provider.apiKey : maskKey(provider.apiKey)}
+                  {showKey ? provider.api_key : maskKey(provider.api_key)}
                 </div>
               </div>
               <button onClick={() => setShowKey(v => !v)} style={{
@@ -364,20 +373,15 @@ function ProviderCard({ provider, onDelete, onToggle }: {
               </button>
             </div>
 
-            {/* Actions */}
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={onToggle} style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
-                background: provider.isActive ? "rgba(255,255,255,0.05)" : "rgba(34,197,94,0.10)",
-                border: `0.5px solid ${provider.isActive ? "rgba(255,255,255,0.09)" : "rgba(34,197,94,0.25)"}`,
-                color: provider.isActive ? T.t2 : T.green,
-                transition: "all 150ms ease",
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
-              >
-                {provider.isActive ? "Вимкнути" : <><Check size={12} /> Увімкнути</>}
+                background: provider.is_active ? "rgba(255,255,255,0.05)" : "rgba(34,197,94,0.10)",
+                border: `0.5px solid ${provider.is_active ? "rgba(255,255,255,0.09)" : "rgba(34,197,94,0.25)"}`,
+                color: provider.is_active ? T.t2 : T.green,
+              }}>
+                {provider.is_active ? "Вимкнути" : <><Check size={12} /> Увімкнути</>}
               </button>
               <button onClick={() => { if (window.confirm(`Видалити провайдера "${provider.name}"?`)) onDelete() }}
                 style={{
@@ -410,8 +414,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "80px 24px", textAlign: "center",
-      width: "100%",
+      justifyContent: "center", padding: "80px 24px", textAlign: "center", width: "100%",
     }}>
       <div style={{
         width: 72, height: 72, borderRadius: 20, marginBottom: 20,
@@ -461,22 +464,32 @@ export default function ProvidersPage() {
     return () => clearInterval(id)
   }, [])
 
-  function load() { setProviders(providerStore.getAll()) }
+  async function load() {
+    const sb = getSupabase()
+    const { data } = await sb
+      .from("providers")
+      .select("*")
+      .order("created_at", { ascending: true })
+    if (data) setProviders(data as Provider[])
+  }
+
   useEffect(() => { load() }, [])
 
-  function handleDelete(id: string) {
-    providerStore.remove(id)
+  async function handleDelete(id: string) {
+    const sb = getSupabase()
+    await sb.from("providers").delete().eq("id", id)
     load()
   }
 
-  function handleToggle(id: string) {
+  async function handleToggle(id: string) {
     const p = providers.find(x => x.id === id)
     if (!p) return
-    providerStore.update(id, { isActive: !p.isActive })
+    const sb = getSupabase()
+    await sb.from("providers").update({ is_active: !p.is_active }).eq("id", id)
     load()
   }
 
-  const active = providers.filter(p => p.isActive)
+  const active = providers.filter(p => p.is_active)
 
   return (
     <>
@@ -496,8 +509,6 @@ export default function ProvidersPage() {
         backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
         backgroundSize: "24px 24px",
       }}>
-
-        {/* scan line */}
         <div aria-hidden style={{
           position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
           background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
@@ -505,12 +516,10 @@ export default function ProvidersPage() {
           pointerEvents: "none", zIndex: 10,
         }} />
 
-        {/* ── Hero ── */}
+        {/* Hero */}
         <div style={{
-          position: "relative",
-          padding: "36px 48px 28px",
-          borderBottom: `0.5px solid ${T.b1}`,
-          overflow: "hidden",
+          position: "relative", padding: "36px 48px 28px",
+          borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
           <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
@@ -524,8 +533,7 @@ export default function ProvidersPage() {
                 borderRadius: 20, padding: "3px 10px", marginBottom: 14,
               }}>
                 <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.red,
-                  display: "inline-block",
+                  width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
                   opacity: pulse ? 1 : 0.3,
                   transition: "opacity 900ms ease, box-shadow 900ms ease",
                   boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
@@ -534,9 +542,7 @@ export default function ProvidersPage() {
                   {active.length > 0 ? "Provider Gateway Active" : "No Active Providers"} · {providers.length} підключено
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                Провайдери
-              </h1>
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Провайдери</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
                 API Control Layer · Model Gateway · підключіть AI моделі до агентів
               </p>
@@ -550,8 +556,7 @@ export default function ProvidersPage() {
                   background: "rgba(34,197,94,0.07)", border: "0.5px solid rgba(34,197,94,0.18)",
                   color: T.green,
                 }}>
-                  <Activity size={12} />
-                  {active.length} активних
+                  <Activity size={12} /> {active.length} активних
                 </div>
               )}
               <button onClick={() => setShowModal(true)} style={{
@@ -559,7 +564,6 @@ export default function ProvidersPage() {
                 background: T.red, color: "#fff", border: "none",
                 borderRadius: 9, padding: "9px 18px",
                 fontSize: 13, fontWeight: 500, cursor: "pointer",
-                transition: "background 130ms ease",
               }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
@@ -570,13 +574,11 @@ export default function ProvidersPage() {
           </div>
         </div>
 
-        {/* ── Body ── */}
+        {/* Body */}
         {providers.length === 0 ? (
           <EmptyState onAdd={() => setShowModal(true)} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
-
-            {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
                 { label: "Всього провайдерів", value: providers.length, icon: Key      },
@@ -595,7 +597,6 @@ export default function ProvidersPage() {
               ))}
             </div>
 
-            {/* Security note */}
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 10,
               padding: "11px 14px", borderRadius: 10, marginBottom: 20,
@@ -603,16 +604,11 @@ export default function ProvidersPage() {
             }}>
               <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
-                API ключі зберігаються виключно у вашому браузері (localStorage) і ніколи не передаються на зовнішні сервери. Доступ до ключів мають тільки запити які ви ініціюєте.
+                API ключі зберігаються у захищеній базі даних Supabase і прив'язані до вашого акаунта. Дані синхронізуються між пристроями.
               </span>
             </div>
 
-            {/* Provider grid */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-              gap: 14,
-            }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
               {providers.map(p => (
                 <ProviderCard
                   key={p.id}
@@ -623,15 +619,12 @@ export default function ProvidersPage() {
               ))}
             </div>
 
-            {/* Add another */}
             <div onClick={() => setShowModal(true)} style={{
-              marginTop: 14,
-              borderRadius: 14, padding: "18px",
+              marginTop: 14, borderRadius: 14, padding: "18px",
               border: "0.5px dashed rgba(232,0,42,0.22)",
               background: "rgba(232,0,42,0.03)",
               cursor: "pointer", display: "flex",
               alignItems: "center", justifyContent: "center", gap: 8,
-              transition: "background 150ms ease, border-color 150ms ease",
             }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)"
