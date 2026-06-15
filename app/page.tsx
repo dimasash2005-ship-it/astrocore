@@ -533,12 +533,12 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
                   {[
-                    { icon: Bot,           label: "Новий агент",    href: "/agents"    },
-                    { icon: MessageSquare, label: "Новий чат",      href: "/chat"      },
-                    { icon: BookOpen,      label: "Сховище",        href: "/vault"     },
-                    { icon: Brain,         label: "Пам'ять",        href: "/memory"    },
-                    { icon: Key,           label: "Провайдери",     href: "/providers" },
-                  ].map(({ icon: Icon, label, href }) => (
+                    { icon: Bot,           label: "Новий агент",    href: "/agents",    color: "#E8002A" },
+                    { icon: MessageSquare, label: "Новий чат",      href: "/chat",      color: "#22C55E" },
+                    { icon: BookOpen,      label: "Сховище",        href: "/vault",     color: "#F59E0B" },
+                    { icon: Brain,         label: "Пам'ять",        href: "/memory",    color: "#8B5CF6" },
+                    { icon: Key,           label: "Провайдери",     href: "/providers", color: "#4285F4" },
+                  ].map(({ icon: Icon, label, href, color }) => (
                     <button key={href}
                       onClick={() => router.push(href)}
                       style={{
@@ -551,7 +551,7 @@ export default function DashboardPage() {
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)" }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
                     >
-                      <Icon size={14} style={{ color: T.red, opacity: 0.7, flexShrink: 0 }} />
+                      <Icon size={14} style={{ color: color, opacity: 0.85, flexShrink: 0 }} />
                       {label}
                     </button>
                   ))}
