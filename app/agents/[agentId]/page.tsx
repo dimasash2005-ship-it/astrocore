@@ -7,18 +7,14 @@ import {
   Plus, Clock, Edit3, X, Check, AlertCircle,
   ChevronRight, Bot,
 } from "lucide-react"
-import {
-  agentStore, providerStore, chatStore,
-  type Agent, type Provider, type ChatSession,
-} from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
+import { chatStore, type ChatSession } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
   bg:   "#08080F",
   s1:   "#11111C",
-  s2:   "#16162A",
   b1:   "rgba(255,255,255,0.10)",
-  b2:   "rgba(255,255,255,0.16)",
   bRed: "rgba(232,0,42,0.30)",
   t1:   "#F0EDF8",
   t2:   "#C8C4D8",
@@ -33,6 +29,25 @@ const AVATAR_COLORS = [
   "#4285F4","#8B5CF6","#F59E0B",
   "#06B6D4","#EC4899",
 ]
+
+type Agent = {
+  id: string
+  user_id: string
+  name: string
+  description: string
+  provider_id: string | null
+  system_prompt: string
+  avatar_color: string
+  created_at: string
+}
+
+type Provider = {
+  id: string
+  name: string
+  slug: string
+  model: string
+  is_active: boolean
+}
 
 const inp: React.CSSProperties = {
   background: "#09090F",
@@ -97,9 +112,7 @@ function Divider() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-        {label}
-      </div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 13, color: T.t2 }}>{value || "—"}</div>
     </div>
   )
@@ -110,19 +123,27 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
 }) {
   const [name,         setName]         = useState(agent.name)
   const [description,  setDescription]  = useState(agent.description ?? "")
-  const [providerId,   setProviderId]   = useState(agent.providerId)
-  const [systemPrompt, setSystemPrompt] = useState(agent.systemPrompt ?? "")
-  const [avatarColor,  setAvatarColor]  = useState(agent.avatarColor ?? AVATAR_COLORS[0])
+  const [providerId,   setProviderId]   = useState(agent.provider_id ?? "")
+  const [systemPrompt, setSystemPrompt] = useState(agent.system_prompt ?? "")
+  const [avatarColor,  setAvatarColor]  = useState(agent.avatar_color ?? AVATAR_COLORS[0])
   const [saved,        setSaved]        = useState(false)
   const [error,        setError]        = useState("")
+  const [loading,      setLoading]      = useState(false)
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) { setError("Назва не може бути порожньою"); return }
-    agentStore.update(agent.id, {
-      name: name.trim(), description: description.trim(),
-      providerId, systemPrompt: systemPrompt.trim(), avatarColor,
-    })
+    setLoading(true)
     setError("")
+    const sb = getSupabase()
+    const { error: dbErr } = await sb.from("agents").update({
+      name:          name.trim(),
+      description:   description.trim(),
+      provider_id:   providerId || null,
+      system_prompt: systemPrompt.trim(),
+      avatar_color:  avatarColor,
+    }).eq("id", agent.id)
+
+    if (dbErr) { setError(dbErr.message); setLoading(false); return }
     setSaved(true)
     setTimeout(() => { setSaved(false); onSaved() }, 1200)
   }
@@ -137,21 +158,12 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
           {AVATAR_COLORS.map(c => (
             <button key={c} onClick={() => setAvatarColor(c)} style={{
               width: 28, height: 28, borderRadius: 8, background: c, border: "none", cursor: "pointer",
-              outline: avatarColor === c ? "2px solid #fff" : "2px solid transparent",
-              outlineOffset: 2,
+              outline: avatarColor === c ? "2px solid #fff" : "2px solid transparent", outlineOffset: 2,
             }} />
           ))}
         </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "8px 12px", borderRadius: 9,
-          background: "rgba(255,255,255,0.03)", border: "0.5px solid rgba(255,255,255,0.07)",
-        }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 9, background: avatarColor,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0,
-          }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 9, background: "rgba(255,255,255,0.03)", border: "0.5px solid rgba(255,255,255,0.07)" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: avatarColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
             {name ? name.charAt(0).toUpperCase() : "A"}
           </div>
           <span style={{ fontSize: 13, color: T.t2 }}>{name || "Назва агента"}</span>
@@ -159,32 +171,24 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-          Назва *
-        </label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Назва *</label>
         <input value={name} onChange={e => setName(e.target.value)} style={inp} onFocus={focusBorder} onBlur={blurBorder} />
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-          Опис
-        </label>
-        <input value={description} onChange={e => setDescription(e.target.value)}
-          placeholder="Коротко — що вміє цей агент"
-          style={inp} onFocus={focusBorder} onBlur={blurBorder} />
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Опис</label>
+        <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Коротко — що вміє цей агент" style={inp} onFocus={focusBorder} onBlur={blurBorder} />
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-          Провайдер
-        </label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Провайдер</label>
         {providers.length === 0 ? (
           <div style={{ padding: "9px 12px", borderRadius: 9, fontSize: 12, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.2)", color: "#FF4D6A" }}>
             Немає провайдерів. <a href="/providers" style={{ textDecoration: "underline", color: T.red }}>Додайте API ключ</a>
           </div>
         ) : (
-          <select value={providerId} onChange={e => setProviderId(e.target.value)}
-            style={{ ...inp, cursor: "pointer" }} onFocus={focusBorder} onBlur={blurBorder}>
+          <select value={providerId} onChange={e => setProviderId(e.target.value)} style={{ ...inp, cursor: "pointer" }} onFocus={focusBorder} onBlur={blurBorder}>
+            <option value="">— не вибрано —</option>
             {providers.map(p => (
               <option key={p.id} value={p.id} style={{ background: "#111118" }}>{p.name} — {p.model}</option>
             ))}
@@ -193,18 +197,12 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-          Системний промпт
-        </label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Системний промпт</label>
         <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
           placeholder="Ти — досвідчений AI агент. Відповідай чітко і по суті..."
-          rows={5}
-          style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
-          onFocus={focusBorder} onBlur={blurBorder}
-        />
-        <div style={{ fontSize: 11, color: T.t4, marginTop: 5 }}>
-          Визначає поведінку агента. Зміни застосовуються до нових сесій.
-        </div>
+          rows={5} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
+          onFocus={focusBorder} onBlur={blurBorder} />
+        <div style={{ fontSize: 11, color: T.t4, marginTop: 5 }}>Визначає поведінку агента. Зміни застосовуються до нових сесій.</div>
       </div>
 
       {error && (
@@ -212,7 +210,6 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
           <AlertCircle size={12} /> {error}
         </div>
       )}
-
       {saved && (
         <div style={{ fontSize: 12, color: T.green, padding: "7px 10px", borderRadius: 7, background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.22)", display: "flex", alignItems: "center", gap: 7 }}>
           <Check size={12} /> Зміни збережено
@@ -220,22 +217,19 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
       )}
 
       <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={onCancel} style={{
-          flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer",
-          background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2,
-        }}
+        <button onClick={onCancel} style={{ flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2 }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
         >Скасувати</button>
-        <button onClick={handleSave} style={{
-          flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer",
-          background: T.red, border: "none", color: "#fff",
+        <button onClick={handleSave} disabled={loading} style={{
+          flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: loading ? "not-allowed" : "pointer",
+          background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+          onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+          onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
         >
-          <Save size={13} /> Зберегти зміни
+          <Save size={13} /> {loading ? "Зберігаємо..." : "Зберегти зміни"}
         </button>
       </div>
     </div>
@@ -265,12 +259,7 @@ function SessionList({ sessions, onOpen, onDelete }: {
         return (
           <div key={session.id}
             onClick={() => onOpen(session.id)}
-            style={{
-              display: "flex", alignItems: "center", gap: 11,
-              padding: "10px 12px", borderRadius: 9, cursor: "pointer",
-              background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-              transition: "background 130ms ease",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 9, cursor: "pointer", background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", transition: "background 130ms ease" }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"
               const del = (e.currentTarget as HTMLElement).querySelector(".del-btn") as HTMLElement
@@ -284,12 +273,8 @@ function SessionList({ sessions, onOpen, onDelete }: {
           >
             <MessageSquare size={13} style={{ color: T.t4, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {session.title}
-              </div>
-              <div style={{ fontSize: 11, color: T.t4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
-                {preview}
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.title}</div>
+              <div style={{ fontSize: 11, color: T.t4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{preview}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: T.t4 }}>
@@ -348,8 +333,7 @@ function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () =
         <div style={{ fontSize: 12, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agentName}</div>
         <input value={inputValue} onChange={e => setInputValue(e.target.value)}
           placeholder="Введіть назву..." autoFocus
-          style={{ ...inp, borderColor: isMatch ? "rgba(34,197,94,0.4)" : "rgba(232,0,42,0.3)" }}
-        />
+          style={{ ...inp, borderColor: isMatch ? "rgba(34,197,94,0.4)" : "rgba(232,0,42,0.3)" }} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => { setConfirming(false); setInputValue("") }} style={{
@@ -389,12 +373,19 @@ export default function AgentDetailPage() {
     return () => clearInterval(id)
   }, [])
 
-  const loadData = useCallback(() => {
-    const found = agentStore.getById(agentId)
-    if (!found) { setNotFound(true); return }
-    setAgent(found)
-    setProvider(providerStore.getById(found.providerId))
-    setAllProviders(providerStore.getAll())
+  const loadData = useCallback(async () => {
+    const sb = getSupabase()
+    const [{ data: agentData }, { data: providersData }] = await Promise.all([
+      sb.from("agents").select("*").eq("id", agentId).single(),
+      sb.from("providers").select("id,name,slug,model,is_active"),
+    ])
+
+    if (!agentData) { setNotFound(true); return }
+    setAgent(agentData as Agent)
+    setAllProviders((providersData ?? []) as Provider[])
+    if (agentData.provider_id) {
+      setProvider((providersData ?? []).find((p: Provider) => p.id === agentData.provider_id))
+    }
     setSessions(chatStore.getAll().filter(s => s.agentId === agentId))
   }, [agentId])
 
@@ -408,7 +399,13 @@ export default function AgentDetailPage() {
 
   function handleSaved() { setIsEditing(false); loadData() }
   function handleDeleteSession(id: string) { chatStore.remove(id); loadData() }
-  function handleDeleteAgent() { if (!agent) return; agentStore.remove(agent.id); router.push("/agents") }
+
+  async function handleDeleteAgent() {
+    if (!agent) return
+    const sb = getSupabase()
+    await sb.from("agents").delete().eq("id", agent.id)
+    router.push("/agents")
+  }
 
   if (notFound) {
     return (
@@ -447,10 +444,7 @@ export default function AgentDetailPage() {
     <>
       <style>{`
         @keyframes scanline {
-          0%   { transform: translateX(-100%); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { transform: translateX(200%); opacity: 0; }
+          0%{transform:translateX(-100%);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(200%);opacity:0}
         }
       `}</style>
 
@@ -486,10 +480,10 @@ export default function AgentDetailPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <div style={{
                   width: 56, height: 56, borderRadius: 16, flexShrink: 0,
-                  background: agent.avatarColor ?? T.red,
+                  background: agent.avatar_color ?? T.red,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 22, fontWeight: 700, color: "#fff",
-                  boxShadow: `0 0 20px ${agent.avatarColor ?? T.red}40`,
+                  boxShadow: `0 0 20px ${agent.avatar_color ?? T.red}40`,
                 }}>
                   {agent.name.charAt(0).toUpperCase()}
                 </div>
@@ -509,9 +503,7 @@ export default function AgentDetailPage() {
                       AI Agent · Active
                     </span>
                   </div>
-                  <h1 style={{ fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                    {agent.name}
-                  </h1>
+                  <h1 style={{ fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{agent.name}</h1>
                   {agent.description && (
                     <p style={{ fontSize: 13, color: T.t3, margin: "4px 0 0" }}>{agent.description}</p>
                   )}
@@ -568,8 +560,8 @@ export default function AgentDetailPage() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 5, background: agent.avatarColor ?? T.red, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: T.t3 }}>{agent.avatarColor ?? "—"}</span>
+                    <div style={{ width: 20, height: 20, borderRadius: 5, background: agent.avatar_color ?? T.red, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: T.t3 }}>{agent.avatar_color ?? "—"}</span>
                   </div>
                   <Divider />
                   <InfoRow label="Назва" value={agent.name} />
@@ -577,18 +569,13 @@ export default function AgentDetailPage() {
                   <InfoRow label="Опис" value={agent.description || "—"} />
                   <Divider />
                   <InfoRow label="Провайдер" value={provider ? `${provider.name} — ${provider.model}` : "Провайдер не знайдено"} />
-                  {agent.systemPrompt && (
+                  {agent.system_prompt && (
                     <>
                       <Divider />
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Системний промпт</div>
-                        <div style={{
-                          fontSize: 12, color: T.t2, lineHeight: 1.65,
-                          padding: "10px 12px", borderRadius: 9,
-                          background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-                          whiteSpace: "pre-wrap", wordBreak: "break-word",
-                        }}>
-                          {agent.systemPrompt}
+                        <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.65, padding: "10px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {agent.system_prompt}
                         </div>
                       </div>
                     </>

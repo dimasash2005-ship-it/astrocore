@@ -1,13 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/";
 
@@ -37,8 +36,7 @@ function LoginForm() {
       return;
     }
 
-    router.push(nextPath);
-    router.refresh();
+    window.location.href = nextPath;
   }
 
   return (
@@ -62,7 +60,6 @@ function LoginForm() {
           background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.08) 0%,transparent 100%)",
         }} />
 
-        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{
             width: 52, height: 52, borderRadius: 15, margin: "0 auto 14px",

@@ -6,36 +6,17 @@ import {
   Edit3, Check, Save, Clock, Zap,
   Activity, ChevronDown, ChevronUp,
 } from "lucide-react"
-// ─── Local memory store (localStorage) ───────────────────────────
+import { getSupabase } from "@/lib/supabase/client"
+import { SIDEBAR_W } from "@/components/layout/Sidebar"
+
 type MemoryItem = {
   id: string
+  user_id: string
   title: string
   content: string
-  createdAt: string
-  updatedAt?: string
+  created_at: string
+  updated_at: string
 }
-
-const memoryStore = {
-  getAll(): MemoryItem[] {
-    if (typeof window === "undefined") return []
-    try { return JSON.parse(localStorage.getItem("astrocore_memory") ?? "[]") } catch { return [] }
-  },
-  add(data: Omit<MemoryItem, "id" | "createdAt">): MemoryItem {
-    const all = memoryStore.getAll()
-    const item: MemoryItem = { ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString() }
-    localStorage.setItem("astrocore_memory", JSON.stringify([item, ...all]))
-    return item
-  },
-  update(id: string, data: Partial<MemoryItem>) {
-    const all = memoryStore.getAll().map(i => i.id === id ? { ...i, ...data, updatedAt: new Date().toISOString() } : i)
-    localStorage.setItem("astrocore_memory", JSON.stringify(all))
-  },
-  remove(id: string) {
-    const all = memoryStore.getAll().filter(i => i.id !== id)
-    localStorage.setItem("astrocore_memory", JSON.stringify(all))
-  },
-}
-import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
   bg:   "#08080F",
@@ -98,10 +79,22 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [content, setContent] = useState("")
   const [error,   setError]   = useState("")
 
-  function handleAdd() {
+  const [loading, setLoading] = useState(false)
+
+  async function handleAdd() {
     if (!title.trim())   { setError("Введіть назву"); return }
     if (!content.trim()) { setError("Введіть вміст пам'яті"); return }
-    memoryStore.add({ title: title.trim(), content: content.trim() })
+    setLoading(true)
+    setError("")
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+    const { error: dbErr } = await sb.from("memory_items").insert({
+      user_id: user.id,
+      title:   title.trim(),
+      content: content.trim(),
+    })
+    if (dbErr) { setError(dbErr.message); setLoading(false); return }
     onAdded()
     onClose()
   }
@@ -176,13 +169,13 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
             >Скасувати</button>
-            <button onClick={handleAdd} style={{
+            <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
-              background: T.red, border: "none", color: "#fff", cursor: "pointer",
+              background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >Зберегти в пам'ять</button>
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
+            >{loading ? "Зберігаємо..." : "Зберегти в пам'ять"}</button>
           </div>
         </div>
       </div>
@@ -374,7 +367,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
                 <Clock size={10} />
-                {ago(item.updatedAt ?? item.createdAt)}
+                {ago(item.updated_at ?? item.created_at)}
               </div>
             </div>
           </>
@@ -443,16 +436,25 @@ export default function MemoryPage() {
     return () => clearInterval(id)
   }, [])
 
-  function load() { setItems(memoryStore.getAll()) }
+  async function load() {
+    const sb = getSupabase()
+    const { data } = await sb
+      .from("memory_items")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (data) setItems(data as MemoryItem[])
+  }
   useEffect(() => { load() }, [])
 
-  function handleDelete(id: string) {
-    memoryStore.remove(id)
+  async function handleDelete(id: string) {
+    const sb = getSupabase()
+    await sb.from("memory_items").delete().eq("id", id)
     load()
   }
 
-  function handleUpdate(id: string, title: string, content: string) {
-    memoryStore.update(id, { title, content })
+  async function handleUpdate(id: string, title: string, content: string) {
+    const sb = getSupabase()
+    await sb.from("memory_items").update({ title, content }).eq("id", id)
     load()
   }
 

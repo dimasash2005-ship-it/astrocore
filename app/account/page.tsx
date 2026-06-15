@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   User, Shield, LogOut, Key, Mail,
@@ -255,15 +255,13 @@ export default function AccountPage() {
       await sb.auth.signOut()
     } catch {}
 
-    // Clear all local app data
     const keys = [
       "astro:providers", "astro:agents", "astro:chats",
       "astro:vault", "astro:gallery", "astrocore_profile",
     ]
     keys.forEach(k => localStorage.removeItem(k))
 
-    router.push("/login")
-    router.refresh()
+    window.location.href = "/login"
   }
 
   async function handlePasswordChange(newPassword: string) {
@@ -520,8 +518,8 @@ export default function AccountPage() {
                   { label: "Агенти",      desc: "Керування AI агентами",            href: "/agents",   icon: User     },
                   { label: "Налаштування",desc: "Workspace та системні параметри",  href: "/settings", icon: Shield   },
                 ].map(({ label, desc, href, icon: Icon }, i) => (
-                  <>
-                    {i > 0 && <Divider key={`d-${href}`} />}
+                  <React.Fragment key={href}>
+                    {i > 0 && <Divider />}
                     <div key={href} onClick={() => router.push(href)} style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: "4px 0", cursor: "pointer", borderRadius: 8,
@@ -543,7 +541,7 @@ export default function AccountPage() {
                       </div>
                       <ChevronRight size={14} style={{ color: T.t4, flexShrink: 0 }} />
                     </div>
-                  </>
+                  </React.Fragment>
                 ))}
               </Card>
 

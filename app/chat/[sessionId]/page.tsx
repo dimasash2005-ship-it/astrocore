@@ -10,9 +10,9 @@ import {
   Mic, MicOff, Globe, Wrench,
 } from "lucide-react"
 import {
-  chatStore, agentStore, providerStore, vaultStore, galleryStore,
-  type ChatSession, type Agent, type Provider, type Message,
+  vaultStore, galleryStore,
 } from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
@@ -28,7 +28,49 @@ const T = {
   green: "#22C55E",
 }
 
-// ─── Speech Recognition types ─────────────────────────────────────
+// ─── Local types ─────────────────────────────────────────────────
+
+type Message = {
+  id: string
+  role: "user" | "assistant" | "system"
+  content: string
+  createdAt: string
+}
+
+type DBMessage = {
+  id: string
+  session_id: string
+  role: string
+  content: string
+  created_at: string
+}
+
+type Session = {
+  id: string
+  user_id: string
+  agent_id: string | null
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+type Agent = {
+  id: string
+  name: string
+  description: string
+  provider_id: string | null
+  system_prompt: string
+  avatar_color: string
+}
+
+type Provider = {
+  id: string
+  name: string
+  slug: string
+  api_key: string
+  model: string
+  is_active: boolean
+}
 
 type SpeechRecognitionConstructor = new () => {
   lang: string
@@ -311,7 +353,7 @@ export default function SessionPage() {
   const router    = useRouter()
   const sessionId = params.sessionId as string
 
-  const [session,     setSession]     = useState<ChatSession | null>(null)
+  const [session,     setSession]     = useState<Session | null>(null)
   const [agent,       setAgent]       = useState<Agent | undefined>()
   const [provider,    setProvider]    = useState<Provider | undefined>()
   const [messages,    setMessages]    = useState<Message[]>([])
@@ -341,15 +383,33 @@ export default function SessionPage() {
   const fileRef    = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
 
-  const loadSession = useCallback(() => {
-    const s = chatStore.getById(sessionId)
-    if (!s) { setNotFound(true); return }
-    setSession(s)
-    setMessages(s.messages)
-    if (s.agentId) {
-      const a = agentStore.getById(s.agentId)
-      setAgent(a)
-      if (a?.providerId) setProvider(providerStore.getById(a.providerId))
+  const loadSession = useCallback(async () => {
+    const sb = getSupabase()
+    const [{ data: sessionData }, { data: messagesData }] = await Promise.all([
+      sb.from("chat_sessions").select("*").eq("id", sessionId).single(),
+      sb.from("chat_messages").select("*").eq("session_id", sessionId).order("created_at", { ascending: true }),
+    ])
+
+    if (!sessionData) { setNotFound(true); return }
+    setSession(sessionData as Session)
+
+    const msgs: Message[] = (messagesData ?? []).map((m: DBMessage) => ({
+      id:        m.id,
+      role:      m.role as "user" | "assistant",
+      content:   m.content,
+      createdAt: m.created_at,
+    }))
+    setMessages(msgs)
+
+    if (sessionData.agent_id) {
+      const { data: agentData } = await sb.from("agents").select("*").eq("id", sessionData.agent_id).single()
+      if (agentData) {
+        setAgent(agentData as Agent)
+        if (agentData.provider_id) {
+          const { data: providerData } = await sb.from("providers").select("*").eq("id", agentData.provider_id).single()
+          if (providerData) setProvider(providerData as Provider)
+        }
+      }
     }
   }, [sessionId])
 
@@ -446,11 +506,8 @@ export default function SessionPage() {
     const hasAttachments = attachments.length > 0
     if ((!text && !hasAttachments) || loading || !session) return
 
-    // Build attachment text
     const attachmentLines = attachments.map(a => {
-      if (a.content !== undefined) {
-        return `Файл: ${a.name}\n${a.content}`
-      }
+      if (a.content !== undefined) return `Файл: ${a.name}\n${a.content}`
       return `Прикріплений файл: ${a.name}`
     })
 
@@ -458,50 +515,63 @@ export default function SessionPage() {
       ? "\n\n[Примітка: Користувач увімкнув Web mode, але реальний веб-пошук ще не підключений.]"
       : ""
 
-    const fullParts = [text, ...attachmentLines, webNote].filter(Boolean)
-    const fullText = fullParts.join("\n\n").trim()
+    const fullText = [text, ...attachmentLines, webNote].filter(Boolean).join("\n\n").trim()
+
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return
+
+    // Insert user message
+    const { data: userMsgData } = await sb.from("chat_messages").insert({
+      user_id:    user.id,
+      session_id: sessionId,
+      role:       "user",
+      content:    fullText,
+    }).select().single()
 
     const userMsg: Message = {
-      id: crypto.randomUUID(), role: "user",
-      content: fullText, createdAt: new Date().toISOString(),
+      id:        userMsgData?.id ?? crypto.randomUUID(),
+      role:      "user",
+      content:   fullText,
+      createdAt: userMsgData?.created_at ?? new Date().toISOString(),
     }
 
     const updatedWithUser = [...messages, userMsg]
     setMessages(updatedWithUser)
-    chatStore.addMessage(sessionId, userMsg)
     setInput("")
     setAttachments([])
     setLoading(true)
 
+    // Update title on first message
     if (messages.length === 0) {
-      chatStore.updateTitle(sessionId, (text || attachments[0]?.name || "Новий чат").slice(0, 60))
+      await sb.from("chat_sessions").update({
+        title:      (text || attachments[0]?.name || "Новий чат").slice(0, 60),
+        updated_at: new Date().toISOString(),
+      }).eq("id", sessionId)
     }
 
     try {
-      const currentAgent    = agent ?? (session.agentId ? agentStore.getById(session.agentId) : undefined)
-      const currentProvider = currentAgent?.providerId
-        ? providerStore.getById(currentAgent.providerId) : undefined
+      const currentAgent    = agent
+      const currentProvider = provider
 
       if (!currentProvider) {
-        const errMsg: Message = {
-          id: crypto.randomUUID(), role: "assistant",
-          content: "Провайдер для цього агента не знайдений. Перевірте API ключі у розділі Провайдери.",
-          createdAt: new Date().toISOString(),
-        }
-        setMessages(prev => [...prev, errMsg])
-        chatStore.addMessage(sessionId, errMsg)
+        const errContent = "Провайдер для цього агента не знайдений. Перевірте API ключі у розділі Провайдери."
+        const { data: errMsgData } = await sb.from("chat_messages").insert({
+          user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
+        }).select().single()
+        setMessages(prev => [...prev, { id: errMsgData?.id ?? crypto.randomUUID(), role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
         setLoading(false)
         return
       }
 
-      const memoryRaw    = localStorage.getItem("astrocore_memory")
-      const memoryItems  = memoryRaw ? JSON.parse(memoryRaw) : []
+      const memoryRaw     = localStorage.getItem("astrocore_memory")
+      const memoryItems   = memoryRaw ? JSON.parse(memoryRaw) : []
       const memoryContext = memoryItems.length > 0
         ? memoryItems.map((m: { title: string; content: string }) => `[${m.title}]: ${m.content}`).join("\n\n")
         : null
 
       const systemPrompt = [
-        currentAgent?.systemPrompt || "",
+        currentAgent?.system_prompt || "",
         memoryContext ? `\n\n[Контекст workspace]:\n${memoryContext}` : "",
       ].filter(Boolean).join("")
 
@@ -511,26 +581,30 @@ export default function SessionPage() {
         body: JSON.stringify({
           messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
           systemPrompt,
-          provider: { slug: currentProvider.slug, apiKey: currentProvider.apiKey, model: currentProvider.model },
+          provider: { slug: currentProvider.slug, apiKey: currentProvider.api_key, model: currentProvider.model },
         }),
       })
 
-      const data = await res.json()
+      const data       = await res.json()
+      const replyContent = data.content ?? data.error ?? "Немає відповіді"
+
+      const { data: replyMsgData } = await sb.from("chat_messages").insert({
+        user_id: user.id, session_id: sessionId, role: "assistant", content: replyContent,
+      }).select().single()
+
+      await sb.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId)
+
       const reply: Message = {
-        id: crypto.randomUUID(), role: "assistant",
-        content: data.content ?? data.error ?? "Немає відповіді",
-        createdAt: new Date().toISOString(),
+        id:        replyMsgData?.id ?? crypto.randomUUID(),
+        role:      "assistant",
+        content:   replyContent,
+        createdAt: replyMsgData?.created_at ?? new Date().toISOString(),
       }
       setMessages(prev => [...prev, reply])
-      chatStore.addMessage(sessionId, reply)
     } catch {
-      const errMsg: Message = {
-        id: crypto.randomUUID(), role: "assistant",
-        content: "Помилка: не вдалося отримати відповідь. Перевірте API ключ у Провайдерах.",
-        createdAt: new Date().toISOString(),
-      }
-      setMessages(prev => [...prev, errMsg])
-      chatStore.addMessage(sessionId, errMsg)
+      const errContent = "Помилка: не вдалося отримати відповідь. Перевірте API ключ у Провайдерах."
+      await sb.from("chat_messages").insert({ user_id: user.id, session_id: sessionId, role: "assistant", content: errContent })
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: errContent, createdAt: new Date().toISOString() }])
     } finally {
       setLoading(false)
       inputRef.current?.focus()
@@ -612,7 +686,7 @@ export default function SessionPage() {
             <ArrowLeft size={15} />
           </button>
           {agent && (
-            <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: agent.avatarColor ?? T.red, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", boxShadow: `0 0 12px ${agent.avatarColor ?? T.red}40` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: agent.avatar_color ?? T.red, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", boxShadow: `0 0 12px ${agent.avatar_color ?? T.red}40` }}>
               {agent.name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -638,7 +712,7 @@ export default function SessionPage() {
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agent ? `Чат з ${agent.name}` : "Новий чат"}</div>
                 <div style={{ fontSize: 13.5, color: T.t3, lineHeight: 1.65, maxWidth: 380, marginBottom: 24 }}>
-                  {agent?.systemPrompt ? agent.systemPrompt.slice(0, 120) + (agent.systemPrompt.length > 120 ? "..." : "") : "Напишіть повідомлення щоб розпочати розмову з AI агентом."}
+                  {agent?.system_prompt ? agent.system_prompt.slice(0, 120) + (agent.system_prompt.length > 120 ? "..." : "") : "Напишіть повідомлення щоб розпочати розмову з AI агентом."}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                   {["Привіт! Хто ти?", "Що ти вмієш?", "Допоможи мені"].map(q => (
@@ -651,7 +725,7 @@ export default function SessionPage() {
                 <div style={{ marginTop: 24, fontSize: 10.5, color: "#2E2E4A", textTransform: "uppercase", letterSpacing: "0.10em" }}>Agent Conversation Layer · AI Command Chat</div>
               </div>
             )}
-            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatarColor} />)}
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} />)}
             {loading && <TypingDots />}
             <div ref={bottomRef} />
           </div>

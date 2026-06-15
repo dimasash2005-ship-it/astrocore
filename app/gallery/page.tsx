@@ -6,7 +6,17 @@ import {
   Code2, FileText, Layers, Clock, Copy, Check,
   Sparkles, Download,
 } from "lucide-react"
-import { galleryStore, type GalleryItem } from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
+
+type GalleryItem = {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  type: "text" | "code" | "image"
+  tags: string[]
+  created_at: string
+}
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
 const T = {
@@ -72,6 +82,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [type,    setType]    = useState<"text" | "code" | "image">("text")
 
   const [error,   setError]   = useState("")
+  const [loading, setLoading] = useState(false)
 
   const inp: React.CSSProperties = {
     background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
@@ -79,10 +90,24 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
     color: T.t1, outline: "none", width: "100%",
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!title.trim())   { setError("Введіть назву"); return }
     if (!content.trim()) { setError("Введіть вміст"); return }
-    galleryStore.add({ title: title.trim(), content: content.trim(), type, tags: [] })
+    setLoading(true)
+    setError("")
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+
+    const { error: dbErr } = await sb.from("gallery_items").insert({
+      user_id: user.id,
+      title:   title.trim(),
+      content: content.trim(),
+      type,
+      tags:    [],
+    })
+
+    if (dbErr) { setError(dbErr.message); setLoading(false); return }
     onAdded()
     onClose()
   }
@@ -176,13 +201,13 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
             >Скасувати</button>
-            <button onClick={handleAdd} style={{
+            <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
-              background: T.red, border: "none", color: "#fff", cursor: "pointer",
+              background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >Зберегти</button>
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
+            >{loading ? "Зберігаємо..." : "Зберегти"}</button>
           </div>
         </div>
       </div>
@@ -323,7 +348,7 @@ function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => vo
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
             <Clock size={10} />
-            {ago(item.createdAt)}
+            {ago(item.created_at)}
           </div>
         </div>
       </div>
@@ -384,11 +409,19 @@ export default function GalleryPage() {
     return () => clearInterval(id)
   }, [])
 
-  function load() { setItems(galleryStore.getAll()) }
+  async function load() {
+    const sb = getSupabase()
+    const { data } = await sb
+      .from("gallery_items")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (data) setItems(data as GalleryItem[])
+  }
   useEffect(() => { load() }, [])
 
-  function handleDelete(id: string) {
-    galleryStore.remove(id)
+  async function handleDelete(id: string) {
+    const sb = getSupabase()
+    await sb.from("gallery_items").delete().eq("id", id)
     load()
   }
 

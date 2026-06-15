@@ -5,8 +5,18 @@ import {
   BookOpen, Plus, Search, Trash2, X,
   Tag, Clock, Database, FileText, Zap, Copy, Check,
 } from "lucide-react"
-import { vaultStore, type VaultItem } from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+
+type VaultItem = {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  tags: string[]
+  source: string
+  created_at: string
+}
 
 const T = {
   bg:   "#08080F",
@@ -81,10 +91,26 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
     setTags(prev => prev.filter(x => x !== t))
   }
 
-  function handleAdd() {
+  const [loading, setLoading] = useState(false)
+
+  async function handleAdd() {
     if (!title.trim())   { setError("Введіть назву запису"); return }
     if (!content.trim()) { setError("Введіть вміст запису"); return }
-    vaultStore.add({ title: title.trim(), content: content.trim(), tags, source: "" })
+    setLoading(true)
+    setError("")
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+
+    const { error: dbErr } = await sb.from("vault_items").insert({
+      user_id: user.id,
+      title:   title.trim(),
+      content: content.trim(),
+      tags:    tags,
+      source:  "manual",
+    })
+
+    if (dbErr) { setError(dbErr.message); setLoading(false); return }
     onAdded()
     onClose()
   }
@@ -201,14 +227,14 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             >
               Скасувати
             </button>
-            <button onClick={handleAdd} style={{
+            <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
-              background: T.red, border: "none", color: "#fff", cursor: "pointer",
+              background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              Зберегти запис
+              {loading ? "Зберігаємо..." : "Зберегти запис"}
             </button>
           </div>
         </div>
@@ -338,7 +364,7 @@ function VaultCard({ item, onDelete }: { item: VaultItem; onDelete: () => void }
         {/* Time */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4, flexShrink: 0 }}>
           <Clock size={10} />
-          {ago(item.createdAt)}
+          {ago(item.created_at)}
         </div>
       </div>
     </div>
@@ -399,11 +425,19 @@ export default function VaultPage() {
     return () => clearInterval(id)
   }, [])
 
-  function load() { setItems(vaultStore.getAll()) }
+  async function load() {
+    const sb = getSupabase()
+    const { data } = await sb
+      .from("vault_items")
+      .select("*")
+      .order("created_at", { ascending: false })
+    if (data) setItems(data as VaultItem[])
+  }
   useEffect(() => { load() }, [])
 
-  function handleDelete(id: string) {
-    vaultStore.remove(id)
+  async function handleDelete(id: string) {
+    const sb = getSupabase()
+    await sb.from("vault_items").delete().eq("id", id)
     load()
   }
 
@@ -579,9 +613,10 @@ export default function VaultPage() {
                     <button key={t}
                       onClick={() => setActiveTag(activeTag === t ? null : t)}
                       style={{
-                        fontSize: 11, padding: "5px 11px", borderRadius: 7, border: "none", cursor: "pointer",
+                        fontSize: 11, padding: "5px 11px", borderRadius: 7, cursor: "pointer",
                         background: activeTag === t ? "rgba(232,0,42,0.18)" : "rgba(255,255,255,0.05)",
                         color: activeTag === t ? T.t1 : T.t3,
+                        border: activeTag === t ? "0.5px solid rgba(232,0,42,0.30)" : "0.5px solid transparent",
                         transition: "background 130ms ease",
                       }}>
                       #{t}
