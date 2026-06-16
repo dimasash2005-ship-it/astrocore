@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus, Bot, Trash2, MessageSquare,
-  Settings, Zap, Activity,
+  Settings, Zap, Activity, Sparkles,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { chatStore } from "@/lib/store"
@@ -21,6 +21,7 @@ const T = {
   t1:    "#F0EDF8",
   t2:    "#C8C4D8",
   t3:    "#A8A4BC",
+  t4:    "#585878",
   red:   "#E8002A",
   green: "#22C55E",
 }
@@ -49,6 +50,178 @@ type Provider = {
   model: string
   is_active: boolean
 }
+
+// ─── Agent templates ──────────────────────────────────────────────
+
+type AgentTemplate = {
+  name: string
+  description: string
+  systemPrompt: string
+  avatarColor: string
+  category: string
+  skills: string[]
+}
+
+const TEMPLATES: AgentTemplate[] = [
+  {
+    name: "SEO Agent",
+    description: "Технічне SEO, семантика, кластеризація, аналіз конкурентів",
+    avatarColor: "#10A37F",
+    category: "SEO",
+    skills: ["Семантика", "Технічний SEO", "Кластеризація", "Мета-теги"],
+    systemPrompt: `Ти — експертний SEO-спеціаліст. Твоя спеціалізація: технічне SEO, семантичне ядро, кластеризація запитів, аналіз конкурентів і оптимізація контенту для пошукових систем.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах SEO. Якщо питання виходить за межі (наприклад, запит стосується SMM або продажів), чесно скажи: "Це питання краще поставити SMM-агенту / Sales-агенту."
+- Задавай уточнюючі питання перед відповіддю: ніша, регіон, платформа (Google / Bing / інші), поточний трафік і цілі.
+- Давай конкретні, actionable рекомендації — не загальні поради, а чіткі кроки з поясненням чому.
+- Надавай структуровані відповіді: заголовок, ключові пункти, приклади.
+- При роботі з семантикою — завжди розбивай за інтентом (інформаційний / комерційний / навігаційний).
+- При аналізі конкурентів — давай конкретні метрики для порівняння.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "SMM Agent",
+    description: "Контент для соцмереж, стратегія, аналітика та зростання аудиторії",
+    avatarColor: "#EC4899",
+    category: "SMM",
+    skills: ["Instagram", "TikTok", "Контент-план", "Сторітелінг"],
+    systemPrompt: `Ти — SMM-стратег і контент-менеджер. Твоя спеціалізація: стратегія соціальних мереж, контент-плани, копірайтинг для постів, Reels, Stories, аналіз охоплень і зростання аудиторії.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах SMM і соціальних мереж. Якщо запит стосується SEO — перенаправ до SEO-агента. Якщо стосується платного трафіку — до Media Buyer Agent.
+- Задавай уточнюючі питання: платформа (Instagram / TikTok / LinkedIn / YouTube), ніша, тон бренду, поточна аудиторія.
+- Давай конкретні ідеї для контенту з прикладами заголовків, хуків, структури посту.
+- При розробці контент-плану — завжди вказуй частоту публікацій, типи контенту і мету кожного типу.
+- Не давай загальних порад. Завжди конкретно і з прикладами.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Content Agent",
+    description: "Лонгріди, статті, email-розсилки, скрипти і рекламні тексти",
+    avatarColor: "#D97757",
+    category: "Content",
+    skills: ["Копірайтинг", "Статті", "Email", "Скрипти"],
+    systemPrompt: `Ти — професійний контент-маркетолог і копірайтер. Твоя спеціалізація: написання статей, лонгрідів, email-розсилок, рекламних текстів, скриптів і продаючих сторінок.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах контенту і текстів. SEO-оптимізацію залишай SEO-агенту. Візуальний контент — SMM-агенту.
+- Перед написанням завжди уточни: тип контенту, цільова аудиторія, тон (формальний / дружній / агресивний), мета матеріалу і ключові меседжі.
+- Давай реальний текстовий контент, а не "поради як написати". Якщо просять статтю — пиши статтю.
+- Структуруй відповіді: заголовок, підзаголовки, тіло тексту, CTA.
+- При email — завжди включай тему листа, прехедер, тіло, CTA.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Sales Agent",
+    description: "Скрипти продажів, обробка заперечень, воронки і CRM-стратегія",
+    avatarColor: "#E8002A",
+    category: "Sales",
+    skills: ["Скрипти", "Заперечення", "Воронки", "CRM"],
+    systemPrompt: `Ти — досвідчений спеціаліст з продажів. Твоя спеціалізація: скрипти продажів, обробка заперечень, побудова воронок продажів, CRM-стратегія і техніки закриття угод.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах продажів і роботи з клієнтами. Якщо питання стосується маркетингу або контенту — перенаправ до відповідного агента.
+- Задавай уточнюючі питання: продукт/послуга, цільова аудиторія, канал продажів (телефон / email / особисто / месенджери), середній чек.
+- Давай конкретні скрипти і фрази, а не теорію. Якщо просять обробити заперечення — давай конкретні відповіді на конкретні заперечення.
+- При роботі з воронками — вказуй конкретні етапи, конверсії і точки відпадання.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Affiliate Agent",
+    description: "Партнерський маркетинг, офери, арбітраж трафіку і монетизація",
+    avatarColor: "#F59E0B",
+    category: "Affiliate",
+    skills: ["CPA", "Офери", "Арбітраж", "Монетизація"],
+    systemPrompt: `Ти — спеціаліст з партнерського маркетингу і арбітражу трафіку. Твоя спеціалізація: вибір CPA-офферів, аналіз партнерських мереж, стратегії монетизації, налаштування воронок для affiliate-маркетингу.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах affiliate-маркетингу. Якщо питання стосується платного трафіку (FB Ads, Google Ads) — перенаправ до Media Buyer Agent.
+- Задавай уточнюючі питання: гео, вертикаль (нутра / фінанси / гемблінг / e-commerce / інше), бюджет, досвід.
+- Давай конкретні рекомендації по офферах, мережах і стратегіях — не загальні поради.
+- При виборі офферу — вказуй критерії відбору: EPC, CR, умови виплат, дозволені джерела трафіку.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Support Agent",
+    description: "Підтримка клієнтів, FAQ, обробка скарг і сценарії відповідей",
+    avatarColor: "#06B6D4",
+    category: "Support",
+    skills: ["FAQ", "Скарги", "Сценарії", "Онбординг"],
+    systemPrompt: `Ти — спеціаліст з клієнтської підтримки. Твоя спеціалізація: розробка сценаріїв підтримки, відповіді на FAQ, обробка скарг і конфліктних ситуацій, онбординг нових клієнтів.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах клієнтського сервісу. Питання про продажі — до Sales Agent. Питання про продукт — до Product Agent.
+- Задавай уточнюючі питання: тип бізнесу, канал підтримки (чат / email / телефон), типові запити клієнтів.
+- Давай конкретні шаблони відповідей і сценарії, а не загальні поради.
+- При обробці скарг — завжди давай алгоритм: визнання проблеми → вибачення → рішення → профілактика.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Analyst Agent",
+    description: "Аналіз даних, звіти, метрики, інсайти і бізнес-аналітика",
+    avatarColor: "#4285F4",
+    category: "Analyst",
+    skills: ["KPI", "Дашборди", "Звіти", "Інсайти"],
+    systemPrompt: `Ти — бізнес-аналітик і data analyst. Твоя спеціалізація: аналіз даних, побудова звітів, визначення ключових метрик, пошук інсайтів і рекомендацій на основі даних.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах аналітики і даних. Стратегічні питання — до Strategy Agent. Маркетингові — до відповідних агентів.
+- Задавай уточнюючі питання: які дані є, яка мета аналізу, які рішення потрібно прийняти на основі даних.
+- Давай структуровані відповіді: метрика → поточне значення → бенчмарк → інсайт → рекомендація.
+- Не інтерпретуй дані без вихідних даних. Якщо даних немає — поясни яких саме даних не вистачає.
+- Завжди вказуй обмеження аналізу і можливі похибки.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Media Buyer Agent",
+    description: "Facebook Ads, Google Ads, TikTok Ads, оптимізація і масштабування",
+    avatarColor: "#8B5CF6",
+    category: "SMM",
+    skills: ["FB Ads", "Google Ads", "TikTok Ads", "ROAS"],
+    systemPrompt: `Ти — спеціаліст з платного трафіку і медіа-байінгу. Твоя спеціалізація: налаштування і оптимізація рекламних кампаній в Facebook Ads, Google Ads, TikTok Ads, аналіз ROAS і масштабування успішних кампаній.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах платного трафіку. Органічний контент — до SMM Agent. Affiliate — до Affiliate Agent.
+- Задавай уточнюючі питання: платформа, бюджет, ціль кампанії (ліди / продажі / охоплення), поточні метрики.
+- Давай конкретні налаштування і стратегії: аудиторії, плейсменти, типи кампаній, бюджети.
+- При оптимізації — давай чіткі рішення: що вимкнути, що масштабувати і чому.
+- Завжди орієнтуйся на ROAS, CPA і LTV, а не на поверхневі метрики.
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Product Agent",
+    description: "Product management, roadmap, user stories і product strategy",
+    avatarColor: "#10A37F",
+    category: "Analyst",
+    skills: ["Roadmap", "User Stories", "Пріоритизація", "Jobs-to-be-done"],
+    systemPrompt: `Ти — досвідчений product manager. Твоя спеціалізація: розробка product strategy, roadmap, user stories, пріоритизація задач, product discovery і product-market fit.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах product management. Технічні питання — до розробників. Аналітика — до Analyst Agent.
+- Задавай уточнюючі питання: стадія продукту, цільова аудиторія, ключові метрики і поточні болі.
+- Давай структуровані відповіді у форматі: проблема → рішення → метрики успіху → ризики.
+- При пріоритизації — завжди використовуй фреймворки (RICE, ICE, MoSCoW) і пояснюй логіку.
+- User stories завжди у форматі: "Як [роль], я хочу [дія], щоб [результат]".
+Мова відповідей: українська.`,
+  },
+  {
+    name: "Strategy Agent",
+    description: "Бізнес-стратегія, ринковий аналіз, масштабування і конкурентні переваги",
+    avatarColor: "#D97757",
+    category: "Analyst",
+    skills: ["SWOT", "GTM", "Масштабування", "Конкуренти"],
+    systemPrompt: `Ти — стратегічний консультант і бізнес-аналітик. Твоя спеціалізація: розробка бізнес-стратегій, аналіз ринку, конкурентний аналіз, go-to-market стратегії і стратегії масштабування.
+
+ПРАВИЛА:
+- Відповідай виключно на питання в межах стратегії і бізнес-планування. Операційні питання — до відповідних спеціалістів.
+- Задавай уточнюючі питання: стадія бізнесу, ринок, поточні метрики, основні виклики і цілі.
+- Давай структуровані стратегічні рекомендації: ситуація → аналіз → варіанти → рекомендація → наступні кроки.
+- Використовуй фреймворки (SWOT, Porter's Five Forces, BCG Matrix) і пояснюй як їх застосувати до конкретної ситуації.
+- Будь конкретним — не давай загальних порад типу "потрібно покращити маркетинг".
+Мова відповідей: українська.`,
+  },
+]
 
 function RBtn({ icon: Icon, label, onClick, small }: {
   icon: React.ElementType; label: string; onClick: () => void; small?: boolean
@@ -89,18 +262,36 @@ function CreateAgentModal({ providers, onClose, onCreated }: {
   onClose: () => void
   onCreated: (id: string) => void
 }) {
-  const [name,       setName]      = useState("")
-  const [desc,       setDesc]      = useState("")
-  const [providerId, setProvider]  = useState(providers[0]?.id ?? "")
-  const [prompt,     setPrompt]    = useState("")
-  const [color,      setColor]     = useState(COLORS[0])
-  const [error,      setError]     = useState("")
-  const [loading,    setLoading]   = useState(false)
+  const [name,             setName]           = useState("")
+  const [desc,             setDesc]           = useState("")
+  const [providerId,       setProvider]       = useState(providers[0]?.id ?? "")
+  const [prompt,           setPrompt]         = useState("")
+  const [color,            setColor]          = useState(COLORS[0])
+  const [error,            setError]          = useState("")
+  const [loading,          setLoading]        = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [showTemplates,    setShowTemplates]  = useState(true)
+  const [activeCategory,   setActiveCategory] = useState("Всі")
+
+  const TABS = ["Всі", "Affiliate", "SEO", "SMM", "Sales", "Content", "Support", "Analyst"]
+
+  const visibleTemplates = activeCategory === "Всі"
+    ? TEMPLATES
+    : TEMPLATES.filter(t => t.category === activeCategory)
 
   const inp: React.CSSProperties = {
     background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
     borderRadius: 9, padding: "9px 12px", fontSize: 13,
     color: T.t1, outline: "none", width: "100%",
+  }
+
+  function applyTemplate(tpl: AgentTemplate) {
+    setName(tpl.name)
+    setDesc(tpl.description)
+    setPrompt(tpl.systemPrompt)
+    setColor(tpl.avatarColor)
+    setSelectedTemplate(tpl.name)
+    setShowTemplates(false)
   }
 
   async function handleCreate() {
@@ -129,14 +320,16 @@ function CreateAgentModal({ providers, onClose, onCreated }: {
   return (
     <Modal onClose={onClose}>
       <div style={{
-        width: "100%", maxWidth: 460, borderRadius: 16,
+        width: "100%", maxWidth: showTemplates ? 680 : 460, borderRadius: 16,
         background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
         border: "1px solid rgba(232,0,42,0.22)",
         boxShadow: "0 32px 80px rgba(0,0,0,0.8)",
         padding: "24px 24px 20px",
         maxHeight: "90vh", overflowY: "auto",
+        transition: "max-width 200ms ease",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
           <div style={{
             width: 32, height: 32, borderRadius: 9,
             background: "rgba(232,0,42,0.12)", border: "0.5px solid rgba(232,0,42,0.25)",
@@ -148,9 +341,128 @@ function CreateAgentModal({ providers, onClose, onCreated }: {
             <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий агент</div>
             <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI Agent Layer</div>
           </div>
+          {!showTemplates && (
+            <button onClick={() => setShowTemplates(true)} style={{
+              marginLeft: "auto", fontSize: 11.5, color: T.red, background: "none", border: "none",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 5, opacity: 0.8,
+            }}>
+              <Sparkles size={11} /> Шаблони
+            </button>
+          )}
         </div>
 
+        {/* Templates section */}
+        {showTemplates && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Sparkles size={13} style={{ color: T.red, opacity: 0.8 }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Шаблони агентів
+                </span>
+              </div>
+              <button onClick={() => setShowTemplates(false)} style={{
+                fontSize: 11, color: T.t4, background: "none", border: "none", cursor: "pointer",
+              }}>
+                Пропустити →
+              </button>
+            </div>
+
+            {/* Category tabs */}
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+              {TABS.map(tab => (
+                <button key={tab} onClick={() => setActiveCategory(tab)} style={{
+                  fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "none", cursor: "pointer",
+                  background: activeCategory === tab ? T.red : "rgba(255,255,255,0.05)",
+                  color: activeCategory === tab ? "#fff" : T.t3,
+                  fontWeight: activeCategory === tab ? 500 : 400,
+                  transition: "all 120ms ease",
+                }}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr",
+              gap: 8, maxHeight: 200, overflowY: "auto",
+            }}>
+              {visibleTemplates.map(tpl => {
+                const isSelected = selectedTemplate === tpl.name
+                return (
+                  <button key={tpl.name} onClick={() => applyTemplate(tpl)} style={{
+                    display: "flex", flexDirection: "column", gap: 8,
+                    padding: "11px 12px", borderRadius: 10, border: "none", cursor: "pointer", textAlign: "left",
+                    background: isSelected
+                      ? `${tpl.avatarColor}14`
+                      : "rgba(255,255,255,0.03)",
+                    outline: isSelected
+                      ? `1px solid ${tpl.avatarColor}55`
+                      : "1px solid rgba(255,255,255,0.07)",
+                    boxShadow: isSelected ? `0 0 14px ${tpl.avatarColor}18` : "none",
+                    transition: "all 130ms ease",
+                  }}
+                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
+                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
+                  >
+                    {/* Avatar + name */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                        background: tpl.avatarColor,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 12, fontWeight: 700, color: "#fff",
+                      }}>
+                        {tpl.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: isSelected ? T.t1 : T.t2 }}>{tpl.name}</div>
+                        <div style={{ fontSize: 9.5, color: T.t4, marginTop: 1 }}>{tpl.category}</div>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div style={{ fontSize: 11, color: T.t4, lineHeight: 1.45 }}>
+                      {tpl.description}
+                    </div>
+
+                    {/* Skills */}
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {tpl.skills.slice(0, 3).map(s => (
+                        <span key={s} style={{
+                          fontSize: 9.5, padding: "2px 6px", borderRadius: 4,
+                          background: isSelected ? `${tpl.avatarColor}18` : "rgba(255,255,255,0.05)",
+                          color: isSelected ? tpl.avatarColor : T.t4,
+                        }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {selectedTemplate && (
+              <div style={{
+                marginTop: 10, padding: "7px 12px", borderRadius: 8,
+                background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.20)",
+                fontSize: 11.5, color: "#FF6B80",
+                display: "flex", alignItems: "center", gap: 7,
+              }}>
+                <Sparkles size={11} />
+                Шаблон "{selectedTemplate}" застосовано — можете відредагувати нижче
+              </div>
+            )}
+
+            <div style={{ height: "0.5px", background: "rgba(255,255,255,0.07)", margin: "16px 0 0" }} />
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Color + preview */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
               Колір аватара
@@ -235,7 +547,7 @@ function CreateAgentModal({ providers, onClose, onCreated }: {
             </label>
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)}
               placeholder="Ти — досвідчений AI агент. Відповідай чітко і по суті..."
-              rows={4}
+              rows={5}
               style={{ ...inp, resize: "vertical", lineHeight: 1.55 }}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -417,7 +729,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>Агентів ще немає</div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, maxWidth: 320, marginBottom: 24 }}>
-        Створіть першого AI агента. Задайте йому ім'я, особистість та системний промпт.
+        Створіть першого AI агента. Оберіть готовий шаблон або налаштуйте з нуля.
       </div>
       <RBtn icon={Plus} label="Створити агента" onClick={onAdd} />
       <div style={{ marginTop: 16, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.1em" }}>
@@ -446,9 +758,8 @@ export default function AgentsPage() {
       sb.from("agents").select("*").order("created_at", { ascending: true }),
       sb.from("providers").select("id,name,slug,model,is_active"),
     ])
-    if (agentsData) setAgents(agentsData as Agent[])
+    if (agentsData)   setAgents(agentsData as Agent[])
     if (providersData) setProviders(providersData as Provider[])
-    // sessions still from localStorage for now
     setSessions(chatStore.getAll().map(s => ({ agentId: s.agentId })))
   }
 
@@ -554,9 +865,9 @@ export default function AgentsPage() {
           {agents.length > 0 && (
             <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
               {[
-                { label: "Всього агентів",  value: agents.length,   icon: Bot           },
-                { label: "Активні сесії",   value: sessions.length, icon: MessageSquare },
-                { label: "Провайдери",       value: providers.length, icon: Activity     },
+                { label: "Всього агентів",  value: agents.length,    icon: Bot           },
+                { label: "Активні сесії",   value: sessions.length,  icon: MessageSquare },
+                { label: "Провайдери",       value: providers.length, icon: Activity      },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 10,
