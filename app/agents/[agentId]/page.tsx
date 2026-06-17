@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, MessageSquare, Trash2, Save,
   Plus, Clock, Edit3, X, Check, AlertCircle,
-  ChevronRight, Bot,
+  ChevronRight, Bot, Zap,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { chatStore, type ChatSession } from "@/lib/store"
@@ -29,6 +29,97 @@ const AVATAR_COLORS = [
   "#4285F4","#8B5CF6","#F59E0B",
   "#06B6D4","#EC4899",
 ]
+
+// ─── Skill registry ───────────────────────────────────────────────
+
+type Skill = { label: string; prompt: string }
+
+const SKILL_REGISTRY: Record<string, Skill[]> = {
+  SEO: [
+    { label: "SEO аудит",       prompt: "Зроби детальний SEO аудит для мого сайту. Запитай у мене URL і я надам деталі." },
+    { label: "Семантичне ядро", prompt: "Допоможи зібрати семантичне ядро. Запитай нішу, регіон і головні послуги/продукти." },
+    { label: "Контент-план",    prompt: "Склади SEO контент-план на наступний місяць. Запитай нішу, цільову аудиторію і цілі." },
+    { label: "ТЗ для статті",   prompt: "Склади технічне завдання для SEO-статті. Запитай тему, ключові слова і обсяг." },
+    { label: "Аналіз конкурентів", prompt: "Проведи аналіз конкурентів у пошуку. Запитай нішу і основних конкурентів." },
+  ],
+  SMM: [
+    { label: "Контент-план",    prompt: "Склади контент-план для соцмереж на місяць. Запитай платформу, нішу і тон бренду." },
+    { label: "Ідеї постів",     prompt: "Дай 10 ідей для постів. Запитай нішу, платформу і поточну аудиторію." },
+    { label: "Reels сценарій",  prompt: "Напиши сценарій для Reels/TikTok. Запитай тему, тон і тривалість відео." },
+    { label: "Аналіз аудиторії", prompt: "Допоможи описати портрет цільової аудиторії. Запитай нішу і продукт." },
+    { label: "Хуки для постів", prompt: "Дай 10 сильних хуків для постів у соцмережах. Запитай нішу і тип контенту." },
+  ],
+  Sales: [
+    { label: "Скрипт продажу",  prompt: "Напиши скрипт продажу. Запитай продукт/послугу, канал і цільову аудиторію." },
+    { label: "Обробка заперечень", prompt: "Допоможи з обробкою заперечень. Запитай топ-3 заперечення твоїх клієнтів." },
+    { label: "Follow-up лист",  prompt: "Напиши follow-up повідомлення після зустрічі. Запитай контекст і результат зустрічі." },
+    { label: "Кваліфікація ліда", prompt: "Допоможи кваліфікувати ліда. Запитай продукт і профіль клієнта." },
+    { label: "Pitch для клієнта", prompt: "Напиши elevator pitch для клієнта. Запитай продукт, проблему і цільову аудиторію." },
+  ],
+  Affiliate: [
+    { label: "Аналіз офера",    prompt: "Проаналізуй CPA-офер. Запитай назву офера, вертикаль, умови і гео." },
+    { label: "GEO research",    prompt: "Зроби GEO-дослідження для трафіку. Запитай вертикаль і бюджет." },
+    { label: "Traffic strategy", prompt: "Розроби стратегію трафіку. Запитай вертикаль, гео і доступні джерела трафіку." },
+    { label: "Landing review",  prompt: "Проаналізуй лендінг для affiliate-трафіку. Надай URL або опис лендінгу." },
+    { label: "Воронка",         prompt: "Допоможи побудувати воронку для affiliate. Запитай офер, гео і джерело трафіку." },
+  ],
+  Content: [
+    { label: "Структура статті", prompt: "Склади структуру статті. Запитай тему, цільову аудиторію і мету матеріалу." },
+    { label: "Перепиши краще",  prompt: "Перепиши мій текст більш професійно. Вставлю текст після твоєї готовності." },
+    { label: "Хуки для тексту", prompt: "Дай 10 сильних хуків для мого контенту. Запитай тему і тип контенту." },
+    { label: "CTA варіанти",    prompt: "Напиши 5 варіантів CTA для моєї сторінки. Запитай продукт і дію яку хочу." },
+    { label: "Email лист",      prompt: "Напиши email для розсилки. Запитай мету, аудиторію і ключовий меседж." },
+  ],
+  Support: [
+    { label: "FAQ відповідь",   prompt: "Допоможи написати відповідь на FAQ. Запитай питання та контекст продукту." },
+    { label: "Відповідь клієнту", prompt: "Напиши відповідь незадоволеному клієнту. Опиши ситуацію і скаргу клієнта." },
+    { label: "Інструкція",      prompt: "Напиши покрокову інструкцію. Запитай назву продукту і кроки які треба пояснити." },
+    { label: "Скрипт підтримки", prompt: "Напиши скрипт для підтримки. Запитай канал комунікації і типову ситуацію." },
+  ],
+  Analyst: [
+    { label: "Ринковий аналіз", prompt: "Проведи ринковий аналіз. Запитай нішу, регіон і задачу дослідження." },
+    { label: "SWOT аналіз",     prompt: "Зроби SWOT аналіз. Запитай назву компанії/продукту і контекст." },
+    { label: "Аналіз конкурентів", prompt: "Порівняй конкурентів. Запитай нішу і перелік основних конкурентів." },
+    { label: "Звіт",            prompt: "Допоможи скласти аналітичний звіт. Запитай дані які є і мету звіту." },
+  ],
+  "Media Buyer": [
+    { label: "Facebook Ads",    prompt: "Допоможи налаштувати Facebook Ads кампанію. Запитай продукт, ціль і бюджет." },
+    { label: "Оптимізація",     prompt: "Допоможи оптимізувати рекламу. Запитай поточні метрики і ціль." },
+    { label: "Аудиторії",       prompt: "Знайди аудиторії для реклами. Запитай продукт і платформу." },
+    { label: "ROAS аналіз",     prompt: "Порахуй і проаналізуй ROAS. Надай поточні дані по витратах і виручці." },
+  ],
+  Strategy: [
+    { label: "GTM стратегія",   prompt: "Розроби go-to-market стратегію. Запитай продукт, ринок і цільову аудиторію." },
+    { label: "Масштабування",   prompt: "Допоможи з стратегією масштабування. Запитай поточні показники і ресурси." },
+    { label: "SWOT",            prompt: "Зроби стратегічний SWOT аналіз. Запитай контекст і цілі бізнесу." },
+    { label: "Конкурентний аналіз", prompt: "Проведи конкурентний аналіз. Запитай ринок і основних конкурентів." },
+  ],
+  Product: [
+    { label: "User Story",      prompt: "Напиши user story. Запитай роль користувача, дію і бажаний результат." },
+    { label: "Roadmap",         prompt: "Допоможи скласти продуктовий roadmap. Запитай стадію продукту і пріоритети." },
+    { label: "Пріоритизація",   prompt: "Допоможи пріоритизувати задачі за RICE. Опиши список задач і я допоможу." },
+    { label: "Product brief",   prompt: "Напиши product brief для фічі. Запитай назву фічі і її мету." },
+  ],
+}
+
+function getAgentSkills(agentName: string, systemPrompt: string): Skill[] {
+  const name = (agentName ?? "").toLowerCase()
+  const prompt = (systemPrompt ?? "").toLowerCase()
+
+  for (const [key, skills] of Object.entries(SKILL_REGISTRY)) {
+    if (name.includes(key.toLowerCase()) || prompt.includes(key.toLowerCase())) {
+      return skills
+    }
+  }
+
+  // Generic fallback
+  return [
+    { label: "Поставити задачу",   prompt: "Допоможи мені з задачею. Я поясню що саме потрібно зробити." },
+    { label: "Аналіз",            prompt: "Проведи аналіз. Запитай деталі і я надам інформацію." },
+    { label: "Написати текст",    prompt: "Напиши текст для мене. Запитай тему, аудиторію і мету." },
+    { label: "Порада",            prompt: "Дай експертну пораду по моїй ситуації. Я опишу контекст." },
+  ]
+}
 
 type Agent = {
   id: string
@@ -583,6 +674,62 @@ export default function AgentDetailPage() {
                 </div>
               )}
             </Card>
+
+            {/* Skills */}
+            {(() => {
+              const skills = getAgentSkills(agent.name, agent.system_prompt)
+              return (
+                <Card title="Скіли агента" icon={Zap}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {skills.map(skill => (
+                      <button key={skill.label}
+                        onClick={async () => {
+                          const sb = getSupabase()
+                          const { data: { user } } = await sb.auth.getUser()
+                          if (!user) return
+                          const { data } = await sb.from("chat_sessions").insert({
+                            user_id:  user.id,
+                            agent_id: agent.id,
+                            title:    `${skill.label} — ${agent.name}`,
+                          }).select().single()
+                          if (!data) return
+                          // Insert first message
+                          await sb.from("chat_messages").insert({
+                            user_id:    user.id,
+                            session_id: data.id,
+                            role:       "user",
+                            content:    skill.prompt,
+                          })
+                          router.push(`/chat/${data.id}`)
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                          background: "rgba(232,0,42,0.08)",
+                          outline: "0.5px solid rgba(232,0,42,0.20)",
+                          color: T.t2, fontSize: 12.5, fontWeight: 500,
+                          transition: "all 130ms ease",
+                        }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.18)"
+                          ;(e.currentTarget as HTMLElement).style.color = T.t1
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)"
+                          ;(e.currentTarget as HTMLElement).style.color = T.t2
+                        }}
+                      >
+                        <Zap size={11} style={{ color: T.red, opacity: 0.75 }} />
+                        {skill.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.t4, marginTop: 12, lineHeight: 1.5 }}>
+                    Клік на скіл відкриє новий чат з готовим промптом.
+                  </div>
+                </Card>
+              )
+            })()}
 
             {/* Sessions */}
             <Card title={`Чат-сесії (${sessions.length})`} icon={MessageSquare}
