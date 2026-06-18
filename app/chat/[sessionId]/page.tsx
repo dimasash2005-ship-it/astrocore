@@ -14,6 +14,8 @@ import {
 } from "@/lib/store"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { QuickActions } from "@/components/agents/QuickActions"
+import { getAgentSkills } from "@/components/agents/skillRegistry"
 
 const T = {
   bg:    "#08080F",
@@ -735,6 +737,23 @@ export default function SessionPage() {
           <button onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} style={{ position: "absolute", bottom: 130, right: 28, width: 34, height: 34, borderRadius: "50%", background: T.s1, border: `0.5px solid ${T.b1}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.t3, zIndex: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}>
             <ChevronDown size={16} />
           </button>
+        )}
+
+        {/* Quick Actions */}
+        {agent && (
+          <QuickActions
+            skills={getAgentSkills(agent.name, agent.system_prompt ?? "")}
+            onSelect={prompt => {
+              setInput(prompt)
+              setTimeout(() => {
+                if (inputRef.current) {
+                  inputRef.current.focus()
+                  inputRef.current.style.height = "auto"
+                  inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 180) + "px"
+                }
+              }, 0)
+            }}
+          />
         )}
 
         {/* Composer */}

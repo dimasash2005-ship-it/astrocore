@@ -10,6 +10,9 @@ import {
 import { getSupabase } from "@/lib/supabase/client"
 import { chatStore, type ChatSession } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { AgentTools }     from "@/components/agents/AgentTools"
+import { AgentKnowledge } from "@/components/agents/AgentKnowledge"
+import { AgentWorkflow }  from "@/components/agents/AgentWorkflow"
 
 const T = {
   bg:   "#08080F",
@@ -675,43 +678,56 @@ export default function AgentDetailPage() {
               )}
             </Card>
 
-            {/* Skills */}
-            {(() => {
-              const skills = getAgentSkills(agent.name, agent.system_prompt)
-              return (
-                <Card title="Скіли агента" icon={Zap}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {skills.map(skill => (
+            {/* ── Agent Workspace ── */}
+            <div style={{
+              background: "linear-gradient(160deg,#0F0F1E 0%,#0A0A14 100%)",
+              border: "0.5px solid rgba(232,0,42,0.18)", borderRadius: 16, overflow: "hidden",
+            }}>
+              {/* Workspace header */}
+              <div style={{
+                padding: "14px 18px 12px",
+                borderBottom: "0.5px solid rgba(255,255,255,0.07)",
+                background: "rgba(232,0,42,0.04)",
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <Zap size={13} style={{ color: T.red }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.red, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+                  Agent Workspace
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+
+                {/* Skills */}
+                <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                    Скіли
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                    {getAgentSkills(agent.name, agent.system_prompt).map(skill => (
                       <button key={skill.label}
                         onClick={async () => {
                           const sb = getSupabase()
                           const { data: { user } } = await sb.auth.getUser()
                           if (!user) return
                           const { data } = await sb.from("chat_sessions").insert({
-                            user_id:  user.id,
-                            agent_id: agent.id,
-                            title:    `${skill.label} — ${agent.name}`,
+                            user_id: user.id, agent_id: agent.id,
+                            title: `${skill.label} — ${agent.name}`,
                           }).select().single()
                           if (!data) return
-                          // Insert first message
                           await sb.from("chat_messages").insert({
-                            user_id:    user.id,
-                            session_id: data.id,
-                            role:       "user",
-                            content:    skill.prompt,
+                            user_id: user.id, session_id: data.id, role: "user", content: skill.prompt,
                           })
                           router.push(`/chat/${data.id}`)
                         }}
                         style={{
-                          display: "flex", alignItems: "center", gap: 6,
-                          padding: "7px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                          background: "rgba(232,0,42,0.08)",
-                          outline: "0.5px solid rgba(232,0,42,0.20)",
-                          color: T.t2, fontSize: 12.5, fontWeight: 500,
-                          transition: "all 130ms ease",
+                          display: "flex", alignItems: "center", gap: 5,
+                          padding: "5px 10px", borderRadius: 7, border: "none", cursor: "pointer",
+                          background: "rgba(232,0,42,0.08)", outline: "0.5px solid rgba(232,0,42,0.20)",
+                          color: T.t2, fontSize: 12, fontWeight: 500, transition: "all 120ms ease",
                         }}
                         onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.18)"
+                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.20)"
                           ;(e.currentTarget as HTMLElement).style.color = T.t1
                         }}
                         onMouseLeave={e => {
@@ -719,17 +735,38 @@ export default function AgentDetailPage() {
                           ;(e.currentTarget as HTMLElement).style.color = T.t2
                         }}
                       >
-                        <Zap size={11} style={{ color: T.red, opacity: 0.75 }} />
+                        <Zap size={10} style={{ color: T.red, opacity: 0.7 }} />
                         {skill.label}
                       </button>
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, color: T.t4, marginTop: 12, lineHeight: 1.5 }}>
-                    Клік на скіл відкриє новий чат з готовим промптом.
+                </div>
+
+                {/* Tools */}
+                <div style={{ padding: "16px 18px", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                    Інструменти
                   </div>
-                </Card>
-              )
-            })()}
+                  <AgentTools />
+                </div>
+
+                {/* Knowledge */}
+                <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                    Знання
+                  </div>
+                  <AgentKnowledge systemPrompt={agent.system_prompt} />
+                </div>
+
+                {/* Workflow */}
+                <div style={{ padding: "16px 18px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                    Workflow
+                  </div>
+                  <AgentWorkflow agentName={agent.name} />
+                </div>
+              </div>
+            </div>
 
             {/* Sessions */}
             <Card title={`Чат-сесії (${sessions.length})`} icon={MessageSquare}
