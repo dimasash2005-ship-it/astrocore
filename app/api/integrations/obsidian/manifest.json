@@ -1,0 +1,10 @@
+{
+    "id": "astrocore-obsidian",
+    "name": "AstroCore AI",
+    "version": "0.1.0",
+    "minAppVersion": "1.4.0",
+    "description": "Ask, summarize, rewrite, and explain text using your AstroCore AI workspace.",
+    "author": "AstroCore",
+    "authorUrl": "https://astrocore.ai",
+    "isDesktopOnly": false
+  }

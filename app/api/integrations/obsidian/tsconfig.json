@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    ...
+  },
+  "include": [
+    ...
+  ],
+  "exclude": [
+    "node_modules",
+    "_integrations/obsidian"
+  ]
+}
