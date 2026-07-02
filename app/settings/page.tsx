@@ -385,6 +385,13 @@ export default function SettingsPage() {
                 desc="Збережені виводи AI"
                 href="/gallery"
               />
+              <Divider />
+              <SettingRow
+                icon={Key}
+                label="Developer Center"
+                desc="API Keys, Webhooks, Integrations and Developer tools."
+                href="/settings/developer"
+              />
             </SectionCard>
 
             {/* ── System status ── */}
