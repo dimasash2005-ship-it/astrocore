@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Key, Shield, Zap, Brain, Bot,
   BookOpen, Puzzle, Eye, EyeOff,
   Copy, Check, Plus, Trash2, Clock,
-  AlertCircle, Activity, Lock,
+  AlertCircle, Activity, Lock, X, Loader2,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
@@ -33,27 +33,29 @@ const PERMISSIONS: Permission[] = [
   { id: "integrations", icon: Puzzle,   label: "Integrations" },
 ]
 
-type MockKey = {
+// Matches lib/api-keys.ts ApiKeyRecord (no key_hash, ever).
+type ApiKeyRecord = {
   id: string
   name: string
-  masked: string
-  created: string
-  lastUsed: string | null
-  status: "active" | "revoked"
+  key_prefix: string
   permissions: string[]
+  last_used_at: string | null
+  revoked_at: string | null
+  created_at: string
 }
 
-const MOCK_KEYS: MockKey[] = [
-  {
-    id: "1",
-    name: "Obsidian Plugin",
-    masked: "ac_live_••••••••••••••••••",
-    created: "2025-06-01",
-    lastUsed: null,
-    status: "active",
-    permissions: ["chat", "vault", "memory"],
-  },
-]
+function formatDate(iso: string | null): string {
+  if (!iso) return "Ніколи"
+  try {
+    return new Date(iso).toLocaleDateString("uk-UA", { year: "numeric", month: "short", day: "numeric" })
+  } catch {
+    return iso
+  }
+}
+
+function maskedFromPrefix(prefix: string): string {
+  return `${prefix}••••••••••••••••`
+}
 
 function PermBadge({ id }: { id: string }) {
   const p = PERMISSIONS.find(x => x.id === id)
@@ -85,16 +87,17 @@ function CopyBtn({ text }: { text: string }) {
   )
 }
 
-function Toast({ msg, onHide }: { msg: string; onHide: () => void }) {
+function Toast({ msg, tone = "amber", onHide }: { msg: string; tone?: "amber" | "red" | "green"; onHide: () => void }) {
   useEffect(() => { const t = setTimeout(onHide, 3000); return () => clearTimeout(t) }, [onHide])
+  const color = tone === "red" ? T.red : tone === "green" ? T.green : T.amber
   return (
     <div style={{
       position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",
       zIndex: 200, display: "flex", alignItems: "center", gap: 9,
       padding: "10px 18px", borderRadius: 11,
-      background: "#0F0F1E", border: "0.5px solid rgba(245,158,11,0.35)",
+      background: "#0F0F1E", border: `0.5px solid ${color}59`,
       boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-      fontSize: 13, color: T.amber,
+      fontSize: 13, color,
     }}>
       <AlertCircle size={14} style={{ flexShrink: 0 }} />
       {msg}
@@ -125,28 +128,202 @@ function Card({ children, accent }: { children: React.ReactNode; accent?: boolea
   )
 }
 
+function ModalShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(4,4,10,0.72)", backdropFilter: "blur(2px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 440,
+        background: "linear-gradient(160deg,#13131F 0%,#0E0E18 100%)",
+        border: `0.5px solid ${T.b1}`, borderRadius: 16,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+        overflow: "hidden",
+      }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ── Generate key modal (asks for name, then creates via API) ──
+function GenerateKeyModal({
+  onClose, onCreated,
+}: { onClose: () => void; onCreated: (fullKey: string, record: ApiKeyRecord) => void }) {
+  const [name, setName] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [err, setErr]   = useState("")
+
+  async function submit() {
+    if (!name.trim()) { setErr("Введи назву ключа."); return }
+    setBusy(true); setErr("")
+    try {
+      const res = await fetch("/api/developer/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || "Не вдалося створити ключ.")
+
+      const created = data.key as { id: string; name: string; key: string; key_prefix: string; permissions: string[]; created_at: string }
+      const record: ApiKeyRecord = {
+        id: created.id,
+        name: created.name,
+        key_prefix: created.key_prefix,
+        permissions: created.permissions,
+        last_used_at: null,
+        revoked_at: null,
+        created_at: created.created_at,
+      }
+      onCreated(created.key, record)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Помилка сервера.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
+        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>Новий API ключ</span>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
+          <X size={16} />
+        </button>
+      </div>
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+        <label style={{ fontSize: 11.5, color: T.t3 }}>Назва ключа</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          placeholder="напр. Obsidian Plugin"
+          style={{
+            padding: "10px 12px", borderRadius: 9, outline: "none",
+            background: "rgba(0,0,0,0.3)", border: `0.5px solid ${T.b1}`,
+            color: T.t1, fontSize: 13.5,
+          }}
+        />
+        {err && <div style={{ fontSize: 12, color: T.red }}>{err}</div>}
+        <button
+          onClick={submit}
+          disabled={busy}
+          style={{
+            marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "10px 14px", borderRadius: 9, border: "none",
+            cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1,
+            background: "rgba(232,0,42,0.14)", color: T.red, fontSize: 13, fontWeight: 600,
+          }}
+        >
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          {busy ? "Створення…" : "Створити ключ"}
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Reveal-once modal, shown immediately after creation ──
+function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => void }) {
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
+        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>Ключ створено</span>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
+          <X size={16} />
+        </button>
+      </div>
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 10,
+          padding: "11px 14px", borderRadius: 10,
+          background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.22)",
+        }}>
+          <Lock size={13} style={{ color: T.red, flexShrink: 0, marginTop: 1 }} />
+          <div style={{ fontSize: 12, color: T.t3, lineHeight: 1.55 }}>
+            Цей ключ показується <strong style={{ color: T.t1 }}>лише один раз</strong>. Скопіюй і збережи його зараз — повторно побачити повний ключ буде неможливо.
+          </div>
+        </div>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "10px 12px", borderRadius: 9,
+          background: "rgba(0,0,0,0.35)", border: "0.5px solid rgba(125,211,252,0.18)",
+        }}>
+          <code style={{ fontSize: 12, color: "#7DD3FC", fontFamily: "monospace", wordBreak: "break-all", flex: 1 }}>
+            {fullKey}
+          </code>
+          <CopyBtn text={fullKey} />
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            padding: "10px 14px", borderRadius: 9, border: "none", cursor: "pointer",
+            background: "rgba(255,255,255,0.06)", color: T.t1, fontSize: 13, fontWeight: 500,
+          }}
+        >
+          Готово, я зберіг ключ
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
 export default function DeveloperPage() {
-  const [pulse,   setPulse]   = useState(false)
-  const [toast,   setToast]   = useState("")
-  const [keys,    setKeys]    = useState<MockKey[]>(MOCK_KEYS)
-  const [reveal,  setReveal]  = useState<Record<string, boolean>>({})
+  const [pulse, setPulse] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; tone?: "amber" | "red" | "green" } | null>(null)
+
+  const [keys, setKeys] = useState<ApiKeyRecord[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [showGenerate, setShowGenerate] = useState(false)
+  const [revealKey, setRevealKey] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 2000)
     return () => clearInterval(id)
   }, [])
 
-  function handleGenerate() {
-    setToast("API Keys у Beta. Реальна генерація буде доступна незабаром.")
+  const loadKeys = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/developer/api-keys")
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || "Не вдалося завантажити ключі.")
+      setKeys(data.keys ?? [])
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : "Помилка завантаження ключів.", tone: "red" })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadKeys() }, [loadKeys])
+
+  function handleCreated(fullKey: string, record: ApiKeyRecord) {
+    setKeys(prev => [record, ...prev])
+    setShowGenerate(false)
+    setRevealKey(fullKey)
   }
 
-  function handleRevoke(id: string) {
+  async function handleRevoke(id: string) {
     if (!window.confirm("Відкликати цей ключ? Це незворотно.")) return
-    setKeys(prev => prev.map(k => k.id === id ? { ...k, status: "revoked" as const } : k))
-  }
-
-  function toggleReveal(id: string) {
-    setReveal(prev => ({ ...prev, [id]: !prev[id] }))
+    try {
+      const res = await fetch(`/api/developer/api-keys/${id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || "Не вдалося відкликати ключ.")
+      setKeys(prev => prev.map(k => k.id === id ? { ...k, revoked_at: new Date().toISOString() } : k))
+      setToast({ msg: "Ключ відкликано.", tone: "green" })
+    } catch (e) {
+      setToast({ msg: e instanceof Error ? e.message : "Помилка сервера.", tone: "red" })
+    }
   }
 
   return (
@@ -155,6 +332,8 @@ export default function DeveloperPage() {
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .animate-spin { animation: spin 0.8s linear infinite; }
       `}</style>
 
       <div style={{
@@ -214,10 +393,10 @@ export default function DeveloperPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Key size={13} style={{ color: T.red, opacity: 0.75 }} />
                   <span style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
-                    {keys.length} {keys.length === 1 ? "ключ" : "ключів"}
+                    {loading ? "Завантаження…" : `${keys.length} ${keys.length === 1 ? "ключ" : "ключів"}`}
                   </span>
                 </div>
-                <button onClick={handleGenerate} style={{
+                <button onClick={() => setShowGenerate(true)} style={{
                   display: "flex", alignItems: "center", gap: 6,
                   padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
                   background: "rgba(232,0,42,0.10)", color: T.red,
@@ -236,7 +415,7 @@ export default function DeveloperPage() {
 
               {/* Key list */}
               <div style={{ padding: "8px 0" }}>
-                {keys.length === 0 ? (
+                {!loading && keys.length === 0 ? (
                   <div style={{ padding: "36px 18px", textAlign: "center" }}>
                     <Key size={24} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 12px" }} />
                     <div style={{ fontSize: 13, color: T.t4 }}>API ключів ще немає</div>
@@ -244,92 +423,92 @@ export default function DeveloperPage() {
                       Натисни «Generate API Key» щоб створити перший ключ
                     </div>
                   </div>
-                ) : keys.map(k => (
-                  <div key={k.id} style={{
-                    display: "flex", alignItems: "flex-start", gap: 14,
-                    padding: "14px 18px",
-                    borderBottom: `0.5px solid ${T.b1}`,
-                    opacity: k.status === "revoked" ? 0.45 : 1,
-                  }}>
-                    {/* Icon */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                      background: k.status === "active" ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
-                      border: `0.5px solid ${k.status === "active" ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.07)"}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
+                ) : keys.map(k => {
+                  const isActive = !k.revoked_at
+                  return (
+                    <div key={k.id} style={{
+                      display: "flex", alignItems: "flex-start", gap: 14,
+                      padding: "14px 18px",
+                      borderBottom: `0.5px solid ${T.b1}`,
+                      opacity: isActive ? 1 : 0.45,
                     }}>
-                      <Key size={15} style={{ color: k.status === "active" ? T.green : T.t4 }} />
-                    </div>
-
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 500, color: T.t1 }}>{k.name}</span>
-                        <span style={{
-                          fontSize: 9.5, padding: "2px 7px", borderRadius: 5, fontWeight: 600,
-                          background: k.status === "active" ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
-                          color: k.status === "active" ? T.green : T.t4,
-                          border: `0.5px solid ${k.status === "active" ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.08)"}`,
-                          textTransform: "uppercase",
-                        }}>
-                          {k.status === "active" ? "Активний" : "Відкликано"}
-                        </span>
-                      </div>
-
-                      {/* Masked key */}
+                      {/* Icon */}
                       <div style={{
-                        display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
-                        padding: "6px 10px", borderRadius: 7,
-                        background: "rgba(0,0,0,0.3)", border: "0.5px solid rgba(125,211,252,0.12)",
-                        width: "fit-content",
+                        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                        background: isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+                        border: `0.5px solid ${isActive ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.07)"}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
                       }}>
-                        <code style={{ fontSize: 12, color: reveal[k.id] ? "#7DD3FC" : T.t3, fontFamily: "monospace" }}>
-                          {reveal[k.id] ? "ac_live_••••demo_key••••" : k.masked}
-                        </code>
-                        <button onClick={() => toggleReveal(k.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: "2px" }}>
-                          {reveal[k.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                        <Key size={15} style={{ color: isActive ? T.green : T.t4 }} />
+                      </div>
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 500, color: T.t1 }}>{k.name}</span>
+                          <span style={{
+                            fontSize: 9.5, padding: "2px 7px", borderRadius: 5, fontWeight: 600,
+                            background: isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
+                            color: isActive ? T.green : T.t4,
+                            border: `0.5px solid ${isActive ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.08)"}`,
+                            textTransform: "uppercase",
+                          }}>
+                            {isActive ? "Активний" : "Відкликано"}
+                          </span>
+                        </div>
+
+                        {/* Masked key (full key is never retrievable after creation) */}
+                        <div style={{
+                          display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+                          padding: "6px 10px", borderRadius: 7,
+                          background: "rgba(0,0,0,0.3)", border: "0.5px solid rgba(125,211,252,0.12)",
+                          width: "fit-content",
+                        }}>
+                          <code style={{ fontSize: 12, color: T.t3, fontFamily: "monospace" }}>
+                            {maskedFromPrefix(k.key_prefix)}
+                          </code>
+                          <CopyBtn text={k.key_prefix} />
+                        </div>
+
+                        {/* Meta */}
+                        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
+                            <Clock size={10} /> Створено {formatDate(k.created_at)}
+                          </span>
+                          <span style={{ fontSize: 11, color: T.t4 }}>
+                            Останнє використання: {formatDate(k.last_used_at)}
+                          </span>
+                        </div>
+
+                        {/* Permissions */}
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          {k.permissions.map(p => <PermBadge key={p} id={p} />)}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      {isActive && (
+                        <button onClick={() => handleRevoke(k.id)} style={{
+                          padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer",
+                          background: "rgba(255,255,255,0.04)", color: T.t4, fontSize: 11.5,
+                          display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
+                          transition: "color 120ms ease, background 120ms ease",
+                        }}
+                          onMouseEnter={e => {
+                            (e.currentTarget as HTMLElement).style.color = "#FF4D6A"
+                            ;(e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)"
+                          }}
+                          onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.color = T.t4
+                            ;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"
+                          }}
+                        >
+                          <Trash2 size={12} /> Відкликати
                         </button>
-                        <CopyBtn text={k.masked} />
-                      </div>
-
-                      {/* Meta */}
-                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-                        <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
-                          <Clock size={10} /> Створено {k.created}
-                        </span>
-                        <span style={{ fontSize: 11, color: T.t4 }}>
-                          Останнє використання: {k.lastUsed ?? "Ніколи"}
-                        </span>
-                      </div>
-
-                      {/* Permissions */}
-                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                        {k.permissions.map(p => <PermBadge key={p} id={p} />)}
-                      </div>
+                      )}
                     </div>
-
-                    {/* Actions */}
-                    {k.status === "active" && (
-                      <button onClick={() => handleRevoke(k.id)} style={{
-                        padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer",
-                        background: "rgba(255,255,255,0.04)", color: T.t4, fontSize: 11.5,
-                        display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
-                        transition: "color 120ms ease, background 120ms ease",
-                      }}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.color = "#FF4D6A"
-                          ;(e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)"
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLElement).style.color = T.t4
-                          ;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"
-                        }}
-                      >
-                        <Trash2 size={12} /> Відкликати
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </Card>
           </Section>
@@ -339,7 +518,7 @@ export default function DeveloperPage() {
             <Card>
               <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ fontSize: 12.5, color: T.t3, marginBottom: 4, lineHeight: 1.55 }}>
-                  При генерації ключа обери дозволи. Рекомендовано давати лише потрібні.
+                  Нові ключі отримують усі дозволи нижче. Гранульований вибір дозволів під час генерації з'явиться найближчим часом.
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8 }}>
                   {PERMISSIONS.map(({ id, icon: Icon, label }) => (
@@ -404,7 +583,13 @@ export default function DeveloperPage() {
         </div>
       </div>
 
-      {toast && <Toast msg={toast} onHide={() => setToast("")} />}
+      {showGenerate && (
+        <GenerateKeyModal onClose={() => setShowGenerate(false)} onCreated={handleCreated} />
+      )}
+      {revealKey && (
+        <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} />
+      )}
+      {toast && <Toast msg={toast.msg} tone={toast.tone} onHide={() => setToast(null)} />}
     </>
   )
 }

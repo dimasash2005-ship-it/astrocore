@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { verifyApiKey } from "@/lib/api-keys"
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -8,7 +9,6 @@ interface ObsidianRequestBody {
   noteTitle?: string
   selectedText?: string
   fullNote?: string
-  apiKey?: string // optional future per-user auth token
 }
 
 // ─── Helpers reused from app/api/chat/route.ts logic ──────────────
@@ -117,10 +117,87 @@ async function callProvider(
   }
 }
 
+// Looks up the caller's active provider by user_id, using the
+// service_role client (there is no Supabase session here — the
+// caller authenticated via an API key, not cookies).
+async function resolveProviderForUser(userId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Supabase service credentials не налаштовані на сервері.")
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey)
+
+  return supabase
+    .from("providers")
+    .select("slug, api_key, model")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single()
+}
+
+// Legacy dev-only lookup: first active provider across the workspace,
+// with no user scoping. Kept ONLY for local development, so working
+// against Obsidian doesn't require issuing yourself an API key on
+// every reset of the dev database.
+async function resolveProviderDevFallback() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Supabase service credentials не налаштовані на сервері.")
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey)
+
+  return supabase
+    .from("providers")
+    .select("slug, api_key, model")
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single()
+}
+
 // ─── Route handler ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
+    // ── Authenticate the caller via API key ──
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization")
+    const bearerMatch = authHeader?.match(/^Bearer\s+(.+)$/i)
+    const rawKey = bearerMatch?.[1]?.trim()
+
+    let userId: string | null = null
+    let usedDevFallback = false
+
+    if (rawKey) {
+      const verified = await verifyApiKey(rawKey)
+      if (!verified) {
+        return NextResponse.json({ error: "Недійсний або відкликаний API ключ." }, { status: 401 })
+      }
+      if (!verified.permissions.includes("chat") && !verified.permissions.includes("integrations")) {
+        return NextResponse.json(
+          { error: "Цей API ключ не має дозволу 'chat' або 'integrations'." },
+          { status: 403 }
+        )
+      }
+      userId = verified.userId
+    } else if (process.env.NODE_ENV === "development") {
+      // No Authorization header — allowed only in local development,
+      // so existing dev workflows keep working without an API key.
+      usedDevFallback = true
+    } else {
+      return NextResponse.json(
+        { error: "Відсутній або невірний Authorization header. Очікується: Bearer ac_live_..." },
+        { status: 401 }
+      )
+    }
+
     const body = (await req.json()) as ObsidianRequestBody
     const { prompt, noteTitle, selectedText, fullNote } = body
 
@@ -141,28 +218,9 @@ export async function POST(req: NextRequest) {
     // Convert simple prompt into the messages[] shape used by /api/chat
     const messages = [{ role: "user", content: finalContent }]
 
-    // Resolve provider — Obsidian has no session, so we use the
-    // service-role Supabase client and the first active provider
-    // belonging to the configured workspace owner.
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json(
-        { error: "Supabase service credentials не налаштовані на сервері." },
-        { status: 500 }
-      )
-    }
-
-    const supabase = createClient(supabaseUrl, serviceKey)
-
-    const { data: provider, error: providerError } = await supabase
-      .from("providers")
-      .select("slug, api_key, model")
-      .eq("is_active", true)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .single()
+    const { data: provider, error: providerError } = usedDevFallback
+      ? await resolveProviderDevFallback()
+      : await resolveProviderForUser(userId as string)
 
     if (providerError || !provider) {
       return NextResponse.json(
