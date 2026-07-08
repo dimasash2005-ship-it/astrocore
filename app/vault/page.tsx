@@ -4,9 +4,11 @@ import { useState, useEffect, useMemo } from "react"
 import {
   BookOpen, Plus, Search, Trash2, X,
   Tag, Clock, Database, FileText, Zap, Copy, Check,
+  Download, Send, Loader2, ExternalLink,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { getStoredVaultName, setStoredVaultName, openInObsidian } from "@/lib/obsidian-uri"
 
 type VaultItem = {
   id: string
@@ -30,6 +32,7 @@ const T = {
   t3:   "#A8A4BC",
   t4:   "#585878",
   red:  "#E8002A",
+  green:"#22C55E",
 }
 
 function ago(iso: string): string {
@@ -46,8 +49,17 @@ function ago(iso: string): string {
   return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
 }
 
+function formatFullDate(iso: string): string {
+  if (!iso) return ""
+  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+}
+
 function cut(s: string, n: number) {
   return s && s.length > n ? s.slice(0, n) + "…" : (s || "")
+}
+
+function sanitizeFilename(name: string): string {
+  return (name || "vault-item").replace(/[\\/:*?"<>|]/g, "-").trim() || "vault-item"
 }
 
 // ─── Modal ────────────────────────────────────────────────────────
@@ -243,9 +255,221 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   )
 }
 
+// ─── Preview modal ────────────────────────────────────────────────
+
+function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void }) {
+  const [titleCopied,   setTitleCopied]   = useState(false)
+  const [contentCopied, setContentCopied] = useState(false)
+  const [obsidianState, setObsidianState] = useState<"idle" | "sending" | "sent" | "error">("idle")
+
+  function copyTitle() {
+    navigator.clipboard.writeText(item.title).then(() => {
+      setTitleCopied(true); setTimeout(() => setTitleCopied(false), 1800)
+    })
+  }
+
+  function copyContent() {
+    navigator.clipboard.writeText(item.content).then(() => {
+      setContentCopied(true); setTimeout(() => setContentCopied(false), 1800)
+    })
+  }
+
+  function downloadMd() {
+    const body = `# ${item.title}\n\n${item.content}\n`
+    const blob = new Blob([body], { type: "text/markdown;charset=utf-8" })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement("a")
+    a.href = url
+    a.download = `${sanitizeFilename(item.title)}.md`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function sendToObsidian() {
+    setObsidianState("sending")
+    let vaultName = getStoredVaultName()
+    if (!vaultName) {
+      const entered = window.prompt("Введи назву свого Obsidian vault (як він називається у списку vault'ів в Obsidian):")
+      if (!entered || !entered.trim()) { setObsidianState("idle"); return }
+      vaultName = entered.trim()
+      setStoredVaultName(vaultName)
+    }
+    const ok = openInObsidian(vaultName, {
+      title: item.title,
+      content: item.content,
+      folder: "AstroCore",
+      source: "AstroCore",
+    })
+    if (ok) {
+      setObsidianState("sent")
+      setTimeout(() => setObsidianState("idle"), 2000)
+    } else {
+      setObsidianState("error")
+      setTimeout(() => setObsidianState("idle"), 2500)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 680, maxHeight: "86vh",
+          borderRadius: 18,
+          background: "linear-gradient(160deg,#12121E 0%,#0B0B14 100%)",
+          border: "1px solid rgba(232,0,42,0.26)",
+          boxShadow: "0 0 0 1px rgba(232,0,42,0.06), 0 40px 90px rgba(0,0,0,0.85)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: "20px 22px 16px", borderBottom: `0.5px solid ${T.b1}`,
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14,
+          flexShrink: 0,
+        }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                background: "rgba(232,0,42,0.12)", border: "0.5px solid rgba(232,0,42,0.24)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <FileText size={14} style={{ color: T.red }} />
+              </div>
+              <div style={{
+                fontSize: 17, fontWeight: 700, color: T.t1,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {item.title}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 9 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: T.t4 }}>
+                <Clock size={11} /> {formatFullDate(item.created_at)}
+              </span>
+              {item.source && (
+                <span style={{
+                  fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
+                  background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)",
+                  color: T.t3, textTransform: "capitalize",
+                }}>
+                  {item.source}
+                </span>
+              )}
+            </div>
+            {(item.tags ?? []).length > 0 && (
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 9 }}>
+                {(item.tags ?? []).map(t => (
+                  <span key={t} style={{
+                    fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
+                    background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)",
+                    color: T.t3,
+                  }}>
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{
+            flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: "none",
+            background: "rgba(255,255,255,0.05)", cursor: "pointer", color: T.t4, lineHeight: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
+          <div style={{
+            fontSize: 13.5, color: T.t2, lineHeight: 1.75,
+            whiteSpace: "pre-wrap", wordBreak: "break-word",
+            padding: "14px 16px", borderRadius: 10,
+            background: "rgba(255,255,255,0.02)", border: `0.5px solid ${T.b1}`,
+          }}>
+            {item.content}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{
+          padding: "14px 22px", borderTop: `0.5px solid ${T.b1}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={copyContent} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 13px", borderRadius: 9, border: "none", cursor: "pointer",
+              background: contentCopied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)",
+              color: contentCopied ? T.green : T.t2, fontSize: 12.5, fontWeight: 500,
+              transition: "background 130ms ease, color 130ms ease",
+            }}>
+              {contentCopied ? <Check size={13} /> : <Copy size={13} />}
+              {contentCopied ? "Скопійовано" : "Копіювати вміст"}
+            </button>
+            <button onClick={copyTitle} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 13px", borderRadius: 9, border: "none", cursor: "pointer",
+              background: titleCopied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)",
+              color: titleCopied ? T.green : T.t2, fontSize: 12.5, fontWeight: 500,
+              transition: "background 130ms ease, color 130ms ease",
+            }}>
+              {titleCopied ? <Check size={13} /> : <Copy size={13} />}
+              {titleCopied ? "Скопійовано" : "Копіювати назву"}
+            </button>
+            <button onClick={downloadMd} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 13px", borderRadius: 9, border: "none", cursor: "pointer",
+              background: "rgba(255,255,255,0.06)", color: T.t2, fontSize: 12.5, fontWeight: 500,
+            }}>
+              <Download size={13} /> Завантажити .md
+            </button>
+            <button onClick={sendToObsidian} disabled={obsidianState === "sending"} title="Відкриє Obsidian через obsidian://new"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 13px", borderRadius: 9, border: "none",
+                cursor: obsidianState === "sending" ? "default" : "pointer",
+                background: obsidianState === "sent" ? "rgba(34,197,94,0.12)"
+                  : obsidianState === "error" ? "rgba(232,0,42,0.12)"
+                  : "rgba(139,92,246,0.12)",
+                color: obsidianState === "sent" ? T.green
+                  : obsidianState === "error" ? "#FF6B6B"
+                  : "#A78BFA",
+                fontSize: 12.5, fontWeight: 500,
+              }}>
+              {obsidianState === "sending" ? <Loader2 size={13} style={{ animation: "spin 0.8s linear infinite" }} />
+                : obsidianState === "sent" ? <Check size={13} />
+                : obsidianState === "error" ? <X size={13} />
+                : <Send size={13} />}
+              {obsidianState === "sending" ? "Відкриваємо…"
+                : obsidianState === "sent" ? "Відправлено"
+                : obsidianState === "error" ? "Не вдалося"
+                : "Send to Obsidian"}
+            </button>
+          </div>
+          <button onClick={onClose} style={{
+            padding: "8px 16px", borderRadius: 9, border: `0.5px solid ${T.b1}`,
+            background: "transparent", color: T.t3, fontSize: 12.5, fontWeight: 500, cursor: "pointer",
+          }}>
+            Закрити
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Vault card ───────────────────────────────────────────────────
 
-function VaultCard({ item, onDelete }: { item: VaultItem; onDelete: () => void }) {
+function VaultCard({ item, onDelete, onPreview }: { item: VaultItem; onDelete: () => void; onPreview: () => void }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy(e: React.MouseEvent) {
@@ -262,14 +486,16 @@ function VaultCard({ item, onDelete }: { item: VaultItem; onDelete: () => void }
   }
 
   return (
-    <div style={{
-      background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-      border: `0.5px solid ${T.b1}`,
-      borderRadius: 14, padding: "16px 18px",
-      display: "flex", flexDirection: "column", gap: 11,
-      transition: "background 150ms ease, border-color 150ms ease",
-      position: "relative", overflow: "hidden",
-    }}
+    <div
+      onClick={onPreview}
+      style={{
+        background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
+        border: `0.5px solid ${T.b1}`,
+        borderRadius: 14, padding: "16px 18px",
+        display: "flex", flexDirection: "column", gap: 11,
+        transition: "background 150ms ease, border-color 150ms ease",
+        position: "relative", overflow: "hidden", cursor: "pointer",
+      }}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement
         el.style.background = "linear-gradient(160deg,#14142A 0%,#0F0F1E 100%)"
@@ -418,6 +644,7 @@ export default function VaultPage() {
   const [search,    setSearch]    = useState("")
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [previewItem, setPreviewItem] = useState<VaultItem | null>(null)
   const [pulse,     setPulse]     = useState(false)
 
   useEffect(() => {
@@ -470,6 +697,7 @@ export default function VaultPage() {
           90%  { opacity: 1; }
           100% { transform: translateX(200%); opacity: 0; }
         }
+        @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
 
       <div style={{
@@ -656,6 +884,7 @@ export default function VaultPage() {
                     key={item.id}
                     item={item}
                     onDelete={() => handleDelete(item.id)}
+                    onPreview={() => setPreviewItem(item)}
                   />
                 ))}
               </div>
@@ -668,6 +897,13 @@ export default function VaultPage() {
         <AddModal
           onClose={() => setShowModal(false)}
           onAdded={() => { load() }}
+        />
+      )}
+
+      {previewItem && (
+        <PreviewModal
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
         />
       )}
     </>
