@@ -292,23 +292,37 @@ function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onR
 }) {
   return (
     <div onClick={onOpen} style={{
-      display: "flex", alignItems: "center", gap: 13, padding: "11px 14px", borderRadius: 12,
+      position: "relative",
+      display: "flex", alignItems: "center", gap: 13, padding: "11px 14px 11px 17px", borderRadius: 12,
       cursor: "pointer", background: "rgba(255,255,255,0.02)", border: "0.5px solid rgba(255,255,255,0.06)",
-      transition: "background 130ms ease, border-color 130ms ease",
+      transition: "background 130ms ease, border-color 130ms ease, box-shadow 130ms ease",
+      overflow: "hidden",
     }}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement
-        el.style.background = "rgba(255,255,255,0.05)"
-        el.style.borderColor = "rgba(255,255,255,0.10)";
-        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "1")
+        el.style.background = "rgba(232,0,42,0.055)"
+        el.style.borderColor = "rgba(232,0,42,0.22)"
+        el.style.boxShadow = "0 4px 18px rgba(232,0,42,0.08)";
+        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "1");
+        (el.querySelector(".accent") as HTMLElement | null)?.style.setProperty("opacity", "1")
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement
         el.style.background = "rgba(255,255,255,0.02)"
-        el.style.borderColor = "rgba(255,255,255,0.06)";
-        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "0")
+        el.style.borderColor = "rgba(255,255,255,0.06)"
+        el.style.boxShadow = "none";
+        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "0");
+        (el.querySelector(".accent") as HTMLElement | null)?.style.setProperty("opacity", "0")
       }}
     >
+      {/* red left accent bar, fades in on hover */}
+      <span className="accent" aria-hidden style={{
+        position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+        width: 2.5, height: 18, borderRadius: "0 3px 3px 0",
+        background: T.red, boxShadow: "0 0 8px rgba(232,0,42,0.9)",
+        opacity: 0, transition: "opacity 130ms ease",
+      }} />
+
       <div style={{
         width: 36, height: 36, borderRadius: 9, flexShrink: 0,
         background: agent?.avatar_color ?? "rgba(232,0,42,0.12)",
@@ -542,6 +556,23 @@ export default function ChatPage() {
 
         {/* ── Hero ── */}
         <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 180, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
+
+          {/* subtle warm horizon glow, consistent with the dashboard hero */}
+          <div aria-hidden style={{
+            position: "absolute", left: "50%", bottom: -220, transform: "translateX(-50%)",
+            width: 780, height: 340, borderRadius: "50%", pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 100%, rgba(220,10,45,0.32) 0%, rgba(160,0,35,0.16) 40%, transparent 72%)",
+            filter: "blur(20px)",
+          }} />
+          <div aria-hidden style={{
+            position: "absolute", left: "50%", bottom: -130, transform: "translateX(-50%)",
+            width: 420, height: 190, borderRadius: "50%", pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 100%, rgba(255,80,90,0.30) 0%, rgba(232,0,42,0.18) 40%, transparent 75%)",
+            filter: "blur(10px)",
+          }} />
+
+          <div aria-hidden style={{ position: "absolute", bottom: -1, left: "22%", right: "22%", height: 1.5, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.5) 35%,rgba(255,180,170,0.7) 50%,rgba(232,0,42,0.5) 65%,transparent 100%)", boxShadow: "0 0 14px rgba(232,0,42,0.4)" }} />
           <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
@@ -556,7 +587,7 @@ export default function ChatPage() {
               <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Чати</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>AI Conversations · всі розмови з агентами</p>
             </div>
-            <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+            <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 16px rgba(232,0,42,0.25)", transition: "background 140ms ease" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
             >
@@ -602,7 +633,13 @@ export default function ChatPage() {
                 { label: "Повідомлень",    value: Object.values(msgCounts).reduce((a,b)=>a+b,0),     icon: Zap           },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 14px", borderRadius: 9, background: T.s1, border: `0.5px solid ${T.b1}` }}>
-                  <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                    background: "rgba(232,0,42,0.12)", boxShadow: "0 0 8px rgba(232,0,42,0.18)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Icon size={12} style={{ color: T.red, opacity: 0.9 }} />
+                  </div>
                   <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
                   <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
@@ -700,7 +737,7 @@ export default function ChatPage() {
 
                 {hasFilters && (
                   <button onClick={clearFilters} style={{
-                    fontSize: 11, color: T.t4, background: "none", border: "none",
+                    fontSize: 11, color: T.red, background: "none", border: "none",
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 3, marginLeft: "auto",
                     whiteSpace: "nowrap",
                   }}>

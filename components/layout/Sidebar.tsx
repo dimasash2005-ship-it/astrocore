@@ -11,6 +11,7 @@ import {
   ChevronDown, LogOut,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
+import { useLanguage } from "@/lib/useLanguage"
 
 // Collapsed (rail) width — this is what other pages reserve as margin.
 export const SIDEBAR_W = 76
@@ -21,20 +22,23 @@ const SPD = "200ms cubic-bezier(0.4,0,0.2,1)"
 
 // Single flat list, matching the reference layout/order. `/providers`
 // isn't shown in the design reference — kept at the end so the route
-// stays reachable (not removing existing navigation/logic).
+// stays reachable (not removing existing navigation/logic). `labelKey`
+// looks up the actual text from lib/language.ts at render time, so the
+// list itself never hardcodes a language.
 const NAV_ITEMS = [
-  { href: "/",             icon: Home,          label: "Центр"        },
-  { href: "/chat",         icon: MessageSquare, label: "Чат"          },
-  { href: "/agents",       icon: Bot,           label: "Агенти"       },
-  { href: "/memory",       icon: Brain,         label: "Пам'ять"      },
-  { href: "/vault",        icon: BookOpen,      label: "Сховище"      },
-  { href: "/gallery",      icon: ImageIcon,     label: "Галерея"      },
-  { href: "/integrations", icon: Puzzle,        label: "Інтеграції"   },
-  { href: "/settings",     icon: Settings,      label: "Налаштування" },
-  { href: "/providers",    icon: Key,           label: "Провайдери"   },
+  { href: "/",             icon: Home,          labelKey: "center"        },
+  { href: "/chat",         icon: MessageSquare, labelKey: "chat"          },
+  { href: "/agents",       icon: Bot,           labelKey: "agents"        },
+  { href: "/memory",       icon: Brain,         labelKey: "memory"        },
+  { href: "/vault",        icon: BookOpen,      labelKey: "vault"         },
+  { href: "/gallery",      icon: ImageIcon,     labelKey: "gallery"       },
+  { href: "/integrations", icon: Puzzle,        labelKey: "integrations"  },
+  { href: "/settings",     icon: Settings,      labelKey: "settings"      },
+  { href: "/providers",    icon: Key,           labelKey: "providers"     },
 ]
 
 function ContactPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   return (
     <div style={{
       position: "absolute",
@@ -55,8 +59,8 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
         background: "rgba(232,0,42,0.05)",
       }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#EAE6FF" }}>Зв'язок</div>
-          <div style={{ fontSize: 10.5, color: "#44446A", marginTop: 1 }}>Напишіть нам у зручному каналі</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#EAE6FF" }}>{t.sidebar.contact}</div>
+          <div style={{ fontSize: 10.5, color: "#44446A", marginTop: 1 }}>{t.sidebar.contactSubtitle}</div>
         </div>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 3, borderRadius: 5, color: "#484868", lineHeight: 0 }}>
           <X size={14} />
@@ -64,7 +68,7 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
       </div>
       <div style={{ padding: "8px 8px 10px" }}>
         {[
-          { href: "https://t.me/astrocore_support", target: "_blank", Icon: Send,    ic: "#0088CC", ib: "rgba(0,136,204,0.14)",   ibd: "rgba(0,136,204,0.28)",   title: "Telegram",  sub: "Швидка відповідь"   },
+          { href: "https://t.me/astrocore_support", target: "_blank", Icon: Send,    ic: "#0088CC", ib: "rgba(0,136,204,0.14)",   ibd: "rgba(0,136,204,0.28)",   title: "Telegram",  sub: t.sidebar.telegramSubtitle },
           { href: "mailto:support@astrocore.ai",    target: undefined, Icon: Mail,   ic: "#E8002A", ib: "rgba(232,0,42,0.12)",    ibd: "rgba(232,0,42,0.28)",    title: "Email",     sub: "support@astrocore.ai" },
           { href: "https://instagram.com/astrocore", target: "_blank", Icon: AtSign, ic: "#C13584", ib: "rgba(193,53,132,0.12)",  ibd: "rgba(193,53,132,0.28)",  title: "Instagram", sub: "@astrocore"          },
         ].map(({ href, target, Icon, ic, ib, ibd, title, sub }) => (
@@ -141,6 +145,7 @@ function NavLink({ href, icon: Icon, label, active, open }: {
 export function Sidebar() {
   const pathname = usePathname()
   const router    = useRouter()
+  const { t }     = useLanguage()
   const [open,     setOpen]     = useState(false)
   const [contact,  setContact]  = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -296,14 +301,14 @@ export function Sidebar() {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
           >
             <ArrowLeft size={16} style={{ flexShrink: 0, color: "#9490B4" }} />
-            <Label open={open} style={{ fontSize: 12.5, color: "#9490B4" }}>Назад</Label>
+            <Label open={open} style={{ fontSize: 12.5, color: "#9490B4" }}>{t.sidebar.back}</Label>
           </button>
         )}
 
         {/* Navigation — flat list, generous spacing */}
         <nav style={{ display: "flex", flexDirection: "column", gap: 7, flexShrink: 0, overflowY: "auto" }}>
           {NAV_ITEMS.map(item => (
-            <NavLink key={item.href} {...item} active={isActive(item.href)} open={open} />
+            <NavLink key={item.href} href={item.href} icon={item.icon} label={t.sidebar[item.labelKey]} active={isActive(item.href)} open={open} />
           ))}
         </nav>
 
@@ -323,7 +328,7 @@ export function Sidebar() {
             onMouseLeave={e => { if (!contact) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
           >
             <Send size={16} style={{ flexShrink: 0, color: contact ? "#FFFFFF" : "#ADA9C8" }} />
-            <Label open={open} style={{ fontSize: 13, color: contact ? "#F4F0FF" : "#ABA7C6" }}>Зв'язок</Label>
+            <Label open={open} style={{ fontSize: 13, color: contact ? "#F4F0FF" : "#ABA7C6" }}>{t.sidebar.contact}</Label>
           </button>
           {contact && open && <ContactPanel onClose={() => setContact(false)} />}
         </div>
@@ -336,7 +341,7 @@ export function Sidebar() {
             border: "0.5px solid rgba(232,0,42,0.20)",
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
           }}>
-            <div style={{ fontSize: 10.5, color: "#8A86A8", marginBottom: 6 }}>Твій план</div>
+            <div style={{ fontSize: 10.5, color: "#8A86A8", marginBottom: 6 }}>{t.sidebar.yourPlan}</div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: "#F4F0FF" }}>Operator</span>
               <span style={{
@@ -355,7 +360,7 @@ export function Sidebar() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.10)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
             >
-              Покращити
+              {t.sidebar.upgrade}
             </Link>
           </div>
         )}
@@ -414,7 +419,7 @@ export function Sidebar() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
               >
-                <User size={14} style={{ color: "#8A86A8" }} /> Акаунт
+                <User size={14} style={{ color: "#8A86A8" }} /> {t.sidebar.account}
               </Link>
               <button onClick={handleSignOut} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", width: "100%",
@@ -424,7 +429,7 @@ export function Sidebar() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent" }}
               >
-                <LogOut size={14} /> Вийти
+                <LogOut size={14} /> {t.sidebar.signOut}
               </button>
             </div>
           )}

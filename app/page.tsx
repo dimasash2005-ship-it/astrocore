@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
 
 const T = {
   bg:    "#08080F",
@@ -197,6 +198,7 @@ function ListRow({ onClick, children }: { onClick: () => void; children: React.R
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { t }  = useLanguage()
 
   const [agents,    setAgents]    = useState<Agent[]>([])
   const [sessions,  setSessions]  = useState<Session[]>([])
@@ -252,10 +254,10 @@ export default function DashboardPage() {
 
   const greeting = () => {
     const h = new Date().getHours()
-    if (h < 6)  return "Добрий вечір"
-    if (h < 12) return "Добрий ранок"
-    if (h < 18) return "Добрий день"
-    return "Добрий вечір"
+    if (h < 6)  return t.dashboard.greetingEvening
+    if (h < 12) return t.dashboard.greetingMorning
+    if (h < 18) return t.dashboard.greetingDay
+    return t.dashboard.greetingEvening
   }
 
   const activeProviders = providers.filter(p => p.is_active)
@@ -273,7 +275,7 @@ export default function DashboardPage() {
 
     agents.forEach(a => items.push({
       id: `agent-${a.id}`, kind: "agent",
-      title: a.name, subtitle: "Створено нового агента",
+      title: a.name, subtitle: t.dashboard.activityNewAgent,
       time: a.created_at, agentColor: a.avatar_color, agentInitial: a.name.charAt(0).toUpperCase(),
       href: `/agents/${a.id}`,
     }))
@@ -282,7 +284,7 @@ export default function DashboardPage() {
       const agent = getAgent(s.agent_id)
       items.push({
         id: `session-${s.id}`, kind: "session",
-        title: agent?.name ?? "Чат", subtitle: `Створено нову сесію · ${s.title}`,
+        title: agent?.name ?? t.dashboard.newChat, subtitle: `${t.dashboard.activityNewSession} · ${s.title}`,
         time: s.created_at, agentColor: agent?.avatar_color, agentInitial: (agent?.name ?? "?").charAt(0).toUpperCase(),
         href: `/chat/${s.id}`,
       })
@@ -290,7 +292,7 @@ export default function DashboardPage() {
 
     vault.forEach(v => items.push({
       id: `vault-${v.id}`, kind: "vault",
-      title: "Сховище", subtitle: `Збережено запис · ${v.title}`,
+      title: t.dashboard.statVault, subtitle: `${t.dashboard.activitySavedVault} · ${v.title}`,
       time: v.created_at,
       href: "/vault",
     }))
@@ -329,7 +331,55 @@ export default function DashboardPage() {
           position: "relative", padding: "42px 48px 34px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.08) 0%,transparent 100%)" }} />
+          {/* soft top glow */}
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.09) 0%,transparent 100%)" }} />
+
+          {/* ── "rising sun" ── real sunrise color gradation, bigger + rounder + softer */}
+
+          {/* outermost deep-red ambient bloom, heavily blurred, near-circular */}
+          <div aria-hidden style={{
+            position: "absolute", left: "50%", bottom: -340, transform: "translateX(-50%)",
+            width: 1000, height: 560, borderRadius: "50%", pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 100%, rgba(220,10,45,0.55) 0%, rgba(160,0,35,0.30) 40%, transparent 72%)",
+            filter: "blur(26px)",
+          }} />
+
+          {/* mid layer — red, rounder proportions, softer edge */}
+          <div aria-hidden style={{
+            position: "absolute", left: "50%", bottom: -210, transform: "translateX(-50%)",
+            width: 680, height: 380, borderRadius: "50%", pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 100%, rgba(255,50,60,0.65) 0%, rgba(232,0,42,0.45) 35%, rgba(232,0,42,0.20) 58%, transparent 78%)",
+            filter: "blur(16px)",
+          }} />
+
+          {/* hot core — near-white/pink center, rounder, softly blurred (no hard edge) */}
+          <div aria-hidden style={{
+            position: "absolute", left: "50%", bottom: -110, transform: "translateX(-50%)",
+            width: 340, height: 190, borderRadius: "50%", pointerEvents: "none",
+            background: "radial-gradient(circle at 50% 100%, rgba(255,225,220,0.9) 0%, rgba(255,110,110,0.7) 30%, rgba(232,0,42,0.5) 55%, transparent 80%)",
+            filter: "blur(10px)",
+          }} />
+
+          {/* soft fanning glow — wide blurred wedges instead of sharp ray lines */}
+          <div aria-hidden style={{ position: "absolute", left: "50%", bottom: -40, transform: "translateX(-50%)", width: 1000, height: 260, pointerEvents: "none", filter: "blur(18px)" }}>
+            {[-30, -18, -8, 8, 18, 30].map(deg => (
+              <div key={deg} style={{
+                position: "absolute", left: "50%", bottom: 0,
+                width: 26, height: 230,
+                transform: `translateX(-50%) rotate(${deg}deg)`,
+                transformOrigin: "50% 100%",
+                borderRadius: "50% 50% 0 0",
+                background: "linear-gradient(0deg, rgba(255,90,90,0.35) 0%, rgba(232,0,42,0.16) 40%, transparent 78%)",
+              }} />
+            ))}
+          </div>
+
+          {/* thin bright horizon line, warm white-pink at the center fading to red at the edges */}
+          <div aria-hidden style={{
+            position: "absolute", bottom: -1, left: "15%", right: "15%", height: 1.5, pointerEvents: "none",
+            background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.55) 30%,rgba(255,225,215,0.95) 50%,rgba(232,0,42,0.55) 70%,transparent 100%)",
+            boxShadow: "0 0 16px rgba(255,140,120,0.55), 0 0 30px rgba(232,0,42,0.35)",
+          }} />
           <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.45) 40%,rgba(232,0,42,0.45) 60%,transparent 100%)" }} />
 
           {/* AI Core badge */}
@@ -345,7 +395,7 @@ export default function DashboardPage() {
               boxShadow: pulse ? "0 0 8px rgba(232,0,42,1), 0 0 16px rgba(232,0,42,0.5)" : "none",
             }} />
             <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              AI CORE — ОНЛАЙН
+              {t.dashboard.onlineBadge}
             </span>
           </div>
 
@@ -355,7 +405,7 @@ export default function DashboardPage() {
                 {greeting()}, <span style={{ color: T.red }}>{userName}</span>.
               </h1>
               <div style={{ fontSize: 13, color: T.t4, marginTop: 10 }}>
-                {agents.length} {agents.length === 1 ? "агент" : "агенти"} · {sessions.length} {sessions.length === 1 ? "сесія" : "сесії"} · {activeProviders.length} {activeProviders.length === 1 ? "провайдер" : "провайдери"}
+                {agents.length} {t.dashboard.statAgents.toLowerCase()} · {sessions.length} {t.dashboard.statSessions.toLowerCase()} · {activeProviders.length} {t.dashboard.statProviders.toLowerCase()}
               </div>
             </div>
 
@@ -366,7 +416,7 @@ export default function DashboardPage() {
                   padding: "9px 16px", borderRadius: 10, fontSize: 12.5, cursor: "pointer",
                   background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)", color: "#FF4D6A",
                 }}>
-                  <Key size={13} /> Додайте API ключ
+                  <Key size={13} /> {t.dashboard.addApiKey}
                 </button>
               )}
               <button onClick={() => router.push("/agents")} style={{
@@ -380,7 +430,7 @@ export default function DashboardPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                <Bot size={14} /> Новий агент
+                <Bot size={14} /> {t.dashboard.newAgent}
               </button>
               <button onClick={() => router.push("/chat")} style={{
                 display: "flex", alignItems: "center", gap: 7,
@@ -392,7 +442,7 @@ export default function DashboardPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.10)" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
               >
-                <MessageSquare size={14} /> Відкрити чат
+                <MessageSquare size={14} /> {t.dashboard.openChat}
               </button>
             </div>
           </div>
@@ -410,7 +460,7 @@ export default function DashboardPage() {
             }}>
               <Key size={14} style={{ color: T.red }} />
               <span style={{ fontSize: 13, color: "#FF4D6A" }}>
-                Додайте API ключ, щоб агенти могли відповідати
+                {t.dashboard.addApiKeyBanner}
               </span>
               <ArrowRight size={13} style={{ color: T.red, marginLeft: "auto" }} />
             </div>
@@ -422,12 +472,12 @@ export default function DashboardPage() {
             gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
             gap: 16, marginBottom: 30,
           }}>
-            <StatCard icon={Bot}           value={agents.length}           label="Агенти"     sub="активних"     href="/agents"    color="#E8002A" />
-            <StatCard icon={MessageSquare} value={sessions.length}         label="Сесії"      sub="розмов"       href="/chat"      color="#22C55E" />
-            <StatCard icon={Key}           value={activeProviders.length}  label="Провайдери" sub="підключено"   href="/providers" color="#4285F4" />
-            <StatCard icon={BookOpen}      value={vault.length}            label="Сховище"    sub="записів"      href="/vault"     color="#F59E0B" />
-            <StatCard icon={Brain}         value={memory.length}           label="Пам'ять"    sub="записів"      href="/memory"    color="#8B5CF6" />
-            <StatCard icon={ImageIcon}     value={gallery.length}          label="Галерея"    sub="виводів"      href="/gallery"   color="#EC4899" />
+            <StatCard icon={Bot}           value={agents.length}           label={t.dashboard.statAgents}    sub={t.dashboard.statAgentsSub}    href="/agents"    color="#E8002A" />
+            <StatCard icon={MessageSquare} value={sessions.length}         label={t.dashboard.statSessions}  sub={t.dashboard.statSessionsSub}  href="/chat"      color="#22C55E" />
+            <StatCard icon={Key}           value={activeProviders.length}  label={t.dashboard.statProviders} sub={t.dashboard.statProvidersSub} href="/providers" color="#4285F4" />
+            <StatCard icon={BookOpen}      value={vault.length}            label={t.dashboard.statVault}     sub={t.dashboard.statVaultSub}     href="/vault"     color="#F59E0B" />
+            <StatCard icon={Brain}         value={memory.length}           label={t.dashboard.statMemory}    sub={t.dashboard.statMemorySub}    href="/memory"    color="#8B5CF6" />
+            <StatCard icon={ImageIcon}     value={gallery.length}          label={t.dashboard.statGallery}   sub={t.dashboard.statGallerySub}   href="/gallery"   color="#EC4899" />
           </div>
 
           {/* Main grid */}
@@ -435,18 +485,18 @@ export default function DashboardPage() {
 
             {/* Agents */}
             <GlassCard>
-              <PanelHeader title="Агенти" actionLabel="Всі агенти" onAction={() => router.push("/agents")} />
+              <PanelHeader title={t.dashboard.agentsPanel} actionLabel={t.dashboard.allAgents} onAction={() => router.push("/agents")} />
               <div style={{ padding: "10px 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
                 {recentAgents.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <div style={{ fontSize: 12, color: T.t4, marginBottom: 10 }}>Агентів ще немає</div>
+                    <div style={{ fontSize: 12, color: T.t4, marginBottom: 10 }}>{t.dashboard.noAgents}</div>
                     <button onClick={() => router.push("/agents")} style={{
                       fontSize: 11.5, display: "inline-flex", alignItems: "center", gap: 5,
                       padding: "6px 12px", borderRadius: 7,
                       background: "rgba(232,0,42,0.09)", border: "0.5px solid rgba(232,0,42,0.20)",
                       color: T.red, cursor: "pointer",
                     }}>
-                      <Plus size={11} /> Створити агента
+                      <Plus size={11} /> {t.dashboard.createAgent}
                     </button>
                   </div>
                 ) : recentAgents.map(agent => {
@@ -480,25 +530,25 @@ export default function DashboardPage() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t2; (e.currentTarget as HTMLElement).style.borderColor = T.b2 }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4; (e.currentTarget as HTMLElement).style.borderColor = T.b1 }}
                 >
-                  <Plus size={12} /> Створити нового агента
+                  <Plus size={12} /> {t.dashboard.createNewAgent}
                 </button>
               </div>
             </GlassCard>
 
             {/* Recent chats */}
             <GlassCard>
-              <PanelHeader title="Останні чати" actionLabel="Всі сесії" onAction={() => router.push("/chat")} />
+              <PanelHeader title={t.dashboard.recentChats} actionLabel={t.dashboard.allSessions} onAction={() => router.push("/chat")} />
               <div style={{ padding: "10px 14px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
                 {recentSessions.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <div style={{ fontSize: 12, color: T.t4, marginBottom: 10 }}>Сесій ще немає</div>
+                    <div style={{ fontSize: 12, color: T.t4, marginBottom: 10 }}>{t.dashboard.noSessions}</div>
                     <button onClick={() => router.push("/chat")} style={{
                       fontSize: 11.5, display: "inline-flex", alignItems: "center", gap: 5,
                       padding: "6px 12px", borderRadius: 7,
                       background: "rgba(232,0,42,0.09)", border: "0.5px solid rgba(232,0,42,0.20)",
                       color: T.red, cursor: "pointer",
                     }}>
-                      <Plus size={11} /> Новий чат
+                      <Plus size={11} /> {t.dashboard.newChat}
                     </button>
                   </div>
                 ) : recentSessions.map(s => {
@@ -531,7 +581,7 @@ export default function DashboardPage() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t2; (e.currentTarget as HTMLElement).style.borderColor = T.b2 }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4; (e.currentTarget as HTMLElement).style.borderColor = T.b1 }}
                 >
-                  <MessageSquare size={12} /> Відкрити новий чат
+                  <MessageSquare size={12} /> {t.dashboard.openNewChat}
                 </button>
               </div>
             </GlassCard>
@@ -541,10 +591,10 @@ export default function DashboardPage() {
 
               {/* Vault */}
               <GlassCard style={{ flex: 1 }}>
-                <PanelHeader title="Сховище знань" actionLabel="Відкрити" onAction={() => router.push("/vault")} />
+                <PanelHeader title={t.dashboard.knowledgeVault} actionLabel={t.dashboard.open} onAction={() => router.push("/vault")} />
                 <div style={{ padding: "10px 14px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {recentVault.length === 0 ? (
-                    <div style={{ padding: "16px 0", textAlign: "center", fontSize: 12, color: T.t4 }}>Сховище порожнє</div>
+                    <div style={{ padding: "16px 0", textAlign: "center", fontSize: 12, color: T.t4 }}>{t.dashboard.emptyVault}</div>
                   ) : recentVault.map(item => (
                     <div key={item.id}
                       onClick={() => router.push("/vault")}
@@ -569,10 +619,10 @@ export default function DashboardPage() {
 
               {/* Providers */}
               <GlassCard>
-                <PanelHeader title="Провайдери" actionLabel="Керувати" onAction={() => router.push("/providers")} />
+                <PanelHeader title={t.dashboard.providersPanel} actionLabel={t.dashboard.manage} onAction={() => router.push("/providers")} />
                 <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
                   {providers.length === 0 ? (
-                    <div style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: T.t4 }}>Провайдерів немає</div>
+                    <div style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: T.t4 }}>{t.dashboard.noProviders}</div>
                   ) : providers.slice(0, 3).map(p => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{
@@ -590,7 +640,7 @@ export default function DashboardPage() {
                         border: `0.5px solid ${p.is_active ? "rgba(34,197,94,0.24)" : "rgba(255,255,255,0.07)"}`,
                         color: p.is_active ? T.green : T.t4,
                       }}>
-                        {p.is_active ? "Активний" : "Вимкнено"}
+                        {p.is_active ? t.dashboard.active : t.dashboard.inactive}
                       </span>
                     </div>
                   ))}
@@ -600,16 +650,16 @@ export default function DashboardPage() {
               {/* Quick actions */}
               <GlassCard>
                 <div style={{ padding: "15px 17px 13px", borderBottom: `0.5px solid ${T.b1}` }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>Швидкі дії</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>{t.dashboard.quickActions}</span>
                 </div>
                 <div style={{ padding: "10px 10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {[
-                    { icon: Bot,           label: "Новий агент", href: "/agents",    color: "#E8002A" },
-                    { icon: MessageSquare, label: "Новий чат",   href: "/chat",      color: "#22C55E" },
-                    { icon: BookOpen,      label: "Сховище",     href: "/vault",     color: "#F59E0B" },
-                    { icon: Brain,         label: "Пам'ять",     href: "/memory",    color: "#8B5CF6" },
-                    { icon: Key,           label: "Провайдери",  href: "/providers", color: "#4285F4" },
-                    { icon: ImageIcon,     label: "Галерея",     href: "/gallery",   color: "#EC4899" },
+                    { icon: Bot,           label: t.dashboard.newAgent,    href: "/agents",    color: "#E8002A" },
+                    { icon: MessageSquare, label: t.dashboard.newChat,     href: "/chat",      color: "#22C55E" },
+                    { icon: BookOpen,      label: t.dashboard.statVault,   href: "/vault",     color: "#F59E0B" },
+                    { icon: Brain,         label: t.dashboard.statMemory,  href: "/memory",    color: "#8B5CF6" },
+                    { icon: Key,           label: t.dashboard.statProviders, href: "/providers", color: "#4285F4" },
+                    { icon: ImageIcon,     label: t.dashboard.statGallery, href: "/gallery",   color: "#EC4899" },
                   ].map(({ icon: Icon, label, href, color }) => (
                     <button key={href}
                       onClick={() => router.push(href)}
@@ -645,7 +695,7 @@ export default function DashboardPage() {
             <GlassCard style={{ marginTop: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "15px 17px 13px", borderBottom: `0.5px solid ${T.b1}` }}>
                 <Sparkles size={13} style={{ color: T.red, opacity: 0.8 }} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>Остання активність</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>{t.dashboard.recentActivity}</span>
               </div>
               <div style={{ padding: "6px 8px" }}>
                 {activity.map(item => (

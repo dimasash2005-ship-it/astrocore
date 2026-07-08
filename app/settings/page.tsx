@@ -6,13 +6,15 @@ import {
   Settings, User, Key, Brain, Shield,
   ChevronRight, Activity, Database,
   Trash2, BookOpen, Image as ImageIcon,
-  Bot, MessageSquare, AlertCircle, Check,
+  Bot, MessageSquare, AlertCircle, Check, Globe,
 } from "lucide-react"
 import {
   agentStore, chatStore, providerStore,
   vaultStore, galleryStore,
 } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
+import { LANGUAGES } from "@/lib/language"
 
 const T = {
   bg:   "#08080F",
@@ -227,6 +229,7 @@ function ConfirmModal({
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { t, language, setLanguage } = useLanguage()
   const [pulse,   setPulse]   = useState(false)
   const [confirm, setConfirm] = useState<null | { title: string; desc: string; action: () => void }>(null)
   const [cleared, setCleared] = useState<string | null>(null)
@@ -315,7 +318,7 @@ export default function SettingsPage() {
               </span>
             </div>
             <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-              Налаштування
+              {t.sidebar.settings}
             </h1>
             <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
               AI Operating Layer · Workspace Settings · System Control
@@ -353,35 +356,35 @@ export default function SettingsPage() {
             <SectionCard title="Розділи" icon={Settings}>
               <SettingRow
                 icon={User}
-                label="Акаунт"
+                label={t.sidebar.account}
                 desc="Профіль, аватар, особиста інформація"
                 href="/account"
               />
               <Divider />
               <SettingRow
                 icon={Key}
-                label="Провайдери"
+                label={t.sidebar.providers}
                 desc="API ключі, підключені AI моделі"
                 href="/providers"
               />
               <Divider />
               <SettingRow
                 icon={Brain}
-                label="Пам'ять"
+                label={t.sidebar.memory}
                 desc="Контекст і знання що інжектуються в агентів"
                 href="/memory"
               />
               <Divider />
               <SettingRow
                 icon={BookOpen}
-                label="Сховище"
+                label={t.sidebar.vault}
                 desc="Збережені знання та нотатки"
                 href="/vault"
               />
               <Divider />
               <SettingRow
                 icon={ImageIcon}
-                label="Галерея"
+                label={t.sidebar.gallery}
                 desc="Збережені виводи AI"
                 href="/gallery"
               />
@@ -392,6 +395,39 @@ export default function SettingsPage() {
                 desc="API Keys, Webhooks, Integrations and Developer tools."
                 href="/settings/developer"
               />
+            </SectionCard>
+
+            {/* ── Language ── */}
+            <SectionCard title={t.settings.language} icon={Globe}>
+              <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{t.settings.languageDesc}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {LANGUAGES.map(l => {
+                    const active = language === l.code
+                    return (
+                      <button
+                        key={l.code}
+                        onClick={() => setLanguage(l.code)}
+                        style={{
+                          flex: "1 1 140px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                          background: active ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.04)",
+                          border: active ? "1px solid rgba(232,0,42,0.35)" : `0.5px solid ${T.b1}`,
+                          color: active ? T.t1 : T.t3,
+                          fontSize: 13, fontWeight: active ? 600 : 400,
+                          transition: "background 130ms ease, border-color 130ms ease, color 130ms ease",
+                        }}
+                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
+                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
+                      >
+                        <span style={{ fontSize: 16 }}>{l.flag}</span>
+                        {l.label}
+                        {active && <Check size={13} style={{ color: T.red, marginLeft: 2 }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </SectionCard>
 
             {/* ── System status ── */}
