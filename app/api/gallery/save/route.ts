@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const VALID_SOURCES = ["chat", "agent", "obsidian", "manual"] as const
-type MemorySource = (typeof VALID_SOURCES)[number]
+const VALID_TYPES = ["text", "code", "image"] as const
+type GalleryType = (typeof VALID_TYPES)[number]
 
 interface SaveBody {
   title?: string
   content: string
-  source?: string
+  type?: string
   tags?: string[]
-  agent_id?: string | null
 }
 
-function normalizeSource(value: string | undefined): MemorySource {
-  return (VALID_SOURCES as readonly string[]).includes(value ?? "")
-    ? (value as MemorySource)
-    : "manual"
+function normalizeType(value: string | undefined): GalleryType {
+  return (VALID_TYPES as readonly string[]).includes(value ?? "") ? (value as GalleryType) : "text"
 }
 
 function normalizeTags(value: unknown): string[] {
@@ -24,12 +21,9 @@ function normalizeTags(value: unknown): string[] {
     .filter((t): t is string => typeof t === "string")
     .map(t => t.trim())
     .filter(Boolean)
-    .slice(0, 20) // sane upper bound, avoids unbounded payloads
+    .slice(0, 20)
 }
 
-// POST /api/memory/save — session-authenticated only (no service_role).
-// RLS on memory_items scopes every read/write to the calling user, and
-// we additionally set user_id explicitly from the verified session.
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
@@ -50,34 +44,26 @@ export async function POST(req: NextRequest) {
     }
 
     const title = body?.title?.trim() || content.slice(0, 60) || "Без назви"
-    const source = normalizeSource(body?.source)
+    const type = normalizeType(body?.type)
     const tags = normalizeTags(body?.tags)
-    const agent_id = typeof body?.agent_id === "string" && body.agent_id.trim() ? body.agent_id.trim() : null
 
     const { data, error } = await supabase
-      .from("memory_items")
-      .insert({ user_id: user.id, title, content, source, tags, agent_id })
-      .select("id, created_at, source, tags, agent_id")
+      .from("gallery_items")
+      .insert({ user_id: user.id, title, content, type, tags })
+      .select("id, created_at")
       .single()
 
     if (error || !data) {
-      throw new Error(error?.message || "Не вдалося зберегти в Memory.")
+      throw new Error(error?.message || "Не вдалося зберегти в Галерею.")
     }
 
     return NextResponse.json(
-      {
-        success: true,
-        id: data.id,
-        created_at: data.created_at,
-        source: data.source,
-        tags: data.tags,
-        agent_id: data.agent_id,
-      },
+      { success: true, id: data.id, created_at: data.created_at },
       { status: 201 }
     )
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error("[POST /api/memory/save] error:", msg)
+    console.error("[POST /api/gallery/save] error:", msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

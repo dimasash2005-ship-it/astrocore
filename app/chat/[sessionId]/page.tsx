@@ -9,9 +9,6 @@ import {
   Image as ImageIcon, X, BookOpen, Plus,
   Mic, MicOff, Globe, Wrench,
 } from "lucide-react"
-import {
-  vaultStore, galleryStore,
-} from "@/lib/store"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { QuickActions } from "@/components/agents/QuickActions"
@@ -165,43 +162,180 @@ function CopyBtn({ text }: { text: string }) {
 }
 
 function SaveVaultBtn({ content }: { content: string }) {
-  const [saved, setSaved] = useState(false)
+  const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+
+  async function handleSave() {
+    if (status === "loading" || status === "success") return
+    setStatus("loading")
+    setErrorMsg("")
+    try {
+      const firstLine = content.split("\n").find(l => l.trim())?.trim() ?? ""
+      const title = firstLine ? firstLine.slice(0, 60) : `AI відповідь — ${new Date().toLocaleString("uk-UA")}`
+
+      const res = await fetch("/api/vault/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || "Не вдалося зберегти в Сховище.")
+
+      setStatus("success")
+      setTimeout(() => setStatus("idle"), 2000)
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Помилка сервера.")
+      setStatus("error")
+      setTimeout(() => setStatus("idle"), 2500)
+    }
+  }
+
+  const isLoading = status === "loading"
+  const isSuccess = status === "success"
+  const isError   = status === "error"
+
   return (
-    <button onClick={() => {
-      if (saved) return
-      vaultStore.add({ title: `AI відповідь — ${new Date().toLocaleString("uk-UA")}`, content, tags: ["chat","ai"], source: "chat" })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
-    }} title="Зберегти у Сховище" style={{
-      padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
-      cursor: saved ? "default" : "pointer", color: saved ? T.green : T.t4,
-      display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, transition: "color 130ms ease",
-    }}
-      onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.color = "#A78BFA" }}
-      onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.color = saved ? T.green : T.t4 }}
+    <button onClick={handleSave} disabled={isLoading || isSuccess}
+      title={isError ? errorMsg : "Зберегти у Сховище"}
+      style={{
+        padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
+        cursor: isLoading || isSuccess ? "default" : "pointer",
+        color: isError ? "#FF4D6A" : isSuccess ? T.green : T.t4,
+        display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, transition: "color 130ms ease",
+      }}
+      onMouseEnter={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = "#A78BFA" }}
+      onMouseLeave={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = T.t4 }}
     >
-      {saved ? <Check size={12} style={{ color: T.green }} /> : <BookOpen size={12} />}
-      {saved ? "Збережено" : "Сховище"}
+      {isLoading ? (
+        <RotateCcw size={12} style={{ animation: "spin 0.8s linear infinite" }} />
+      ) : isSuccess ? (
+        <Check size={12} style={{ color: T.green }} />
+      ) : isError ? (
+        <AlertCircle size={12} />
+      ) : (
+        <BookOpen size={12} />
+      )}
+      {isLoading ? "Зберігаємо…" : isSuccess ? "Збережено" : isError ? "Помилка" : "Сховище"}
+    </button>
+  )
+}
+function SaveGalleryBtn({ content }: { content: string }) {
+  const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+
+  async function handleSave() {
+    if (status === "loading" || status === "success") return
+    setStatus("loading")
+    setErrorMsg("")
+    try {
+      const firstLine = content.split("\n").find(l => l.trim())?.trim() ?? ""
+      const title = firstLine ? firstLine.slice(0, 60) : `AI відповідь — ${new Date().toLocaleString("uk-UA")}`
+
+      const res = await fetch("/api/gallery/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, type: "text", tags: ["chat"] }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || "Не вдалося зберегти в Галерею.")
+
+      setStatus("success")
+      setTimeout(() => setStatus("idle"), 2000)
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Помилка сервера.")
+      setStatus("error")
+      setTimeout(() => setStatus("idle"), 2500)
+    }
+  }
+
+  const isLoading = status === "loading"
+  const isSuccess = status === "success"
+  const isError   = status === "error"
+
+  return (
+    <button onClick={handleSave} disabled={isLoading || isSuccess}
+      title={isError ? errorMsg : "Зберегти у Галерею"}
+      style={{
+        padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
+        cursor: isLoading || isSuccess ? "default" : "pointer",
+        color: isError ? "#FF4D6A" : isSuccess ? T.green : T.t4,
+        display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, transition: "color 130ms ease",
+      }}
+      onMouseEnter={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = "#7DD3FC" }}
+      onMouseLeave={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = T.t4 }}
+    >
+      {isLoading ? (
+        <RotateCcw size={12} style={{ animation: "spin 0.8s linear infinite" }} />
+      ) : isSuccess ? (
+        <Check size={12} style={{ color: T.green }} />
+      ) : isError ? (
+        <AlertCircle size={12} />
+      ) : (
+        <ImageIcon size={12} />
+      )}
+      {isLoading ? "Зберігаємо…" : isSuccess ? "Збережено" : isError ? "Помилка" : "Галерея"}
     </button>
   )
 }
 
-function SaveGalleryBtn({ content }: { content: string }) {
-  const [saved, setSaved] = useState(false)
+// Real backend-backed save — unlike SaveVaultBtn/SaveGalleryBtn above
+// (which write to a local-storage store), this hits the real
+// POST /api/memory/save endpoint (session-authenticated).
+function SaveMemoryBtn({ content }: { content: string }) {
+  const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+
+  async function handleSave() {
+    if (status === "loading" || status === "success") return
+    setStatus("loading")
+    setErrorMsg("")
+    try {
+      const firstLine = content.split("\n").find(l => l.trim())?.trim() ?? ""
+      const title = firstLine ? firstLine.slice(0, 60) : "Пам'ять чату"
+
+      const res = await fetch("/api/memory/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, source: "chat", tags: ["chat"] }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || "Не вдалося зберегти в Пам'ять.")
+
+      setStatus("success")
+      setTimeout(() => setStatus("idle"), 2000)
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Помилка сервера.")
+      setStatus("error")
+      setTimeout(() => setStatus("idle"), 2500)
+    }
+  }
+
+  const isLoading = status === "loading"
+  const isSuccess = status === "success"
+  const isError   = status === "error"
+
   return (
-    <button onClick={() => {
-      if (saved) return
-      galleryStore.add({ title: `AI відповідь — ${new Date().toLocaleString("uk-UA")}`, content, type: "text", tags: ["chat","ai"] })
-      setSaved(true); setTimeout(() => setSaved(false), 2000)
-    }} title="Зберегти у Галерею" style={{
-      padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
-      cursor: saved ? "default" : "pointer", color: saved ? T.green : T.t4,
-      display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, transition: "color 130ms ease",
-    }}
-      onMouseEnter={e => { if (!saved) (e.currentTarget as HTMLElement).style.color = "#7DD3FC" }}
-      onMouseLeave={e => { if (!saved) (e.currentTarget as HTMLElement).style.color = saved ? T.green : T.t4 }}
+    <button onClick={handleSave} disabled={isLoading || isSuccess}
+      title={isError ? errorMsg : "Зберегти у Пам'ять"}
+      style={{
+        padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
+        cursor: isLoading || isSuccess ? "default" : "pointer",
+        color: isError ? "#FF4D6A" : isSuccess ? T.green : T.t4,
+        display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, transition: "color 130ms ease",
+      }}
+      onMouseEnter={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = "#FBBF24" }}
+      onMouseLeave={e => { if (status === "idle") (e.currentTarget as HTMLElement).style.color = T.t4 }}
     >
-      {saved ? <Check size={12} style={{ color: T.green }} /> : <ImageIcon size={12} />}
-      {saved ? "Збережено" : "Галерея"}
+      {isLoading ? (
+        <RotateCcw size={12} style={{ animation: "spin 0.8s linear infinite" }} />
+      ) : isSuccess ? (
+        <Check size={12} style={{ color: T.green }} />
+      ) : isError ? (
+        <AlertCircle size={12} />
+      ) : (
+        <Brain size={12} />
+      )}
+      {isLoading ? "Зберігаємо…" : isSuccess ? "Збережено" : isError ? "Помилка" : "Пам'ять"}
     </button>
   )
 }
@@ -273,6 +407,7 @@ function MessageBubble({ msg, agentColor }: { msg: Message; agentColor?: string 
               <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
               <SaveVaultBtn content={msg.content} />
               <SaveGalleryBtn content={msg.content} />
+              <SaveMemoryBtn content={msg.content} />
             </>
           )}
         </div>
