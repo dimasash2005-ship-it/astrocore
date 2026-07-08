@@ -297,7 +297,9 @@ export default function DeveloperPage() {
       const res = await fetch("/api/developer/api-keys")
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || "Не вдалося завантажити ключі.")
-      setKeys(data.keys ?? [])
+      // Revoked keys stay in the database for audit/history — just hide
+      // them from this default view.
+      setKeys((data.keys ?? []).filter((k: ApiKeyRecord) => !k.revoked_at))
     } catch (e) {
       setToast({ msg: e instanceof Error ? e.message : "Помилка завантаження ключів.", tone: "red" })
     } finally {
@@ -319,7 +321,10 @@ export default function DeveloperPage() {
       const res = await fetch(`/api/developer/api-keys/${id}`, { method: "DELETE" })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || "Не вдалося відкликати ключ.")
-      setKeys(prev => prev.map(k => k.id === id ? { ...k, revoked_at: new Date().toISOString() } : k))
+      // Backend only sets revoked_at — the row still exists for audit
+      // purposes. We just drop it from the local list immediately so it
+      // never reappears in the default view.
+      setKeys(prev => prev.filter(k => k.id !== id))
       setToast({ msg: "Ключ відкликано.", tone: "green" })
     } catch (e) {
       setToast({ msg: e instanceof Error ? e.message : "Помилка сервера.", tone: "red" })

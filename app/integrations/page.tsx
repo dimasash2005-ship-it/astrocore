@@ -1,372 +1,606 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import {
-  Puzzle, Check, Copy, Download, Key,
-  Clock, BookOpen, MessageSquare, Edit3,
-  Lightbulb, Zap, Globe, Code2, Search,
-  Workflow, ExternalLink, AlertCircle, ArrowRight,
+  Sparkles, HelpCircle, Plus, Copy, Check, RefreshCw, Settings,
+  CheckCircle2, Circle, Loader2, Unlink, X, Lock,
+  Code2, Globe, Search, Zap, Workflow, Puzzle,
+  Clock, KeyRound, Shield, CalendarDays,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 
+// ── Design tokens — matches the requested premium palette ──
 const T = {
-  bg:   "#08080F",
-  s1:   "#11111C",
-  b1:   "rgba(255,255,255,0.10)",
-  bRed: "rgba(232,0,42,0.30)",
-  t1:   "#F0EDF8",
-  t2:   "#C8C4D8",
-  t3:   "#A8A4BC",
-  t4:   "#585878",
-  red:  "#E8002A",
-  green:"#22C55E",
-  amber:"#F59E0B",
+  bg:     "#09090C",
+  card:   "#101014",
+  cardHi: "#131318",
+  border: "rgba(255,255,255,0.06)",
+  borderHi: "rgba(255,255,255,0.11)",
+  t1:     "#F3F1FA",
+  t2:     "#C8C4D8",
+  t3:     "#93909F",
+  t4:     "#5C5A66",
+  red:    "#E8002A",
+  redDim: "rgba(232,0,42,0.14)",
+  green:  "#22C55E",
+  greenDim: "rgba(34,197,94,0.12)",
 }
 
-const ENDPOINT = "https://astrocore.ai/api/integrations/obsidian/chat"
+const OBSIDIAN_KEY_NAME = "Obsidian Plugin"
 
-const USER_STEPS = [
-  {
-    n: "1",
-    label: "Завантаж плагін",
-    desc: "Один файл. Встанови в Obsidian через Community Plugins.",
-    active: true,
-  },
-  {
-    n: "2",
-    label: "Згенеруй API ключ",
-    desc: "Один клік у налаштуваннях AstroCore.",
-    active: false,
-  },
-  {
-    n: "3",
-    label: "Встав ключ в Obsidian",
-    desc: "Відкрий налаштування плагіна → встав ключ → готово.",
-    active: false,
-  },
+const INSTALL_STEPS = [
+  "Скачай `_integrations/obsidian` з репозиторію AstroCore.",
+  "В Obsidian: Settings → Community Plugins → Turn on community plugins.",
+  "Розпакуй плагін у `<твій vault>/.obsidian/plugins/astrocore/`.",
+  "Онови список плагінів і увімкни AstroCore AI.",
 ]
 
-const FEATURES = [
-  { icon: MessageSquare, label: "Ask AstroCore",     desc: "Запитуй прямо з нотатки"       },
-  { icon: Edit3,         label: "Rewrite",           desc: "Перепиши виділений текст"       },
-  { icon: BookOpen,      label: "Summarize",         desc: "Підсумок поточної нотатки"      },
-  { icon: Lightbulb,     label: "Explain",           desc: "Поясни виділений фрагмент"     },
-  { icon: Zap,           label: "Save to Vault",     desc: "Збережи результат (скоро)"      },
+const CAPABILITIES = [
+  "Запити до AI прямо з нотатки",
+  "Надсилання нотатки/виділення в AstroCore Vault",
+  "Переписування та пояснення виділеного тексту",
+  "Підсумок поточної нотатки одним кліком",
+  "Захищений доступ через персональний API-ключ",
 ]
 
-const COMING_SOON = [
-  { id: "vscode",   name: "VS Code",           icon: Code2,    color: "#007ACC", desc: "Виклик AstroCore прямо з редактора коду."       },
-  { id: "browser",  name: "Browser Extension", icon: Globe,    color: "#F59E0B", desc: "AstroCore в будь-якій вкладці браузера."        },
-  { id: "raycast",  name: "Raycast",           icon: Search,   color: "#FF6363", desc: "Швидкий доступ через Raycast launcher."         },
-  { id: "zapier",   name: "Zapier",            icon: Zap,      color: "#FF4A00", desc: "Автоматизація з тисячами сервісів через Zapier."},
-  { id: "n8n",      name: "n8n",               icon: Workflow, color: "#EA4B71", desc: "Self-hosted автоматизація через n8n."           },
-  { id: "make",     name: "Make",              icon: Puzzle,   color: "#6D00CC", desc: "Візуальна автоматизація через Make."            },
+type IntegrationDef = {
+  id: string
+  name: string
+  emoji?: string
+  icon?: React.ElementType
+  color: string
+  desc: string
+  category: string
+  soon: boolean
+}
+
+const INTEGRATIONS: IntegrationDef[] = [
+  { id: "obsidian", name: "Obsidian",          emoji: "🔮",              color: "#8B5CF6", desc: "Працюй зі своїми нотатками прямо в Obsidian.",     category: "Нотатки",         soon: false },
+  { id: "vscode",   name: "VS Code",           icon: Code2,              color: "#007ACC", desc: "Виклик AstroCore прямо з редактора коду.",         category: "Розробка",        soon: true  },
+  { id: "browser",  name: "Browser Extension", icon: Globe,              color: "#F59E0B", desc: "AstroCore в будь-якій вкладці браузера.",          category: "Продуктивність",  soon: true  },
+  { id: "raycast",  name: "Raycast",           icon: Search,             color: "#FF6363", desc: "Швидкий доступ через Raycast launcher.",           category: "Продуктивність",  soon: true  },
+  { id: "zapier",   name: "Zapier",            icon: Zap,                color: "#FF4A00", desc: "Автоматизація з тисячами сервісів через Zapier.",  category: "Автоматизація",   soon: true  },
+  { id: "n8n",      name: "n8n",               icon: Workflow,           color: "#EA4B71", desc: "Self-hosted автоматизація через n8n.",             category: "Автоматизація",   soon: true  },
+  { id: "make",     name: "Make",              icon: Puzzle,             color: "#6D00CC", desc: "Візуальна автоматизація через Make.",              category: "Автоматизація",   soon: true  },
 ]
 
-function CopyBtn({ text }: { text: string }) {
+type ApiKeyRecord = {
+  id: string
+  name: string
+  revoked_at: string | null
+  key_prefix: string
+  permissions: string[]
+  last_used_at: string | null
+  created_at: string
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "Ще не використовувалась"
+  try {
+    return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short", year: "numeric" })
+  } catch {
+    return iso
+  }
+}
+
+function CopyBtn({ text, subtle }: { text: string; subtle?: boolean }) {
   const [copied, setCopied] = useState(false)
   return (
     <button onClick={() => {
       navigator.clipboard.writeText(text).then(() => {
-        setCopied(true); setTimeout(() => setCopied(false), 2000)
+        setCopied(true); setTimeout(() => setCopied(false), 1800)
       })
     }} style={{
-      display: "flex", alignItems: "center", gap: 6,
-      padding: "7px 12px", borderRadius: 8, border: "none",
-      cursor: "pointer", fontSize: 12, fontWeight: 500,
-      background: copied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.07)",
-      color: copied ? T.green : T.t2, transition: "all 130ms ease",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer",
+      background: subtle ? "transparent" : "rgba(255,255,255,0.05)",
+      color: copied ? T.green : T.t3, transition: "color 130ms ease, background 130ms ease",
     }}>
-      {copied ? <Check size={12} /> : <Copy size={12} />}
-      {copied ? "Скопійовано" : "Копіювати"}
+      {copied ? <Check size={13} /> : <Copy size={13} />}
     </button>
   )
 }
 
-function ComingSoonBadge() {
+function StatusCard({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone?: "green" }) {
   return (
-    <span style={{
-      fontSize: 9.5, padding: "2px 7px", borderRadius: 5, fontWeight: 600,
-      background: "rgba(255,255,255,0.05)", color: T.t4,
-      border: "0.5px solid rgba(255,255,255,0.08)",
-      textTransform: "uppercase", letterSpacing: "0.06em",
+    <div style={{
+      flex: "1 1 180px", minWidth: 160,
+      padding: "14px 16px", borderRadius: 12,
+      background: "rgba(255,255,255,0.02)", border: `0.5px solid ${T.border}`,
     }}>
-      Скоро
-    </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <Icon size={12} style={{ color: T.t4 }} />
+        <span style={{ fontSize: 10.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: tone === "green" ? T.green : T.t1, display: "flex", alignItems: "center", gap: 6 }}>
+        {tone === "green" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, display: "inline-block" }} />}
+        {value}
+      </div>
+    </div>
+  )
+}
+
+// ── One-time reveal modal after (re)generating a key ──
+function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => void }) {
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 300,
+      background: "rgba(4,4,8,0.75)", backdropFilter: "blur(2px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "100%", maxWidth: 460, borderRadius: 16,
+        background: `linear-gradient(160deg,${T.cardHi} 0%,${T.card} 100%)`,
+        border: `1px solid ${T.borderHi}`, boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: `0.5px solid ${T.border}` }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий ключ згенеровано</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}><X size={16} /></button>
+        </div>
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 10,
+            padding: "11px 14px", borderRadius: 10,
+            background: T.redDim, border: "0.5px solid rgba(232,0,42,0.25)",
+          }}>
+            <Lock size={13} style={{ color: T.red, flexShrink: 0, marginTop: 1 }} />
+            <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.55 }}>
+              Показується <strong style={{ color: T.t1 }}>лише зараз</strong>. Онови ключ у налаштуваннях плагіна Obsidian — старий ключ уже недійсний.
+            </div>
+          </div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "11px 13px", borderRadius: 10,
+            background: "rgba(0,0,0,0.4)", border: "0.5px solid rgba(125,211,252,0.18)",
+          }}>
+            <code style={{ fontSize: 12, color: "#7DD3FC", fontFamily: "monospace", wordBreak: "break-all", flex: 1 }}>{fullKey}</code>
+            <CopyBtn text={fullKey} />
+          </div>
+          <button onClick={onClose} style={{
+            padding: "11px", borderRadius: 10, border: "none", cursor: "pointer",
+            background: "rgba(255,255,255,0.06)", color: T.t1, fontSize: 13.5, fontWeight: 500,
+          }}>Готово</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
 export default function IntegrationsPage() {
-  const [pulse, setPulse] = useState(false)
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
+  const [origin, setOrigin] = useState("")
+  const [showInstall, setShowInstall] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+
+  const [connLoading, setConnLoading] = useState(true)
+  const [obsidianKey, setObsidianKey] = useState<ApiKeyRecord | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [revealKey, setRevealKey] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const endpoint = origin ? `${origin}/api/integrations/obsidian/chat` : "/api/integrations/obsidian/chat"
+
+  const loadConnection = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setConnLoading(true)
+    try {
+      const res = await fetch("/api/developer/api-keys")
+      const data = await res.json()
+      const keys = (data?.keys ?? []) as ApiKeyRecord[]
+      const active = keys.find(k => k.name === OBSIDIAN_KEY_NAME && !k.revoked_at) ?? null
+      setObsidianKey(active)
+    } catch {
+      setObsidianKey(null)
+    } finally {
+      setConnLoading(false)
+      setChecking(false)
+    }
   }, [])
+
+  useEffect(() => { loadConnection() }, [loadConnection])
+
+  async function handleDisconnect() {
+    if (!obsidianKey) return
+    if (!window.confirm("Відключити Obsidian? Плагін перестане мати доступ до AstroCore, поки не підключиш знову.")) return
+    setDisconnecting(true)
+    try {
+      await fetch(`/api/developer/api-keys/${obsidianKey.id}`, { method: "DELETE" })
+      setObsidianKey(null)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!window.confirm("Перегенерувати ключ? Старий ключ одразу перестане працювати — онови його в плагіні.")) return
+    setRegenerating(true)
+    try {
+      const res = await fetch("/api/integrations/obsidian/connect", { method: "POST" })
+      const data = await res.json()
+      if (res.ok && data?.key) {
+        setRevealKey(data.key as string)
+        await loadConnection({ silent: true })
+      }
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
+  function handleCheckAgain() {
+    setChecking(true)
+    loadConnection({ silent: true })
+  }
+
+  const connected = !connLoading && !!obsidianKey
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>()
+    INTEGRATIONS.forEach(i => counts.set(i.category, (counts.get(i.category) ?? 0) + 1))
+    return Array.from(counts.entries())
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!activeCategory) return INTEGRATIONS
+    return INTEGRATIONS.filter(i => i.category === activeCategory)
+  }, [activeCategory])
 
   return (
     <>
       <style>{`
-        @keyframes scanline {
-          0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
-        }
+        @keyframes scanline { 0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0} }
+        @keyframes driftGlow { 0%{transform:translate(-8%,-8%);opacity:.45} 50%{transform:translate(8%,6%);opacity:.85} 100%{transform:translate(-8%,-8%);opacity:.45} }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .astrocore-spin { animation: spin .8s linear infinite; }
+        .ac-card { transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+        .ac-card:hover { transform: translateY(-2px); }
       `}</style>
 
-      <div style={{
-        marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg,
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
-        backgroundSize: "24px 24px",
-      }}>
+      <div style={{ marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg }}>
         <div aria-hidden style={{
           position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
-          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
+          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.55),transparent)",
           animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10,
         }} />
 
-        {/* Hero */}
-        <div style={{
-          position: "relative", padding: "36px 48px 28px",
-          borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
-        }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
-          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
+        <div style={{ padding: "40px 56px 72px", maxWidth: 1400 }}>
 
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-              borderRadius: 20, padding: "3px 10px", marginBottom: 14,
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
-                opacity: pulse ? 1 : 0.3, transition: "opacity 900ms ease, box-shadow 900ms ease",
-                boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-              }} />
-              <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Integration Hub · Beta
-              </span>
-            </div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Інтеграції</h1>
-            <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-              Використовуй AstroCore в улюблених інструментах
-            </p>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: "28px 48px 56px", maxWidth: 1000 }}>
-
-          {/* ── Obsidian card ── */}
-          <div style={{
-            background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
-            border: "1px solid rgba(232,0,42,0.22)", borderRadius: 16,
-            overflow: "hidden", marginBottom: 32,
-            boxShadow: "0 0 48px rgba(232,0,42,0.06)",
-          }}>
-
-            {/* Header */}
-            <div style={{
-              padding: "20px 24px 18px", borderBottom: `0.5px solid ${T.b1}`,
-              background: "rgba(232,0,42,0.04)",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexWrap: "wrap", gap: 12,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* ── Header ── */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 40 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h1 style={{ fontSize: 32, fontWeight: 700, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Інтеграції</h1>
                 <div style={{
-                  width: 50, height: 50, borderRadius: 14, fontSize: 24,
-                  background: "linear-gradient(145deg,#6C3FA0 0%,#4A2870 100%)",
-                  boxShadow: "0 0 20px rgba(108,63,160,0.35)",
+                  width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: T.redDim, border: "0.5px solid rgba(232,0,42,0.25)",
+                }}>
+                  <Sparkles size={14} style={{ color: T.red }} />
+                </div>
+              </div>
+              <p style={{ fontSize: 14, color: T.t3, marginTop: 8, marginBottom: 0 }}>
+                Підключай інструменти, розширюй можливості та працюй без обмежень.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowInstall(v => !v)} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", borderRadius: 10, border: `0.5px solid ${T.border}`,
+                background: T.card, color: T.t2, fontSize: 13.5, fontWeight: 500, cursor: "pointer",
+              }}>
+                <HelpCircle size={15} /> Довідка
+              </button>
+              <a href="#marketplace" style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", borderRadius: 10, border: "none", textDecoration: "none",
+                background: T.red, color: "#fff", fontSize: 13.5, fontWeight: 600,
+              }}>
+                <Plus size={15} /> Додати інтеграцію
+              </a>
+            </div>
+          </div>
+
+          {/* ── Hero: Obsidian ── */}
+          <div id="obsidian-hero" style={{
+            position: "relative", overflow: "hidden",
+            background: T.card, border: `1px solid ${connected ? "rgba(34,197,94,0.22)" : T.border}`,
+            borderRadius: 20, marginBottom: 28,
+            display: "grid", gridTemplateColumns: "1.3fr 1fr",
+          }}>
+            {/* Left */}
+            <div style={{ padding: "36px 40px", display: "flex", flexDirection: "column", gap: 26 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: 16, fontSize: 30,
+                  background: "linear-gradient(145deg,#6C3FA0 0%,#3D2260 100%)",
+                  boxShadow: "0 0 28px rgba(139,92,246,0.30)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>🔮</div>
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: T.t1, marginBottom: 5 }}>Obsidian</div>
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "2px 9px", borderRadius: 20,
-                    background: "rgba(34,197,94,0.10)", border: "0.5px solid rgba(34,197,94,0.25)",
-                    fontSize: 10.5, color: T.green, fontWeight: 600,
-                  }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.green, display: "inline-block" }} />
-                    Доступно · MVP Beta
-                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, marginBottom: 6 }}>Obsidian</div>
+                  {connLoading ? (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.t4 }}>
+                      <Loader2 size={12} className="astrocore-spin" /> Перевіряємо статус…
+                    </div>
+                  ) : connected ? (
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "3px 10px", borderRadius: 20, background: T.greenDim,
+                      border: "0.5px solid rgba(34,197,94,0.28)", fontSize: 11.5, color: T.green, fontWeight: 600,
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, display: "inline-block" }} />
+                      Підключено
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "3px 10px", borderRadius: 20, background: "rgba(255,255,255,0.05)",
+                      border: `0.5px solid ${T.border}`, fontSize: 11.5, color: T.t4, fontWeight: 600,
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.t4, display: "inline-block" }} />
+                      Не підключено
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Buttons */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button disabled title="Скоро" style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "9px 16px", borderRadius: 9, border: "none",
-                  background: "rgba(255,255,255,0.05)", color: T.t4,
-                  fontSize: 13, fontWeight: 500, cursor: "not-allowed",
-                }}>
-                  <Download size={14} /> Download Plugin
-                  <span style={{ marginLeft: 4, fontSize: 9.5, padding: "1px 5px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: T.t4 }}>Скоро</span>
-                </button>
-
-                <button disabled title="Скоро" style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "9px 16px", borderRadius: 9, border: "none",
-                  background: "rgba(232,0,42,0.10)", color: "#FF6B6B",
-                  fontSize: 13, fontWeight: 500, cursor: "not-allowed",
-                }}>
-                  <Key size={14} /> Generate API Key
-                  <span style={{ marginLeft: 4, fontSize: 9.5, padding: "1px 5px", borderRadius: 4, background: "rgba(232,0,42,0.12)", color: "#FF6B6B" }}>Скоро</span>
-                </button>
-
-                <a href="/docs/integrations/obsidian" style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "9px 16px", borderRadius: 9,
-                  background: "rgba(255,255,255,0.06)", border: `0.5px solid ${T.b1}`,
-                  color: T.t2, fontSize: 13, textDecoration: "none",
-                }}>
-                  <ExternalLink size={14} /> Документація
-                </a>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: "24px 24px", display: "flex", flexDirection: "column", gap: 28 }}>
-
-              <p style={{ fontSize: 14, color: T.t2, lineHeight: 1.65, margin: 0, maxWidth: 580 }}>
-                AstroCore прямо в Obsidian — запитуй AI, переписуй, підсумовуй нотатки і пояснюй тексти, не виходячи з редактора.
+              <p style={{ fontSize: 14.5, color: T.t2, lineHeight: 1.7, margin: 0, maxWidth: 480 }}>
+                {connected
+                  ? "Плагін активний і готовий до роботи."
+                  : "AstroCore прямо в Obsidian — запитуй AI, переписуй, підсумовуй нотатки і зберігай результати у Vault, не виходячи з редактора."}
               </p>
 
-              {/* 3-step user flow */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 16 }}>
-                  Як це працює
+              {connected && obsidianKey && (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <StatusCard icon={Circle} label="Стан підключення" value="Активно" tone="green" />
+                  <StatusCard icon={Clock} label="Останнє використання" value={formatDate(obsidianKey.last_used_at)} />
+                  <StatusCard icon={CalendarDays} label="Підключено" value={formatDate(obsidianKey.created_at)} />
+                  <StatusCard icon={Shield} label="Дозволи" value={`${obsidianKey.permissions?.length ?? 0} з 5`} />
                 </div>
-                <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
-                  {USER_STEPS.map((step, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                      <div style={{
-                        display: "flex", flexDirection: "column", gap: 8,
-                        padding: "14px 18px", borderRadius: 12,
-                        background: step.active ? "rgba(232,0,42,0.08)" : "rgba(255,255,255,0.03)",
-                        border: `0.5px solid ${step.active ? "rgba(232,0,42,0.25)" : "rgba(255,255,255,0.07)"}`,
-                        minWidth: 180, maxWidth: 220,
-                        position: "relative",
-                      }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: "50%",
-                          background: step.active ? "rgba(232,0,42,0.20)" : "rgba(255,255,255,0.06)",
-                          border: `0.5px solid ${step.active ? "rgba(232,0,42,0.40)" : "rgba(255,255,255,0.12)"}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, fontWeight: 700,
-                          color: step.active ? T.red : T.t4,
-                        }}>
-                          {step.n}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: step.active ? T.t1 : T.t3 }}>{step.label}</div>
-                        <div style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.5 }}>{step.desc}</div>
-                        {!step.active && (
-                          <div style={{ position: "absolute", top: 10, right: 12 }}>
-                            <ComingSoonBadge />
-                          </div>
-                        )}
-                      </div>
-                      {i < USER_STEPS.length - 1 && (
-                        <ArrowRight size={14} style={{ color: T.t4, flexShrink: 0, margin: "0 8px" }} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              )}
 
-              {/* Features */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-                  Що вмієш
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {FEATURES.map(({ icon: Icon, label, desc }) => (
-                    <div key={label} style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "8px 12px", borderRadius: 9,
-                      background: "rgba(255,255,255,0.03)", border: `0.5px solid ${T.b1}`,
+              {connected && obsidianKey && (
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    API ключ
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+                    padding: "12px 16px", borderRadius: 12,
+                    background: "rgba(0,0,0,0.3)", border: "0.5px solid rgba(125,211,252,0.14)",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <KeyRound size={13} style={{ color: "#7DD3FC" }} />
+                      <code style={{ fontSize: 12.5, color: "#7DD3FC", fontFamily: "monospace" }}>
+                        {obsidianKey.key_prefix}••••••••••••••••
+                      </code>
+                    </div>
+                    <CopyBtn text={obsidianKey.key_prefix} subtle />
+                  </div>
+                  <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                    <button onClick={handleRegenerate} disabled={regenerating} style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 16px", borderRadius: 10, border: "none",
+                      background: T.redDim, color: "#FF6B6B", fontSize: 13, fontWeight: 600,
+                      cursor: regenerating ? "default" : "pointer", opacity: regenerating ? 0.7 : 1,
                     }}>
-                      <Icon size={13} style={{ color: T.red, opacity: 0.75, flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: T.t1 }}>{label}</div>
-                        <div style={{ fontSize: 10.5, color: T.t4 }}>{desc}</div>
-                      </div>
-                    </div>
-                  ))}
+                      {regenerating ? <Loader2 size={14} className="astrocore-spin" /> : <RefreshCw size={14} />}
+                      Перегенерувати ключ
+                    </button>
+                    <a href="/settings/developer" style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 16px", borderRadius: 10, textDecoration: "none",
+                      background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.border}`,
+                      color: T.t2, fontSize: 13, fontWeight: 500,
+                    }}>
+                      <Settings size={14} /> Змінити налаштування
+                    </a>
+                    <button onClick={handleDisconnect} disabled={disconnecting} style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 16px", borderRadius: 10, border: "none",
+                      background: "transparent", color: T.t4, fontSize: 13, fontWeight: 500,
+                      cursor: disconnecting ? "default" : "pointer",
+                    }}>
+                      {disconnecting ? <Loader2 size={14} className="astrocore-spin" /> : <Unlink size={14} />}
+                      Відключити
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Endpoint */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10 }}>
-                  API Endpoint
+              {!connected && !connLoading && (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <a href="/connect/obsidian" style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    padding: "11px 20px", borderRadius: 10, textDecoration: "none",
+                    background: T.red, color: "#fff", fontSize: 13.5, fontWeight: 600,
+                  }}>
+                    <KeyRound size={14} /> Connect AstroCore
+                  </a>
+                  <button onClick={() => setShowInstall(v => !v)} style={{
+                    display: "flex", alignItems: "center", gap: 7,
+                    padding: "11px 20px", borderRadius: 10, border: `0.5px solid ${T.border}`,
+                    background: "transparent", color: T.t2, fontSize: 13.5, fontWeight: 500, cursor: "pointer",
+                  }}>
+                    Як встановити
+                  </button>
                 </div>
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                  padding: "11px 16px", borderRadius: 10,
-                  background: "rgba(0,0,0,0.35)", border: "0.5px solid rgba(125,211,252,0.14)",
-                }}>
-                  <code style={{ fontSize: 13, color: "#7DD3FC", fontFamily: "monospace" }}>{ENDPOINT}</code>
-                  <CopyBtn text={ENDPOINT} />
-                </div>
-              </div>
+              )}
 
-              {/* Beta notice */}
-              <div style={{
-                display: "flex", alignItems: "flex-start", gap: 10,
-                padding: "12px 14px", borderRadius: 10,
-                background: "rgba(245,158,11,0.07)", border: "0.5px solid rgba(245,158,11,0.22)",
-              }}>
-                <AlertCircle size={14} style={{ color: T.amber, flexShrink: 0, marginTop: 1 }} />
-                <div style={{ fontSize: 12.5, color: "#D4A847", lineHeight: 1.6 }}>
-                  <strong style={{ color: T.amber }}>Beta:</strong>{" "}
-                  Зараз плагін доступний локально. Публічне завантаження та API ключі — в найближчих оновленнях. Слідкуй за анонсами.
+              {showInstall && (
+                <div style={{ padding: "16px 18px", borderRadius: 12, background: "rgba(0,0,0,0.25)", border: `0.5px solid ${T.border}` }}>
+                  <ol style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 7 }}>
+                    {INSTALL_STEPS.map((s, i) => (
+                      <li key={i} style={{ fontSize: 12.5, color: T.t3, lineHeight: 1.6 }}>{s}</li>
+                    ))}
+                  </ol>
                 </div>
-              </div>
+              )}
+            </div>
 
+            {/* Right — capability panel with subtle red glow */}
+            <div style={{
+              position: "relative", padding: "36px 34px",
+              borderLeft: `1px solid ${T.border}`,
+              background: "linear-gradient(160deg,rgba(232,0,42,0.05) 0%,transparent 60%)",
+              display: "flex", flexDirection: "column", justifyContent: "center", gap: 24,
+              overflow: "hidden",
+            }}>
+              <div aria-hidden style={{
+                position: "absolute", top: "20%", right: "10%", width: 200, height: 200, borderRadius: "50%",
+                background: "radial-gradient(circle,rgba(232,0,42,0.14) 0%,transparent 70%)",
+                filter: "blur(6px)", animation: "driftGlow 10s ease-in-out infinite", pointerEvents: "none",
+              }} />
+              <div style={{ position: "relative", fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Що може Obsidian інтеграція
+              </div>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 14 }}>
+                {CAPABILITIES.map((cap, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <CheckCircle2 size={15} style={{ color: T.green, flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: 13, color: T.t2, lineHeight: 1.5 }}>{cap}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ position: "relative", fontSize: 11.5, color: T.t4, marginTop: 4 }}>
+                Endpoint: <code style={{ color: "#7DD3FC" }}>{endpoint}</code>
+              </div>
             </div>
           </div>
 
-          {/* Coming soon */}
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 14 }}>
-              Незабаром
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px,1fr))", gap: 12 }}>
-              {COMING_SOON.map(({ id, name, icon: Icon, color, desc }) => (
-                <div key={id} style={{
-                  background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-                  border: `0.5px solid ${T.b1}`, borderRadius: 14,
-                  padding: "16px 18px", opacity: 0.55,
-                  display: "flex", flexDirection: "column", gap: 10,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: 9,
-                        background: `${color}18`, border: `0.5px solid ${color}30`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <Icon size={16} style={{ color }} />
-                      </div>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: T.t2 }}>{name}</span>
-                    </div>
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 4,
-                      padding: "3px 8px", borderRadius: 20,
-                      background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)",
-                      fontSize: 9.5, color: T.t4,
-                    }}>
-                      <Clock size={9} /> Скоро
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{desc}</div>
+          {/* ── Success banner ── */}
+          {connected && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+              padding: "20px 26px", borderRadius: 16, marginBottom: 48,
+              background: T.greenDim, border: "0.5px solid rgba(34,197,94,0.28)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <CheckCircle2 size={22} style={{ color: T.green, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Інтеграція працює коректно</div>
+                  <div style={{ fontSize: 12.5, color: T.t3, marginTop: 2 }}>Обмін даними відбувається успішно.</div>
                 </div>
-              ))}
+              </div>
+              <button onClick={handleCheckAgain} disabled={checking} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 16px", borderRadius: 10, border: `0.5px solid ${T.border}`,
+                background: "rgba(255,255,255,0.04)", color: T.t2, fontSize: 12.5, fontWeight: 500,
+                cursor: checking ? "default" : "pointer",
+              }}>
+                {checking ? <Loader2 size={13} className="astrocore-spin" /> : <RefreshCw size={13} />}
+                Перевірити знову
+              </button>
+            </div>
+          )}
+
+          {/* ── Marketplace ── */}
+          <div id="marketplace">
+            <div style={{ marginBottom: 26 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.t1, margin: 0 }}>Доступні інтеграції</h2>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
+                Підключай улюблені інструменти та розширюй можливості AstroCore.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 28, alignItems: "start" }}>
+              {/* Filter panel */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, position: "sticky", top: 24 }}>
+                <button onClick={() => setActiveCategory(null)} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "9px 12px", borderRadius: 9, border: "none", cursor: "pointer",
+                  background: activeCategory === null ? T.redDim : "transparent",
+                  color: activeCategory === null ? T.t1 : T.t3,
+                  fontSize: 13, fontWeight: activeCategory === null ? 600 : 400,
+                }}>
+                  Усі <span style={{ fontSize: 11, color: T.t4 }}>{INTEGRATIONS.length}</span>
+                </button>
+                {categories.map(([cat, count]) => (
+                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "9px 12px", borderRadius: 9, border: "none", cursor: "pointer",
+                    background: activeCategory === cat ? T.redDim : "transparent",
+                    color: activeCategory === cat ? T.t1 : T.t3,
+                    fontSize: 13, fontWeight: activeCategory === cat ? 600 : 400,
+                  }}>
+                    {cat} <span style={{ fontSize: 11, color: T.t4 }}>{count}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+                {filtered.map(item => {
+                  const isObsidian = item.id === "obsidian"
+                  const isConnected = isObsidian && connected
+                  const Icon = item.icon
+
+                  const card = (
+                    <div className="ac-card" style={{
+                      background: T.card,
+                      border: `1px solid ${isConnected ? "rgba(34,197,94,0.30)" : isObsidian ? "rgba(232,0,42,0.30)" : T.border}`,
+                      borderRadius: 14, padding: "18px 18px 20px",
+                      display: "flex", flexDirection: "column", gap: 12,
+                      cursor: isObsidian ? "pointer" : "default",
+                      opacity: item.soon ? 0.75 : 1,
+                    }}
+                      onMouseEnter={e => {
+                        if (item.soon) return
+                        (e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.35)"
+                        ;(e.currentTarget as HTMLElement).style.boxShadow = "0 12px 32px rgba(232,0,42,0.10)"
+                      }}
+                      onMouseLeave={e => {
+                        if (item.soon) return
+                        (e.currentTarget as HTMLElement).style.borderColor = isConnected ? "rgba(34,197,94,0.30)" : "rgba(232,0,42,0.30)"
+                        ;(e.currentTarget as HTMLElement).style.boxShadow = "none"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 10, fontSize: 19,
+                          background: item.emoji ? "linear-gradient(145deg,#6C3FA0 0%,#3D2260 100%)" : `${item.color}18`,
+                          border: item.emoji ? "none" : `0.5px solid ${item.color}30`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {item.emoji ?? (Icon && <Icon size={17} style={{ color: item.color }} />)}
+                        </div>
+                        {item.soon ? (
+                          <span style={{
+                            fontSize: 9.5, padding: "2px 8px", borderRadius: 20, fontWeight: 600,
+                            background: "rgba(255,255,255,0.05)", color: T.t4, border: `0.5px solid ${T.border}`,
+                            textTransform: "uppercase", letterSpacing: "0.06em",
+                          }}>Скоро</span>
+                        ) : isConnected ? (
+                          <span style={{
+                            display: "flex", alignItems: "center", gap: 4,
+                            fontSize: 9.5, padding: "2px 8px", borderRadius: 20, fontWeight: 600,
+                            background: T.greenDim, color: T.green, border: "0.5px solid rgba(34,197,94,0.28)",
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.green, display: "inline-block" }} />
+                            Підключено
+                          </span>
+                        ) : null}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14.5, fontWeight: 600, color: T.t1, marginBottom: 4 }}>{item.name}</div>
+                        <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  )
+
+                  return isObsidian ? (
+                    <a key={item.id} href="#obsidian-hero" style={{ textDecoration: "none" }}>{card}</a>
+                  ) : (
+                    <div key={item.id}>{card}</div>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
         </div>
       </div>
+
+      {revealKey && <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} />}
     </>
   )
 }
