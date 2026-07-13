@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/useLanguage";
+import { LANGUAGES, type Language } from "@/lib/language";
 
 const T = {
   bg:   "#08080F",
@@ -25,6 +26,42 @@ const PROVIDERS = [
   { label: "Gemini",  color: "#4285F4", bg: "rgba(66,133,244,0.12)"  },
   { label: "Custom",  color: "#8B5CF6", bg: "rgba(139,92,246,0.12)"  },
 ]
+
+// Small pill in the corner showing both languages at once — click
+// either side to switch immediately, no menu/cycling needed.
+function LanguageBadge({ language, setLanguage }: { language: Language; setLanguage: (l: Language) => void }) {
+  return (
+    <div style={{
+      position: "fixed", top: 22, right: 26, zIndex: 50,
+      display: "flex", alignItems: "center", gap: 2,
+      padding: 3, borderRadius: 999,
+      background: "rgba(17,17,28,0.75)",
+      border: "0.5px solid rgba(255,255,255,0.12)",
+      backdropFilter: "blur(10px)",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+    }}>
+      {LANGUAGES.map(l => {
+        const active = l.code === language
+        return (
+          <button key={l.code} onClick={() => setLanguage(l.code)} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
+            background: active ? "rgba(232,0,42,0.20)" : "transparent",
+            color: active ? "#F4F0FF" : "#8A86A8",
+            fontSize: 12, fontWeight: active ? 600 : 400,
+            transition: "background 150ms ease, color 150ms ease",
+          }}
+            onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#C8C4D8" }}
+            onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#8A86A8" }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>{l.flag}</span>
+            {l.code.toUpperCase()}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const [pulse, setPulse] = useState(false)
@@ -309,7 +346,7 @@ function LoginForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
 }
 
 function LoginPage() {
-  const { t } = useLanguage()
+  const { t, language, setLanguage } = useLanguage()
   return (
     <div style={{
       minHeight: "100vh",
@@ -319,6 +356,8 @@ function LoginPage() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
+
+      <LanguageBadge language={language} setLanguage={setLanguage} />
 
       {/* Left side — only on large screens */}
       <div style={{ display: "flex", flex: 1 }} className="auth-left">
