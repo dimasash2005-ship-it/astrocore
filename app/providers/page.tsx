@@ -8,6 +8,7 @@ import {
 import { getSupabase } from "@/lib/supabase/client"
 import { type ProviderSlug } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
 
 const T = {
   bg:   "#08080F",
@@ -40,50 +41,6 @@ type Provider = {
   custom_headers?: Record<string, string> | null
 }
 
-// ─── Provider presets ─────────────────────────────────────────────
-
-const PRESETS: {
-  slug: ProviderSlug
-  name: string
-  models: string[]
-  color: string
-  desc: string
-  placeholder: string
-}[] = [
-  {
-    slug: "openai",
-    name: "OpenAI",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-    color: "#10A37F",
-    desc: "GPT-4o, GPT-4 Turbo та інші моделі OpenAI",
-    placeholder: "sk-...",
-  },
-  {
-    slug: "anthropic",
-    name: "Anthropic Claude",
-    models: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-3-5-sonnet-20241022"],
-    color: "#D97757",
-    desc: "Claude Opus, Sonnet та Haiku від Anthropic",
-    placeholder: "sk-ant-...",
-  },
-  {
-    slug: "google",
-    name: "Google Gemini",
-    models: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
-    color: "#4285F4",
-    desc: "Gemini 2.0 Flash та Gemini Pro від Google",
-    placeholder: "AIza...",
-  },
-  {
-    slug: "custom",
-    name: "Custom / Webhook",
-    models: ["custom"],
-    color: "#8B5CF6",
-    desc: "Власний AI провайдер або OpenAI-сумісний endpoint",
-    placeholder: "sk-...",
-  },
-]
-
 const inp: React.CSSProperties = {
   background: "#09090F",
   border: "0.5px solid rgba(255,255,255,0.10)",
@@ -93,7 +50,21 @@ const inp: React.CSSProperties = {
 
 // ─── Add provider modal ───────────────────────────────────────────
 
-function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+  const PRESETS: {
+    slug: ProviderSlug
+    name: string
+    models: string[]
+    color: string
+    desc: string
+    placeholder: string
+  }[] = [
+    { slug: "openai", name: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"], color: "#10A37F", desc: t.providers.openaiDesc, placeholder: "sk-..." },
+    { slug: "anthropic", name: "Anthropic Claude", models: ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5", "claude-3-5-sonnet-20241022"], color: "#D97757", desc: t.providers.anthropicDesc, placeholder: "sk-ant-..." },
+    { slug: "google", name: "Google Gemini", models: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"], color: "#4285F4", desc: t.providers.googleDesc, placeholder: "AIza..." },
+    { slug: "custom", name: "Custom / Webhook", models: ["custom"], color: "#8B5CF6", desc: t.providers.customDesc, placeholder: "sk-..." },
+  ]
+
   const [slug,    setSlug]    = useState<ProviderSlug>("openai")
   const [apiKey,  setApiKey]  = useState("")
   const [model,   setModel]   = useState(PRESETS[0].models[0])
@@ -111,12 +82,12 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   }
 
   async function handleAdd() {
-    if (!apiKey.trim()) { setError("Введіть API ключ"); return }
+    if (!apiKey.trim()) { setError(t.providers.enterApiKeyError); return }
     setLoading(true)
     setError("")
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+    if (!user) { setError(t.providers.notAuthorizedError); setLoading(false); return }
 
     const { error: dbErr } = await sb.from("providers").insert({
       user_id:   user.id,
@@ -156,8 +127,8 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <Key size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Підключити провайдера</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>API Control Layer</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.providers.connectProviderTitle}</div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.providers.apiControlLayer}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -167,7 +138,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
-              Провайдер
+              {t.providers.providerField}
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {PRESETS.map(p => (
@@ -191,10 +162,10 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           {slug === "custom" && (
             <div>
               <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-                Назва провайдера
+                {t.providers.providerNameField}
               </label>
               <input value={name} onChange={e => setName(e.target.value)}
-                placeholder="Мій AI провайдер..."
+                placeholder={t.providers.providerNamePlaceholder}
                 style={inp}
                 onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
                 onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -204,7 +175,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Модель
+              {t.providers.modelField}
             </label>
             <select value={model} onChange={e => setModel(e.target.value)}
               style={{ ...inp, cursor: "pointer" }}
@@ -218,7 +189,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              API Ключ *
+              {t.providers.apiKeyField}
             </label>
             <div style={{ position: "relative" }}>
               <input
@@ -246,7 +217,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           }}>
             <Shield size={12} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
             <span style={{ fontSize: 11, color: T.t4, lineHeight: 1.5 }}>
-              Ключі зберігаються у захищеній базі даних Supabase і прив'язані до вашого акаунта.
+              {t.providers.keysStoredNote}
             </span>
           </div>
 
@@ -263,7 +234,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
-            >Скасувати</button>
+            >{t.providers.cancel}</button>
             <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
               background: loading ? "rgba(232,0,42,0.3)" : T.red,
@@ -271,7 +242,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             }}
               onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
-            >{loading ? "Зберігаємо..." : "Підключити"}</button>
+            >{loading ? t.providers.saving : t.providers.connect}</button>
           </div>
         </div>
       </div>
@@ -281,15 +252,17 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
 // ─── Provider card ────────────────────────────────────────────────
 
-function ProviderCard({ provider, onDelete, onToggle }: {
+function ProviderCard({ provider, onDelete, onToggle, t }: {
   provider: Provider
   onDelete: () => void
   onToggle: () => void
+  t: ReturnType<typeof useLanguage>["t"]
 }) {
   const [showKey,  setShowKey]  = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const preset = PRESETS.find(p => p.slug === provider.slug)
-  const color  = preset?.color ?? T.t4
+
+  const colorMap: Record<string, string> = { openai: "#10A37F", anthropic: "#D97757", google: "#4285F4", custom: "#8B5CF6" }
+  const color = colorMap[provider.slug] ?? T.t4
 
   function maskKey(key: string) {
     if (!key) return "—"
@@ -335,7 +308,7 @@ function ProviderCard({ provider, onDelete, onToggle }: {
               color: provider.is_active ? T.green : T.t4,
               border: `0.5px solid ${provider.is_active ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}`,
             }}>
-              {provider.is_active ? "Активний" : "Вимкнено"}
+              {provider.is_active ? t.providers.active : t.providers.disabled}
             </span>
             <button onClick={() => setExpanded(v => !v)} style={{
               padding: 5, borderRadius: 6, border: "none",
@@ -357,7 +330,7 @@ function ProviderCard({ provider, onDelete, onToggle }: {
               background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
             }}>
               <div>
-                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>API Ключ</div>
+                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{t.providers.apiKeyLabel}</div>
                 <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", letterSpacing: "0.05em" }}>
                   {showKey ? provider.api_key : maskKey(provider.api_key)}
                 </div>
@@ -381,9 +354,9 @@ function ProviderCard({ provider, onDelete, onToggle }: {
                 border: `0.5px solid ${provider.is_active ? "rgba(255,255,255,0.09)" : "rgba(34,197,94,0.25)"}`,
                 color: provider.is_active ? T.t2 : T.green,
               }}>
-                {provider.is_active ? "Вимкнути" : <><Check size={12} /> Увімкнути</>}
+                {provider.is_active ? t.providers.disable : <><Check size={12} /> {t.providers.enable}</>}
               </button>
-              <button onClick={() => { if (window.confirm(`Видалити провайдера "${provider.name}"?`)) onDelete() }}
+              <button onClick={() => { if (window.confirm(`${t.providers.deleteConfirmPrefix}${provider.name}${t.providers.deleteConfirmSuffix}`)) onDelete() }}
                 style={{
                   padding: "8px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
                   background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)",
@@ -398,7 +371,7 @@ function ProviderCard({ provider, onDelete, onToggle }: {
                   ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.08)"
                 }}
               >
-                <Trash2 size={12} /> Видалити
+                <Trash2 size={12} /> {t.providers.delete}
               </button>
             </div>
           </div>
@@ -410,7 +383,7 @@ function ProviderCard({ provider, onDelete, onToggle }: {
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -425,17 +398,17 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Key size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
       <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
-        Немає підключених провайдерів
+        {t.providers.emptyTitle}
       </div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 8 }}>
-        Підключіть OpenAI, Anthropic, Google Gemini або власний AI провайдер щоб агенти могли відповідати.
+        {t.providers.emptyDesc}
       </div>
       <div style={{
         fontSize: 11, color: T.t4, marginBottom: 28,
         padding: "5px 12px", borderRadius: 8,
         background: "rgba(232,0,42,0.06)", border: "0.5px solid rgba(232,0,42,0.14)",
       }}>
-        API Control Layer · Model Gateway
+        {t.providers.modelGateway}
       </div>
       <button onClick={onAdd} style={{
         display: "flex", alignItems: "center", gap: 7,
@@ -446,7 +419,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
       >
-        <Plus size={14} /> Підключити провайдера
+        <Plus size={14} /> {t.providers.connectProvider}
       </button>
     </div>
   )
@@ -455,6 +428,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function ProvidersPage() {
+  const { t } = useLanguage()
   const [providers, setProviders] = useState<Provider[]>([])
   const [showModal, setShowModal] = useState(false)
   const [pulse,     setPulse]     = useState(false)
@@ -539,12 +513,12 @@ export default function ProvidersPage() {
                   boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
                 }} />
                 <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  {active.length > 0 ? "Provider Gateway Active" : "No Active Providers"} · {providers.length} підключено
+                  {active.length > 0 ? t.providers.providerGatewayActive : t.providers.noActiveProviders} · {providers.length} {t.providers.connectedSuffix}
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Провайдери</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.providers.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                API Control Layer · Model Gateway · підключіть AI моделі до агентів
+                {t.providers.subtitle}
               </p>
             </div>
 
@@ -556,7 +530,7 @@ export default function ProvidersPage() {
                   background: "rgba(34,197,94,0.07)", border: "0.5px solid rgba(34,197,94,0.18)",
                   color: T.green,
                 }}>
-                  <Activity size={12} /> {active.length} активних
+                  <Activity size={12} /> {active.length} {t.providers.activeSuffix}
                 </div>
               )}
               <button onClick={() => setShowModal(true)} style={{
@@ -568,7 +542,7 @@ export default function ProvidersPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                <Plus size={14} /> Підключити
+                <Plus size={14} /> {t.providers.connectBtn}
               </button>
             </div>
           </div>
@@ -576,14 +550,14 @@ export default function ProvidersPage() {
 
         {/* Body */}
         {providers.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} />
+          <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
-                { label: "Всього провайдерів", value: providers.length, icon: Key      },
-                { label: "Активних",            value: active.length,   icon: Zap      },
-                { label: "Вимкнених",           value: providers.length - active.length, icon: Activity },
+                { label: t.providers.totalProviders, value: providers.length, icon: Key      },
+                { label: t.providers.activeLabel,            value: active.length,   icon: Zap      },
+                { label: t.providers.disabledLabel,           value: providers.length - active.length, icon: Activity },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 9,
@@ -604,7 +578,7 @@ export default function ProvidersPage() {
             }}>
               <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
-                API ключі зберігаються у захищеній базі даних Supabase і прив'язані до вашого акаунта. Дані синхронізуються між пристроями.
+                {t.providers.securityNote}
               </span>
             </div>
 
@@ -615,6 +589,7 @@ export default function ProvidersPage() {
                   provider={p}
                   onDelete={() => handleDelete(p.id)}
                   onToggle={() => handleToggle(p.id)}
+                  t={t}
                 />
               ))}
             </div>
@@ -642,7 +617,7 @@ export default function ProvidersPage() {
               }}>
                 <Plus size={14} style={{ color: T.red }} />
               </div>
-              <span style={{ fontSize: 12.5, color: T.t3 }}>Підключити ще одного провайдера</span>
+              <span style={{ fontSize: 12.5, color: T.t3 }}>{t.providers.connectAnother}</span>
             </div>
           </div>
         )}
@@ -652,6 +627,7 @@ export default function ProvidersPage() {
         <AddModal
           onClose={() => setShowModal(false)}
           onAdded={load}
+          t={t}
         />
       )}
     </>

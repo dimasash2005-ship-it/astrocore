@@ -7,6 +7,8 @@ import {
   Sparkles, Download,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 type GalleryItem = {
   id: string
@@ -35,24 +37,27 @@ const T = {
 
 type FilterType = "all" | "text" | "code" | "image"
 
-const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> = {
-  text:  { label: "Текст",   icon: FileText, color: "#C8C4D8", bg: "rgba(255,255,255,0.06)",  border: "rgba(255,255,255,0.10)" },
-  code:  { label: "Код",     icon: Code2,    color: "#7DD3FC", bg: "rgba(125,211,252,0.09)",  border: "rgba(125,211,252,0.22)" },
-  image: { label: "Зображ.", icon: ImageIcon, color: "#A78BFA", bg: "rgba(167,139,250,0.09)", border: "rgba(167,139,250,0.22)" },
+function getTypeMeta(t: ReturnType<typeof useLanguage>["t"]): Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> {
+  return {
+    text:  { label: t.gallery.typeText,  icon: FileText,  color: "#C8C4D8", bg: "rgba(255,255,255,0.06)",  border: "rgba(255,255,255,0.10)" },
+    code:  { label: t.gallery.typeCode,  icon: Code2,     color: "#7DD3FC", bg: "rgba(125,211,252,0.09)",  border: "rgba(125,211,252,0.22)" },
+    image: { label: t.gallery.typeImage, icon: ImageIcon, color: "#A78BFA", bg: "rgba(167,139,250,0.09)", border: "rgba(167,139,250,0.22)" },
+  }
 }
 
-function ago(iso: string): string {
+function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d  = Date.now() - new Date(iso).getTime()
   const m  = Math.floor(d / 60000)
-  if (m < 1)  return "щойно"
-  if (m < 60) return `${m} хв`
+  if (m < 1)  return t.gallery.justNow
+  if (m < 60) return `${m} ${t.gallery.minAgo}`
   const h  = Math.floor(m / 60)
-  if (h < 24) return `${h} год`
+  if (h < 24) return `${h} ${t.gallery.hourAgo}`
   const dy = Math.floor(h / 24)
-  if (dy === 1) return "вчора"
-  if (dy < 7)  return `${dy}д`
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
+  if (dy === 1) return t.gallery.yesterday
+  if (dy < 7)  return `${dy}${t.gallery.daysAgo}`
+  const locale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" })
 }
 
 function cut(s: string, n: number) {
@@ -76,13 +81,15 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 
 // ─── Add modal ────────────────────────────────────────────────────
 
-function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const [title,   setTitle]   = useState("")
   const [content, setContent] = useState("")
   const [type,    setType]    = useState<"text" | "code" | "image">("text")
 
   const [error,   setError]   = useState("")
   const [loading, setLoading] = useState(false)
+
+  const TYPE_META = getTypeMeta(t)
 
   const inp: React.CSSProperties = {
     background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
@@ -91,13 +98,13 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   }
 
   async function handleAdd() {
-    if (!title.trim())   { setError("Введіть назву"); return }
-    if (!content.trim()) { setError("Введіть вміст"); return }
+    if (!title.trim())   { setError(t.gallery.enterTitleError); return }
+    if (!content.trim()) { setError(t.gallery.enterContentError); return }
     setLoading(true)
     setError("")
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+    if (!user) { setError(t.gallery.notAuthorizedError); setLoading(false); return }
 
     const { error: dbErr } = await sb.from("gallery_items").insert({
       user_id: user.id,
@@ -111,6 +118,10 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
     onAdded()
     onClose()
   }
+
+  const contentPlaceholder = type === "code" ? t.gallery.contentPlaceholderCode
+    : type === "image" ? t.gallery.contentPlaceholderImage
+    : t.gallery.contentPlaceholderText
 
   return (
     <Modal onClose={onClose}>
@@ -131,8 +142,8 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <Sparkles size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Зберегти вивід</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI Output Gallery</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.gallery.saveOutputTitle}</div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.gallery.layerLabel}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -143,15 +154,15 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           {/* Type selector */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
-              Тип виводу
+              {t.gallery.typeOfOutput}
             </label>
             <div style={{ display: "flex", gap: 8 }}>
-              {(["text", "code", "image"] as const).map(t => {
-                const meta = TYPE_META[t]
+              {(["text", "code", "image"] as const).map(tp => {
+                const meta = TYPE_META[tp]
                 const Icon = meta.icon
-                const active = type === t
+                const active = type === tp
                 return (
-                  <button key={t} onClick={() => setType(t)} style={{
+                  <button key={tp} onClick={() => setType(tp)} style={{
                     flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
                     padding: "10px 8px", borderRadius: 9, border: "none", cursor: "pointer",
                     background: active ? meta.bg : "rgba(255,255,255,0.03)",
@@ -167,9 +178,9 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           </div>
 
           <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Назва *</label>
+            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.gallery.nameField}</label>
             <input value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Назва виводу..."
+              placeholder={t.gallery.namePlaceholder}
               style={inp}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -177,9 +188,9 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           </div>
 
           <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Вміст *</label>
+            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.gallery.contentField}</label>
             <textarea value={content} onChange={e => setContent(e.target.value)}
-              placeholder={type === "code" ? "// Вставте код..." : type === "image" ? "URL зображення або опис..." : "Текст виводу AI..."}
+              placeholder={contentPlaceholder}
               rows={6}
               style={{ ...inp, resize: "vertical", lineHeight: 1.6, fontFamily: type === "code" ? "monospace" : "inherit" }}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
@@ -200,14 +211,14 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
-            >Скасувати</button>
+            >{t.gallery.cancel}</button>
             <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
               background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
               onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
-            >{loading ? "Зберігаємо..." : "Зберегти"}</button>
+            >{loading ? t.gallery.saving : t.gallery.save}</button>
           </div>
         </div>
       </div>
@@ -217,8 +228,12 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
 // ─── Gallery card ─────────────────────────────────────────────────
 
-function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => void }) {
+function GalleryCard({ item, onDelete, t, lang }: {
+  item: GalleryItem; onDelete: () => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language
+}) {
   const [copied, setCopied] = useState(false)
+  const TYPE_META = getTypeMeta(t)
   const meta = TYPE_META[item.type ?? "text"] ?? TYPE_META.text
   const Icon = meta.icon
 
@@ -232,7 +247,7 @@ function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => vo
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    if (window.confirm(`Видалити "${item.title}"?`)) onDelete()
+    if (window.confirm(`${t.gallery.deleteConfirmPrefix}${item.title}${t.gallery.deleteConfirmSuffix}`)) onDelete()
   }
 
   const isCode  = item.type === "code"
@@ -344,11 +359,11 @@ function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => vo
         {/* footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 2 }}>
           <span style={{ fontSize: 10, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-            AI вивід
+            {t.gallery.aiOutputLabel}
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
             <Clock size={10} />
-            {ago(item.created_at)}
+            {ago(item.created_at, t, lang)}
           </div>
         </div>
       </div>
@@ -358,7 +373,7 @@ function GalleryCard({ item, onDelete }: { item: GalleryItem; onDelete: () => vo
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -373,9 +388,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       }}>
         <Sparkles size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>Галерея порожня</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.gallery.emptyTitle}</div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
-        Зберігайте найкращі виводи AI — тексти, код та зображення в одному місці.
+        {t.gallery.emptyDesc}
       </div>
       <button onClick={onAdd} style={{
         display: "flex", alignItems: "center", gap: 7,
@@ -386,10 +401,10 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
       >
-        <Plus size={14} /> Зберегти вивід
+        <Plus size={14} /> {t.gallery.addOutput}
       </button>
       <div style={{ marginTop: 18, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.10em" }}>
-        AI Output Gallery · Saved Generations
+        {t.gallery.savedGenerations}
       </div>
     </div>
   )
@@ -398,11 +413,14 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function GalleryPage() {
+  const { t, language } = useLanguage()
   const [items,     setItems]     = useState<GalleryItem[]>([])
   const [search,    setSearch]    = useState("")
   const [typeFilter, setTypeFilter] = useState<FilterType>("all")
   const [showModal, setShowModal] = useState(false)
   const [pulse,     setPulse]     = useState(false)
+
+  const TYPE_META = getTypeMeta(t)
 
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 2000)
@@ -492,12 +510,12 @@ export default function GalleryPage() {
                   boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
                 }} />
                 <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Output Gallery · {items.length} виводів
+                  Output Gallery · {items.length} {t.gallery.outputsSuffix}
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Галерея</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.gallery.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                AI Saved Generations · найкращі виводи в одному місці
+                {t.gallery.subtitle}
               </p>
             </div>
             <button onClick={() => setShowModal(true)} style={{
@@ -510,24 +528,24 @@ export default function GalleryPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              <Plus size={14} /> Зберегти вивід
+              <Plus size={14} /> {t.gallery.addOutput}
             </button>
           </div>
         </div>
 
         {/* ── Body ── */}
         {items.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} />
+          <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
 
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
-                { label: "Всього виводів", value: items.length,   icon: Layers   },
-                { label: "Текстів",         value: counts.text,   icon: FileText },
-                { label: "Кодів",           value: counts.code,   icon: Code2    },
-                { label: "Зображень",       value: counts.image,  icon: ImageIcon },
+                { label: t.gallery.totalOutputs, value: items.length,   icon: Layers   },
+                { label: t.gallery.textsLabel,         value: counts.text,   icon: FileText },
+                { label: t.gallery.codesLabel,           value: counts.code,   icon: Code2    },
+                { label: t.gallery.imagesLabel,       value: counts.image,  icon: ImageIcon },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 9,
@@ -551,7 +569,7 @@ export default function GalleryPage() {
               }}>
                 <Search size={14} style={{ color: T.t4, flexShrink: 0 }} />
                 <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Пошук по галереї..."
+                  placeholder={t.gallery.searchPlaceholder}
                   style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }}
                 />
                 {search && (
@@ -564,10 +582,10 @@ export default function GalleryPage() {
               {/* Type filters */}
               <div style={{ display: "flex", gap: 6 }}>
                 {([
-                  { value: "all",   label: "Всі"     },
-                  { value: "text",  label: "Текст"   },
-                  { value: "code",  label: "Код"     },
-                  { value: "image", label: "Зображ." },
+                  { value: "all",   label: t.gallery.filterAll     },
+                  { value: "text",  label: t.gallery.typeText   },
+                  { value: "code",  label: t.gallery.typeCode     },
+                  { value: "image", label: t.gallery.typeImage },
                 ] as const).map(f => {
                   const active = typeFilter === f.value
                   const meta   = f.value !== "all" ? TYPE_META[f.value] : null
@@ -595,17 +613,17 @@ export default function GalleryPage() {
             {/* Results info */}
             {(search || typeFilter !== "all") && (
               <div style={{ fontSize: 12, color: T.t4, marginBottom: 14 }}>
-                Знайдено {filtered.length} із {items.length}
+                {t.gallery.foundOfPrefix}{filtered.length}{t.gallery.foundOfMid}{items.length}
                 <button onClick={() => { setSearch(""); setTypeFilter("all") }} style={{
                   marginLeft: 10, fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer",
-                }}>Очистити</button>
+                }}>{t.gallery.clear}</button>
               </div>
             )}
 
             {/* Grid */}
             {filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: T.t4 }}>Нічого не знайдено</div>
+                <div style={{ fontSize: 13, color: T.t4 }}>{t.gallery.nothingFound}</div>
               </div>
             ) : (
               <div style={{
@@ -614,7 +632,7 @@ export default function GalleryPage() {
                 gap: 14,
               }}>
                 {filtered.map(item => (
-                  <GalleryCard key={item.id} item={item} onDelete={() => handleDelete(item.id)} />
+                  <GalleryCard key={item.id} item={item} onDelete={() => handleDelete(item.id)} t={t} lang={language} />
                 ))}
               </div>
             )}
@@ -623,7 +641,7 @@ export default function GalleryPage() {
       </div>
 
       {showModal && (
-        <AddModal onClose={() => setShowModal(false)} onAdded={load} />
+        <AddModal onClose={() => setShowModal(false)} onAdded={load} t={t} />
       )}
     </>
   )

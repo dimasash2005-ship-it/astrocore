@@ -9,6 +9,8 @@ import {
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 const T = {
   bg:   "#08080F",
@@ -48,18 +50,19 @@ type Provider = {
 
 type MessageCount = { session_id: string; count: number }
 
-function ago(iso: string): string {
+function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d = Date.now() - new Date(iso).getTime()
   const m = Math.floor(d / 60000)
-  if (m < 1)  return "щойно"
-  if (m < 60) return `${m} хв`
+  if (m < 1)  return t.chat.justNow
+  if (m < 60) return `${m} ${t.chat.minAgo}`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h} год`
+  if (h < 24) return `${h} ${t.chat.hourAgo}`
   const dy = Math.floor(h / 24)
-  if (dy === 1) return "вчора"
-  if (dy < 7)  return `${dy}д`
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
+  if (dy === 1) return t.chat.yesterday
+  if (dy < 7)  return `${dy}${t.chat.daysAgo}`
+  const dateLocale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })
 }
 
 function cut(s: string, n: number) {
@@ -68,8 +71,9 @@ function cut(s: string, n: number) {
 
 // ─── Rename modal ─────────────────────────────────────────────────
 
-function RenameModal({ session, onClose, onRenamed }: {
+function RenameModal({ session, onClose, onRenamed, t }: {
   session: Session; onClose: () => void; onRenamed: (id: string, title: string) => void
+  t: ReturnType<typeof useLanguage>["t"]
 }) {
   const [title,   setTitle]   = useState(session.title)
   const [loading, setLoading] = useState(false)
@@ -103,7 +107,7 @@ function RenameModal({ session, onClose, onRenamed }: {
         boxShadow: "0 24px 64px rgba(0,0,0,0.85)",
         padding: "20px",
       }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 14 }}>Перейменувати чат</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 14 }}>{t.chat.renameChat}</div>
         <input value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") onClose() }}
           autoFocus
@@ -116,13 +120,13 @@ function RenameModal({ session, onClose, onRenamed }: {
         />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "8px", borderRadius: 8, fontSize: 12.5, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2 }}>
-            Скасувати
+            {t.chat.cancel}
           </button>
           <button onClick={save} disabled={loading || !title.trim()} style={{ flex: 1, padding: "8px", borderRadius: 8, fontSize: 12.5, fontWeight: 500, cursor: "pointer", background: T.red, border: "none", color: "#fff" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
           >
-            {loading ? "Зберігаємо..." : "Зберегти"}
+            {loading ? t.chat.saving : t.chat.save}
           </button>
         </div>
       </div>
@@ -132,8 +136,9 @@ function RenameModal({ session, onClose, onRenamed }: {
 
 // ─── New Chat Modal ───────────────────────────────────────────────
 
-function NewChatModal({ onClose, onCreated }: {
+function NewChatModal({ onClose, onCreated, t }: {
   onClose: () => void; onCreated: (id: string) => void
+  t: ReturnType<typeof useLanguage>["t"]
 }) {
   const router = useRouter()
   const [agents,    setAgents]    = useState<Agent[]>([])
@@ -165,7 +170,7 @@ function NewChatModal({ onClose, onCreated }: {
     const { data: { user } } = await sb.auth.getUser()
     if (!user) { setLoading(false); return }
     const { data, error } = await sb.from("chat_sessions").insert({
-      user_id: user.id, agent_id: agent.id, title: `Чат з ${agent.name}`,
+      user_id: user.id, agent_id: agent.id, title: `${t.chat.chatWithPrefix}${agent.name}`,
     }).select().single()
     if (error || !data) { setLoading(false); return }
     onCreated(data.id)
@@ -185,7 +190,7 @@ function NewChatModal({ onClose, onCreated }: {
         overflow: "hidden", maxHeight: "88vh", display: "flex", flexDirection: "column",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 13px", borderBottom: "0.5px solid rgba(255,255,255,0.07)" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий чат</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.chat.newChat}</div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={13} />
           </button>
@@ -196,9 +201,9 @@ function NewChatModal({ onClose, onCreated }: {
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 13px", borderRadius: 9, marginBottom: 12, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.22)" }}>
               <AlertCircle size={13} style={{ color: T.red, flexShrink: 0 }} />
               <div>
-                <span style={{ fontSize: 12, color: "#FF4D6A" }}>Немає API ключів. </span>
+                <span style={{ fontSize: 12, color: "#FF4D6A" }}>{t.chat.noApiKeys}</span>
                 <button onClick={() => { onClose(); router.push("/providers") }} style={{ fontSize: 12, color: T.red, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
-                  Додати
+                  {t.chat.add}
                 </button>
               </div>
             </div>
@@ -207,14 +212,14 @@ function NewChatModal({ onClose, onCreated }: {
           {agents.length === 0 ? (
             <div style={{ padding: "28px 0", textAlign: "center" }}>
               <Bot size={22} style={{ color: T.red, opacity: 0.6, margin: "0 auto 10px" }} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: T.t1, marginBottom: 14 }}>Немає агентів</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.t1, marginBottom: 14 }}>{t.chat.noAgents}</div>
               <button onClick={() => { onClose(); router.push("/agents") }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9, border: "none", background: T.red, color: "#fff", fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}>
-                <Plus size={13} /> Створити агента
+                <Plus size={13} /> {t.chat.createAgent}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 6 }}>Оберіть агента</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 6 }}>{t.chat.chooseAgent}</div>
               {agents.map(agent => {
                 const prov   = getProv(agent.provider_id)
                 const active = selected === agent.id
@@ -243,7 +248,7 @@ function NewChatModal({ onClose, onCreated }: {
                             <span style={{ fontSize: 10.5, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", color: T.t4 }}>{prov.model}</span>
                           </>
                         ) : (
-                          <span style={{ fontSize: 10.5, color: "#FF4D6A" }}>Провайдер не знайдено</span>
+                          <span style={{ fontSize: 10.5, color: "#FF4D6A" }}>{t.chat.providerNotFound}</span>
                         )}
                       </div>
                     </div>
@@ -260,7 +265,7 @@ function NewChatModal({ onClose, onCreated }: {
         {agents.length > 0 && (
           <div style={{ padding: "11px 20px 15px", borderTop: "0.5px solid rgba(255,255,255,0.07)", display: "flex", gap: 9 }}>
             <button onClick={onClose} style={{ flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2 }}>
-              Скасувати
+              {t.chat.cancel}
             </button>
             <button onClick={handleCreate} disabled={!canCreate || loading} style={{
               flex: 2, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
@@ -273,7 +278,7 @@ function NewChatModal({ onClose, onCreated }: {
               onMouseLeave={e => { if (canCreate && !loading) (e.currentTarget as HTMLElement).style.background = T.red }}
             >
               <MessageSquare size={13} />
-              {loading ? "Створюємо..." : canCreate ? `Чат з ${selAgent?.name}` : "Оберіть агента"}
+              {loading ? t.chat.creating : canCreate ? `${t.chat.chatWithPrefix}${selAgent?.name}` : t.chat.chooseAgentBtn}
             </button>
           </div>
         )}
@@ -284,11 +289,12 @@ function NewChatModal({ onClose, onCreated }: {
 
 // ─── Session card ─────────────────────────────────────────────────
 
-function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onRename }: {
+function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onRename, t, lang }: {
   session: Session; agent?: Agent; provider?: Provider; msgCount: number
   onOpen: () => void
   onDelete: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   return (
     <div onClick={onOpen} style={{
@@ -348,7 +354,7 @@ function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onR
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: T.t4 }}>
           <Clock size={10} />
-          {ago(session.updated_at ?? session.created_at)}
+          {ago(session.updated_at ?? session.created_at, t, lang)}
         </div>
         {msgCount > 0 && (
           <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
@@ -356,12 +362,12 @@ function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onR
           </span>
         )}
         <div className="actions" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity 130ms ease" }}>
-          <button onClick={onRename} title="Перейменувати" style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
+          <button onClick={onRename} title={t.chat.rename} style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t2 }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
             <Edit3 size={12} />
           </button>
-          <button onClick={onDelete} title="Видалити" style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
+          <button onClick={onDelete} title={t.chat.delete} style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
             <Trash2 size={12} />
@@ -379,6 +385,7 @@ type DateFilter = "all" | "today" | "week" | "month"
 
 export default function ChatPage() {
   const router = useRouter()
+  const { t, language } = useLanguage()
 
   const [sessions,     setSessions]     = useState<Session[]>([])
   const [agents,       setAgents]       = useState<Agent[]>([])
@@ -459,7 +466,7 @@ export default function ChatPage() {
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation()
-    if (!window.confirm("Видалити цю сесію?")) return
+    if (!window.confirm(t.chat.deleteSessionConfirm)) return
     const sb = getSupabase()
     await sb.from("chat_sessions").delete().eq("id", id)
     setSessions(prev => prev.filter(s => s.id !== id))
@@ -513,24 +520,25 @@ export default function ChatPage() {
     // date filter
     if (dateFilter !== "all") {
       result = result.filter(s => {
-        const t = new Date(s.updated_at ?? s.created_at).getTime()
-        if (dateFilter === "today") return now - t < DAY
-        if (dateFilter === "week")  return now - t < WEEK
-        if (dateFilter === "month") return now - t < MONTH
+        const tt = new Date(s.updated_at ?? s.created_at).getTime()
+        if (dateFilter === "today") return now - tt < DAY
+        if (dateFilter === "week")  return now - tt < WEEK
+        if (dateFilter === "month") return now - tt < MONTH
         return true
       })
     }
 
     // sort
+    const localeCode = language === "uk" ? "uk" : "en"
     result.sort((a, b) => {
       if (sort === "newest") return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       if (sort === "oldest") return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
-      if (sort === "title")  return a.title.localeCompare(b.title, "uk")
+      if (sort === "title")  return a.title.localeCompare(b.title, localeCode)
       return 0
     })
 
     return result
-  }, [sessions, search, agentFilter, provFilter, dateFilter, sort, agents])
+  }, [sessions, search, agentFilter, provFilter, dateFilter, sort, agents, language])
 
   const hasFilters = !!search || !!agentFilter || !!provFilter || dateFilter !== "all"
 
@@ -540,6 +548,12 @@ export default function ChatPage() {
     setProvFilter(null)
     setDateFilter("all")
     setSort("newest")
+  }
+
+  function sessionCountLabel(n: number) {
+    if (n === 1) return t.chat.sessionSingular
+    if (n < 5) return t.chat.sessionFew
+    return t.chat.sessionMany
   }
 
   return (
@@ -581,17 +595,17 @@ export default function ChatPage() {
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "3px 10px", marginBottom: 14 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block", opacity: pulse ? 1 : 0.3, transition: "opacity 900ms ease, box-shadow 900ms ease", boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none" }} />
                 <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Chat Layer · {sessions.length} сесій
+                  Chat Layer · {sessions.length} {t.chat.sessionsSuffix}
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Чати</h1>
-              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>AI Conversations · всі розмови з агентами</p>
+              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.chat.title}</h1>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.chat.subtitle}</p>
             </div>
             <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 16px rgba(232,0,42,0.25)", transition: "background 140ms ease" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              <Plus size={14} /> Новий чат
+              <Plus size={14} /> {t.chat.newChat}
             </button>
           </div>
         </div>
@@ -611,15 +625,15 @@ export default function ChatPage() {
             <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <MessageSquare size={28} style={{ color: T.red, opacity: 0.7 }} />
             </div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>Чатів ще немає</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.chat.noChatsYet}</div>
             <div style={{ fontSize: 13, color: T.t3, maxWidth: 320, marginBottom: 24, lineHeight: 1.65 }}>
-              Оберіть агента і почніть розмову.
+              {t.chat.noChatsHint}
             </div>
             <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 10, padding: "10px 22px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              <Plus size={14} /> Створити новий чат
+              <Plus size={14} /> {t.chat.createNewChat}
             </button>
           </div>
         ) : (
@@ -628,9 +642,9 @@ export default function ChatPage() {
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
               {[
-                { label: "Всього сесій",  value: sessions.length,                                   icon: MessageSquare },
-                { label: "Агентів",        value: agentsWithSessions.length,                         icon: Bot           },
-                { label: "Повідомлень",    value: Object.values(msgCounts).reduce((a,b)=>a+b,0),     icon: Zap           },
+                { label: t.chat.totalSessions,  value: sessions.length,                                   icon: MessageSquare },
+                { label: t.chat.agentsLabel,        value: agentsWithSessions.length,                         icon: Bot           },
+                { label: t.chat.messagesLabel,    value: Object.values(msgCounts).reduce((a,b)=>a+b,0),     icon: Zap           },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 14px", borderRadius: 9, background: T.s1, border: `0.5px solid ${T.b1}` }}>
                   <div style={{
@@ -656,7 +670,7 @@ export default function ChatPage() {
                 <div style={{ flex: 1, minWidth: 160, display: "flex", alignItems: "center", gap: 8, background: "#09090F", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 8, padding: "0 11px", height: 34 }}>
                   <Search size={13} style={{ color: T.t4, flexShrink: 0 }} />
                   <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Пошук чатів..."
+                    placeholder={t.chat.searchPlaceholder}
                     style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 12.5, color: T.t1 }}
                   />
                   {search && (
@@ -675,7 +689,7 @@ export default function ChatPage() {
                     fontSize: 12, color: agentFilter ? T.t1 : T.t3,
                     outline: "none", cursor: "pointer", appearance: "none", maxWidth: 140,
                   }}>
-                    <option value="">Агент</option>
+                    <option value="">{t.chat.agentFilterLabel}</option>
                     {agentsWithSessions.map(a => (
                       <option key={a.id} value={a.id}>
                         {a.name} ({sessions.filter(s => s.agent_id === a.id).length})
@@ -694,7 +708,7 @@ export default function ChatPage() {
                     fontSize: 12, color: provFilter ? T.green : T.t3,
                     outline: "none", cursor: "pointer", appearance: "none", maxWidth: 140,
                   }}>
-                    <option value="">Провайдер</option>
+                    <option value="">{t.chat.providerFilterLabel}</option>
                     {provsWithSessions.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({sessions.filter(s => getAgent(s.agent_id)?.provider_id === p.id).length})
@@ -713,10 +727,10 @@ export default function ChatPage() {
                     fontSize: 12, color: dateFilter !== "all" ? T.t1 : T.t3,
                     outline: "none", cursor: "pointer", appearance: "none",
                   }}>
-                    <option value="all">Період</option>
-                    <option value="today">Сьогодні</option>
-                    <option value="week">7 днів</option>
-                    <option value="month">30 днів</option>
+                    <option value="all">{t.chat.periodLabel}</option>
+                    <option value="today">{t.chat.periodToday}</option>
+                    <option value="week">{t.chat.periodWeek}</option>
+                    <option value="month">{t.chat.periodMonth}</option>
                   </select>
                   <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
                 </div>
@@ -728,9 +742,9 @@ export default function ChatPage() {
                     borderRadius: 8, padding: "0 26px 0 10px", height: 34,
                     fontSize: 12, color: T.t3, outline: "none", cursor: "pointer", appearance: "none",
                   }}>
-                    <option value="newest">Новіші</option>
-                    <option value="oldest">Старіші</option>
-                    <option value="title">За назвою</option>
+                    <option value="newest">{t.chat.sortNewest}</option>
+                    <option value="oldest">{t.chat.sortOldest}</option>
+                    <option value="title">{t.chat.sortByTitle}</option>
                   </select>
                   <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
                 </div>
@@ -741,7 +755,7 @@ export default function ChatPage() {
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 3, marginLeft: "auto",
                     whiteSpace: "nowrap",
                   }}>
-                    <X size={10} /> Очистити
+                    <X size={10} /> {t.chat.clear}
                   </button>
                 )}
               </div>
@@ -749,7 +763,7 @@ export default function ChatPage() {
               {/* Row 2: compact hashtag agent chips */}
               {agentsWithSessions.length > 0 && (
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ fontSize: 10, color: "#3A3A5A", flexShrink: 0 }}>агенти:</span>
+                  <span style={{ fontSize: 10, color: "#3A3A5A", flexShrink: 0 }}>{t.chat.agentsColonLabel}</span>
                   {agentsWithSessions.map(agent => {
                     const count    = sessions.filter(s => s.agent_id === agent.id).length
                     const isActive = agentFilter === agent.id
@@ -774,16 +788,16 @@ export default function ChatPage() {
             {/* Results */}
             {filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: T.t4, marginBottom: 10 }}>Нічого не знайдено</div>
+                <div style={{ fontSize: 13, color: T.t4, marginBottom: 10 }}>{t.chat.nothingFound}</div>
                 <button onClick={clearFilters} style={{ fontSize: 12, color: T.red, background: "none", border: "none", cursor: "pointer" }}>
-                  Очистити фільтри
+                  {t.chat.clearFilters}
                 </button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ fontSize: 11, color: T.t4, marginBottom: 8 }}>
-                  {filtered.length} {filtered.length === 1 ? "сесія" : filtered.length < 5 ? "сесії" : "сесій"}
-                  {hasFilters && " · відфільтровано"}
+                  {filtered.length} {sessionCountLabel(filtered.length)}
+                  {hasFilters && ` · ${t.chat.filtered}`}
                 </div>
                 {filtered.map(session => {
                   const agent    = getAgent(session.agent_id)
@@ -798,6 +812,8 @@ export default function ChatPage() {
                       onOpen={() => router.push(`/chat/${session.id}`)}
                       onDelete={e => handleDelete(e, session.id)}
                       onRename={e => { e.stopPropagation(); setRenameTarget(session) }}
+                      t={t}
+                      lang={language}
                     />
                   )
                 })}
@@ -811,6 +827,7 @@ export default function ChatPage() {
         <NewChatModal
           onClose={() => setShowModal(false)}
           onCreated={id => { setShowModal(false); router.push(`/chat/${id}`) }}
+          t={t}
         />
       )}
 
@@ -822,6 +839,7 @@ export default function ChatPage() {
             setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s))
             setRenameTarget(null)
           }}
+          t={t}
         />
       )}
     </>

@@ -9,6 +9,8 @@ import {
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { getStoredVaultName, setStoredVaultName, openInObsidian } from "@/lib/obsidian-uri"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 type VaultItem = {
   id: string
@@ -35,23 +37,25 @@ const T = {
   green:"#22C55E",
 }
 
-function ago(iso: string): string {
+function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d  = Date.now() - new Date(iso).getTime()
   const m  = Math.floor(d / 60000)
-  if (m < 1)  return "щойно"
-  if (m < 60) return `${m} хв тому`
+  if (m < 1)  return t.vault.justNow
+  if (m < 60) return `${m} ${t.vault.minAgo}`
   const h  = Math.floor(m / 60)
-  if (h < 24) return `${h} год тому`
+  if (h < 24) return `${h} ${t.vault.hourAgo}`
   const dy = Math.floor(h / 24)
-  if (dy === 1) return "вчора"
-  if (dy < 7)  return `${dy}д тому`
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
+  if (dy === 1) return t.vault.yesterday
+  if (dy < 7)  return `${dy}${t.vault.daysAgo}`
+  const locale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" })
 }
 
-function formatFullDate(iso: string): string {
+function formatFullDate(iso: string, lang: Language): string {
   if (!iso) return ""
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  const locale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
 function cut(s: string, n: number) {
@@ -80,7 +84,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 
 // ─── Add item modal ───────────────────────────────────────────────
 
-function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const [title,   setTitle]   = useState("")
   const [content, setContent] = useState("")
   const [tag,     setTag]     = useState("")
@@ -94,25 +98,25 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   }
 
   function addTag() {
-    const t = tag.trim()
-    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
+    const tg = tag.trim()
+    if (tg && !tags.includes(tg)) setTags(prev => [...prev, tg])
     setTag("")
   }
 
-  function removeTag(t: string) {
-    setTags(prev => prev.filter(x => x !== t))
+  function removeTag(tg: string) {
+    setTags(prev => prev.filter(x => x !== tg))
   }
 
   const [loading, setLoading] = useState(false)
 
   async function handleAdd() {
-    if (!title.trim())   { setError("Введіть назву запису"); return }
-    if (!content.trim()) { setError("Введіть вміст запису"); return }
+    if (!title.trim())   { setError(t.vault.enterTitleError); return }
+    if (!content.trim()) { setError(t.vault.enterContentError); return }
     setLoading(true)
     setError("")
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+    if (!user) { setError(t.vault.notAuthorizedError); setLoading(false); return }
 
     const { error: dbErr } = await sb.from("vault_items").insert({
       user_id: user.id,
@@ -147,8 +151,8 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <BookOpen size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий запис</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI Knowledge Vault</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.vault.newEntryTitle}</div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.vault.knowledgeVaultLabel}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -159,10 +163,10 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           {/* Title */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Назва *
+              {t.vault.nameField}
             </label>
             <input value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Назва знання або теми..."
+              placeholder={t.vault.namePlaceholder}
               style={inp}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -172,10 +176,10 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           {/* Content */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Вміст *
+              {t.vault.contentField}
             </label>
             <textarea value={content} onChange={e => setContent(e.target.value)}
-              placeholder="Текст, нотатка, відповідь AI, інформація..."
+              placeholder={t.vault.contentPlaceholder}
               rows={5}
               style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
@@ -186,12 +190,12 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
           {/* Tags */}
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Теги
+              {t.vault.tagsField}
             </label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={tag} onChange={e => setTag(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag() } }}
-                placeholder="Додати тег і натиснути Enter..."
+                placeholder={t.vault.tagsPlaceholder}
                 style={{ ...inp, flex: 1 }}
                 onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
                 onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -205,15 +209,15 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             </div>
             {tags.length > 0 && (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                {tags.map(t => (
-                  <span key={t} style={{
+                {tags.map(tg => (
+                  <span key={tg} style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
                     fontSize: 11, padding: "3px 9px", borderRadius: 6,
                     background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.22)",
                     color: T.t2,
                   }}>
-                    #{t}
-                    <button onClick={() => removeTag(t)} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: 0 }}>
+                    #{tg}
+                    <button onClick={() => removeTag(tg)} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: 0 }}>
                       <X size={10} />
                     </button>
                   </span>
@@ -237,7 +241,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
             >
-              Скасувати
+              {t.vault.cancel}
             </button>
             <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
@@ -246,7 +250,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
               onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              {loading ? "Зберігаємо..." : "Зберегти запис"}
+              {loading ? t.vault.saving : t.vault.saveEntry}
             </button>
           </div>
         </div>
@@ -257,7 +261,7 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
 // ─── Preview modal ────────────────────────────────────────────────
 
-function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void }) {
+function PreviewModal({ item, onClose, t, lang }: { item: VaultItem; onClose: () => void; t: ReturnType<typeof useLanguage>["t"]; lang: Language }) {
   const [titleCopied,   setTitleCopied]   = useState(false)
   const [contentCopied, setContentCopied] = useState(false)
   const [obsidianState, setObsidianState] = useState<"idle" | "sending" | "sent" | "error">("idle")
@@ -291,7 +295,7 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
     setObsidianState("sending")
     let vaultName = getStoredVaultName()
     if (!vaultName) {
-      const entered = window.prompt("Введи назву свого Obsidian vault (як він називається у списку vault'ів в Obsidian):")
+      const entered = window.prompt(t.vault.obsidianVaultPrompt)
       if (!entered || !entered.trim()) { setObsidianState("idle"); return }
       vaultName = entered.trim()
       setStoredVaultName(vaultName)
@@ -348,7 +352,7 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 9 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: T.t4 }}>
-                <Clock size={11} /> {formatFullDate(item.created_at)}
+                <Clock size={11} /> {formatFullDate(item.created_at, lang)}
               </span>
               {item.source && (
                 <span style={{
@@ -362,13 +366,13 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
             </div>
             {(item.tags ?? []).length > 0 && (
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 9 }}>
-                {(item.tags ?? []).map(t => (
-                  <span key={t} style={{
+                {(item.tags ?? []).map(tg => (
+                  <span key={tg} style={{
                     fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
                     background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)",
                     color: T.t3,
                   }}>
-                    #{t}
+                    #{tg}
                   </span>
                 ))}
               </div>
@@ -413,7 +417,7 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
               transition: "background 130ms ease, color 130ms ease",
             }}>
               {contentCopied ? <Check size={13} /> : <Copy size={13} />}
-              {contentCopied ? "Скопійовано" : "Копіювати вміст"}
+              {contentCopied ? t.vault.copied : t.vault.copyContent}
             </button>
             <button onClick={copyTitle} style={{
               display: "flex", alignItems: "center", gap: 6,
@@ -423,16 +427,16 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
               transition: "background 130ms ease, color 130ms ease",
             }}>
               {titleCopied ? <Check size={13} /> : <Copy size={13} />}
-              {titleCopied ? "Скопійовано" : "Копіювати назву"}
+              {titleCopied ? t.vault.copied : t.vault.copyTitle}
             </button>
             <button onClick={downloadMd} style={{
               display: "flex", alignItems: "center", gap: 6,
               padding: "8px 13px", borderRadius: 9, border: "none", cursor: "pointer",
               background: "rgba(255,255,255,0.06)", color: T.t2, fontSize: 12.5, fontWeight: 500,
             }}>
-              <Download size={13} /> Завантажити .md
+              <Download size={13} /> {t.vault.downloadMd}
             </button>
-            <button onClick={sendToObsidian} disabled={obsidianState === "sending"} title="Відкриє Obsidian через obsidian://new"
+            <button onClick={sendToObsidian} disabled={obsidianState === "sending"} title={t.vault.sendToObsidianTooltip}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "8px 13px", borderRadius: 9, border: "none",
@@ -449,17 +453,17 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
                 : obsidianState === "sent" ? <Check size={13} />
                 : obsidianState === "error" ? <X size={13} />
                 : <Send size={13} />}
-              {obsidianState === "sending" ? "Відкриваємо…"
-                : obsidianState === "sent" ? "Відправлено"
-                : obsidianState === "error" ? "Не вдалося"
-                : "Send to Obsidian"}
+              {obsidianState === "sending" ? t.vault.openingEllipsis
+                : obsidianState === "sent" ? t.vault.sent
+                : obsidianState === "error" ? t.vault.failed
+                : t.vault.sendToObsidian}
             </button>
           </div>
           <button onClick={onClose} style={{
             padding: "8px 16px", borderRadius: 9, border: `0.5px solid ${T.b1}`,
             background: "transparent", color: T.t3, fontSize: 12.5, fontWeight: 500, cursor: "pointer",
           }}>
-            Закрити
+            {t.vault.close}
           </button>
         </div>
       </div>
@@ -469,7 +473,10 @@ function PreviewModal({ item, onClose }: { item: VaultItem; onClose: () => void 
 
 // ─── Vault card ───────────────────────────────────────────────────
 
-function VaultCard({ item, onDelete, onPreview }: { item: VaultItem; onDelete: () => void; onPreview: () => void }) {
+function VaultCard({ item, onDelete, onPreview, t, lang }: {
+  item: VaultItem; onDelete: () => void; onPreview: () => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language
+}) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy(e: React.MouseEvent) {
@@ -482,7 +489,7 @@ function VaultCard({ item, onDelete, onPreview }: { item: VaultItem; onDelete: (
 
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    if (window.confirm(`Видалити "${item.title}"?`)) onDelete()
+    if (window.confirm(`${t.vault.deleteConfirmPrefix}${item.title}${t.vault.deleteConfirmSuffix}`)) onDelete()
   }
 
   return (
@@ -590,7 +597,7 @@ function VaultCard({ item, onDelete, onPreview }: { item: VaultItem; onDelete: (
         {/* Time */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4, flexShrink: 0 }}>
           <Clock size={10} />
-          {ago(item.created_at)}
+          {ago(item.created_at, t, lang)}
         </div>
       </div>
     </div>
@@ -599,7 +606,7 @@ function VaultCard({ item, onDelete, onPreview }: { item: VaultItem; onDelete: (
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -614,10 +621,10 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Database size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
       <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
-        Сховище порожнє
+        {t.vault.emptyTitle}
       </div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
-        Зберігайте знання, відповіді AI, нотатки та будь-яку корисну інформацію.
+        {t.vault.emptyDesc}
       </div>
       <button onClick={onAdd} style={{
         display: "flex", alignItems: "center", gap: 7,
@@ -628,10 +635,10 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
       >
-        <Plus size={14} /> Додати запис
+        <Plus size={14} /> {t.vault.addEntry}
       </button>
       <div style={{ marginTop: 18, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.10em" }}>
-        AI Knowledge Vault · Knowledge Base
+        {t.vault.knowledgeBase}
       </div>
     </div>
   )
@@ -640,6 +647,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function VaultPage() {
+  const { t, language } = useLanguage()
   const [items,     setItems]     = useState<VaultItem[]>([])
   const [search,    setSearch]    = useState("")
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -671,7 +679,7 @@ export default function VaultPage() {
   // Collect all unique tags
   const allTags = useMemo(() => {
     const set = new Set<string>()
-    items.forEach(item => (item.tags ?? []).forEach(t => set.add(t)))
+    items.forEach(item => (item.tags ?? []).forEach(tg => set.add(tg)))
     return [...set].sort()
   }, [items])
 
@@ -751,14 +759,14 @@ export default function VaultPage() {
                   boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
                 }} />
                 <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Knowledge Vault · {items.length} записів
+                  Knowledge Vault · {items.length} {t.vault.entriesSuffix}
                 </span>
               </div>
               <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                Сховище знань
+                {t.vault.title}
               </h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                AI Knowledge Base · зберігайте і переглядайте знання
+                {t.vault.subtitle}
               </p>
             </div>
             <button onClick={() => setShowModal(true)} style={{
@@ -771,23 +779,23 @@ export default function VaultPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
             >
-              <Plus size={14} /> Новий запис
+              <Plus size={14} /> {t.vault.newEntry}
             </button>
           </div>
         </div>
 
         {/* ── Body ── */}
         {items.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} />
+          <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1400 }}>
 
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
-                { label: "Всього записів", value: items.length,              icon: Database  },
-                { label: "Унікальних тегів", value: allTags.length,         icon: Tag       },
-                { label: "Символів збережено", value: totalChars.toLocaleString(), icon: Zap },
+                { label: t.vault.statTotal, value: items.length,              icon: Database  },
+                { label: t.vault.statUniqueTags, value: allTags.length,         icon: Tag       },
+                { label: t.vault.statCharsSaved, value: totalChars.toLocaleString(), icon: Zap },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 9,
@@ -814,7 +822,7 @@ export default function VaultPage() {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Пошук по назві та вмісту..."
+                  placeholder={t.vault.searchPlaceholder}
                   style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }}
                 />
                 {search && (
@@ -835,19 +843,19 @@ export default function VaultPage() {
                       color: activeTag === null ? "#fff" : T.t3,
                       transition: "background 130ms ease",
                     }}>
-                    Всі
+                    {t.vault.all}
                   </button>
-                  {allTags.map(t => (
-                    <button key={t}
-                      onClick={() => setActiveTag(activeTag === t ? null : t)}
+                  {allTags.map(tg => (
+                    <button key={tg}
+                      onClick={() => setActiveTag(activeTag === tg ? null : tg)}
                       style={{
                         fontSize: 11, padding: "5px 11px", borderRadius: 7, cursor: "pointer",
-                        background: activeTag === t ? "rgba(232,0,42,0.18)" : "rgba(255,255,255,0.05)",
-                        color: activeTag === t ? T.t1 : T.t3,
-                        border: activeTag === t ? "0.5px solid rgba(232,0,42,0.30)" : "0.5px solid transparent",
+                        background: activeTag === tg ? "rgba(232,0,42,0.18)" : "rgba(255,255,255,0.05)",
+                        color: activeTag === tg ? T.t1 : T.t3,
+                        border: activeTag === tg ? "0.5px solid rgba(232,0,42,0.30)" : "0.5px solid transparent",
                         transition: "background 130ms ease",
                       }}>
-                      #{t}
+                      #{tg}
                     </button>
                   ))}
                 </div>
@@ -857,21 +865,19 @@ export default function VaultPage() {
             {/* Results count */}
             {(search || activeTag) && (
               <div style={{ fontSize: 12, color: T.t4, marginBottom: 14 }}>
-                Знайдено {filtered.length} із {items.length} записів
-                {(search || activeTag) && (
-                  <button onClick={() => { setSearch(""); setActiveTag(null) }} style={{
-                    marginLeft: 10, fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer",
-                  }}>
-                    Очистити
-                  </button>
-                )}
+                {t.vault.foundOfPrefix}{filtered.length}{t.vault.foundOfMid}{items.length}{t.vault.foundOfSuffix}
+                <button onClick={() => { setSearch(""); setActiveTag(null) }} style={{
+                  marginLeft: 10, fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer",
+                }}>
+                  {t.vault.clear}
+                </button>
               </div>
             )}
 
             {/* Grid */}
             {filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: T.t4 }}>Нічого не знайдено</div>
+                <div style={{ fontSize: 13, color: T.t4 }}>{t.vault.nothingFound}</div>
               </div>
             ) : (
               <div style={{
@@ -885,6 +891,8 @@ export default function VaultPage() {
                     item={item}
                     onDelete={() => handleDelete(item.id)}
                     onPreview={() => setPreviewItem(item)}
+                    t={t}
+                    lang={language}
                   />
                 ))}
               </div>
@@ -897,6 +905,7 @@ export default function VaultPage() {
         <AddModal
           onClose={() => setShowModal(false)}
           onAdded={() => { load() }}
+          t={t}
         />
       )}
 
@@ -904,6 +913,8 @@ export default function VaultPage() {
         <PreviewModal
           item={previewItem}
           onClose={() => setPreviewItem(null)}
+          t={t}
+          lang={language}
         />
       )}
     </>

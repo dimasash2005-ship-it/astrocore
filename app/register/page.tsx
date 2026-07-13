@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe, Check } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
+import { useLanguage } from "@/lib/useLanguage";
 
 const T = {
   bg:   "#08080F",
@@ -24,15 +25,7 @@ const PROVIDERS = [
   { label: "Custom",  color: "#8B5CF6", bg: "rgba(139,92,246,0.12)"  },
 ]
 
-const BENEFITS = [
-  { icon: Bot,    text: "Необмежена кількість AI агентів"    },
-  { icon: Brain,  text: "Персистентна пам'ять для агентів"   },
-  { icon: Globe,  text: "Синхронізація між пристроями"       },
-  { icon: Shield, text: "Безпечне зберігання API ключів"     },
-  { icon: Zap,    text: "Claude, GPT-4o, Gemini в одному місці" },
-]
-
-function LeftPanel() {
+function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const [pulse, setPulse] = useState(false)
   const [scan,  setScan]  = useState(0)
 
@@ -41,6 +34,14 @@ function LeftPanel() {
     const s = setInterval(() => setScan(v => (v + 1) % 3), 3000)
     return () => { clearInterval(p); clearInterval(s) }
   }, [])
+
+  const BENEFITS = [
+    { icon: Bot,    text: t.registerPage.benefit1 },
+    { icon: Brain,  text: t.registerPage.benefit2 },
+    { icon: Globe,  text: t.registerPage.benefit3 },
+    { icon: Shield, text: t.registerPage.benefit4 },
+    { icon: Zap,    text: t.registerPage.benefit5 },
+  ]
 
   return (
     <div style={{
@@ -102,19 +103,19 @@ function LeftPanel() {
             transition: "opacity 900ms ease, box-shadow 900ms ease",
             boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
           }} />
-          <span style={{ fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>Online</span>
+          <span style={{ fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>{t.registerPage.online}</span>
         </div>
       </div>
 
       {/* Headline */}
       <div style={{ position: "relative", zIndex: 1, marginBottom: 36 }}>
         <h1 style={{ fontSize: 38, fontWeight: 800, color: T.t1, letterSpacing: "-0.04em", lineHeight: 1.12, margin: 0, marginBottom: 14 }}>
-          Join the<br />
-          <span style={{ color: T.red }}>AI-First</span><br />
-          Workspace
+          {t.registerPage.headline1}<br />
+          <span style={{ color: T.red }}>{t.registerPage.headline2}</span><br />
+          {t.registerPage.headline3}
         </h1>
         <p style={{ fontSize: 14, color: T.t3, lineHeight: 1.65, margin: 0, maxWidth: 360 }}>
-          Create your AstroCore account and get instant access to a full AI agent workspace with multi-model support.
+          {t.registerPage.subhead}
         </p>
       </div>
 
@@ -137,7 +138,7 @@ function LeftPanel() {
       {/* Providers */}
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ fontSize: 10, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10 }}>
-          Supported Providers
+          {t.registerPage.supportedProviders}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {PROVIDERS.map(p => (
@@ -160,13 +161,13 @@ function LeftPanel() {
         borderRadius: 8, padding: "5px 10px",
       }}>
         <Brain size={12} style={{ color: "#A78BFA" }} />
-        <span style={{ fontSize: 10.5, color: "#A78BFA", fontWeight: 500 }}>Memory Layer Active</span>
+        <span style={{ fontSize: 10.5, color: "#A78BFA", fontWeight: 500 }}>{t.registerPage.memoryLayerActive}</span>
       </div>
     </div>
   )
 }
 
-function RegisterForm() {
+function RegisterForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const [name,    setName]    = useState("")
   const [email,   setEmail]   = useState("")
   const [password,setPassword]= useState("")
@@ -175,8 +176,8 @@ function RegisterForm() {
   const [error,   setError]   = useState("")
 
   async function register() {
-    if (!email.trim() || !password.trim()) { setError("Заповніть email і пароль"); return }
-    if (password.length < 6) { setError("Пароль мінімум 6 символів"); return }
+    if (!email.trim() || !password.trim()) { setError(t.registerPage.fillFieldsError); return }
+    if (password.length < 6) { setError(t.registerPage.passwordTooShortError); return }
     setLoading(true); setError("")
     const sb = getSupabase()
     const { error: authError } = await sb.auth.signUp({
@@ -191,16 +192,16 @@ function RegisterForm() {
     <div style={{ width: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em", marginBottom: 6 }}>
-          Створити акаунт
+          {t.registerPage.title}
         </div>
-        <div style={{ fontSize: 13, color: T.t4 }}>New Operator Registration</div>
+        <div style={{ fontSize: 13, color: T.t4 }}>{t.registerPage.subtitle}</div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>Ім'я</label>
+          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>{t.registerPage.nameLabel}</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
-            placeholder="Ваше ім'я або псевдонім"
+            placeholder={t.registerPage.namePlaceholder}
             style={{ background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)", borderRadius: 10, padding: "12px 14px", fontSize: 14, color: T.t1, outline: "none", width: "100%" }}
             onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.45)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(232,0,42,0.06)" }}
             onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; e.currentTarget.style.boxShadow = "none" }}
@@ -208,7 +209,7 @@ function RegisterForm() {
         </div>
 
         <div>
-          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>Email *</label>
+          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>{t.registerPage.emailLabel}</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             placeholder="operator@astrocore.ai"
             autoComplete="email"
@@ -219,10 +220,10 @@ function RegisterForm() {
         </div>
 
         <div>
-          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>Пароль *</label>
+          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>{t.registerPage.passwordLabel}</label>
           <div style={{ position: "relative" }}>
             <input type={showPw ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Мінімум 6 символів"
+              placeholder={t.registerPage.passwordPlaceholder}
               autoComplete="new-password"
               onKeyDown={e => { if (e.key === "Enter") register() }}
               style={{ background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)", borderRadius: 10, padding: "12px 44px 12px 14px", fontSize: 14, color: T.t1, outline: "none", width: "100%" }}
@@ -253,30 +254,31 @@ function RegisterForm() {
           onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
         >
           {loading && <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />}
-          {loading ? "Реєстрація..." : "Приєднатись до AstroCore"}
+          {loading ? t.registerPage.registering : t.registerPage.join}
         </button>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 20, padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: T.t4 }}>
         <Shield size={12} style={{ flexShrink: 0, color: T.green }} />
-        Захищено Supabase Auth · Дані синхронізуються між пристроями
+        {t.registerPage.securityNote}
       </div>
 
       <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.t4 }}>
-        Вже є акаунт?{" "}
-        <Link href="/login" style={{ color: T.red, textDecoration: "none", fontWeight: 600 }}>Увійти</Link>
+        {t.registerPage.alreadyHaveAccount}{" "}
+        <Link href="/login" style={{ color: T.red, textDecoration: "none", fontWeight: 600 }}>{t.registerPage.signIn}</Link>
       </div>
     </div>
   )
 }
 
 export default function RegisterPage() {
+  const { t } = useLanguage()
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: T.bg }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 
       <div style={{ display: "flex", flex: 1 }}>
-        <LeftPanel />
+        <LeftPanel t={t} />
       </div>
 
       <div style={{
@@ -291,7 +293,7 @@ export default function RegisterPage() {
           pointerEvents: "none",
         }} />
         <Suspense fallback={null}>
-          <RegisterForm />
+          <RegisterForm t={t} />
         </Suspense>
       </div>
     </div>

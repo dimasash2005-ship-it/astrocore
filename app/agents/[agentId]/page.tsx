@@ -13,6 +13,8 @@ import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { AgentTools }     from "@/components/agents/AgentTools"
 import { AgentKnowledge } from "@/components/agents/AgentKnowledge"
 import { AgentWorkflow }  from "@/components/agents/AgentWorkflow"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 const T = {
   bg:   "#08080F",
@@ -33,11 +35,11 @@ const AVATAR_COLORS = [
   "#06B6D4","#EC4899",
 ]
 
-// ─── Skill registry ───────────────────────────────────────────────
+// ─── Skill registry (bilingual) ───────────────────────────────────
 
 type Skill = { label: string; prompt: string }
 
-const SKILL_REGISTRY: Record<string, Skill[]> = {
+const SKILL_REGISTRY_UK: Record<string, Skill[]> = {
   SEO: [
     { label: "SEO аудит",       prompt: "Зроби детальний SEO аудит для мого сайту. Запитай у мене URL і я надам деталі." },
     { label: "Семантичне ядро", prompt: "Допоможи зібрати семантичне ядро. Запитай нішу, регіон і головні послуги/продукти." },
@@ -105,23 +107,107 @@ const SKILL_REGISTRY: Record<string, Skill[]> = {
   ],
 }
 
-function getAgentSkills(agentName: string, systemPrompt: string): Skill[] {
-  const name = (agentName ?? "").toLowerCase()
-  const prompt = (systemPrompt ?? "").toLowerCase()
+const SKILL_REGISTRY_EN: Record<string, Skill[]> = {
+  SEO: [
+    { label: "SEO audit",       prompt: "Do a detailed SEO audit of my site. Ask me for the URL and I'll give you the details." },
+    { label: "Keyword research", prompt: "Help me build a keyword map. Ask about the niche, region, and main products/services." },
+    { label: "Content plan",    prompt: "Put together an SEO content plan for next month. Ask about the niche, target audience, and goals." },
+    { label: "Article brief",   prompt: "Write a brief for an SEO article. Ask about the topic, keywords, and length." },
+    { label: "Competitor analysis", prompt: "Run a search competitor analysis. Ask about the niche and main competitors." },
+  ],
+  SMM: [
+    { label: "Content plan",    prompt: "Put together a social media content plan for the month. Ask about the platform, niche, and brand tone." },
+    { label: "Post ideas",      prompt: "Give me 10 post ideas. Ask about the niche, platform, and current audience." },
+    { label: "Reels script",    prompt: "Write a script for Reels/TikTok. Ask about the topic, tone, and video length." },
+    { label: "Audience analysis", prompt: "Help me describe the target audience persona. Ask about the niche and product." },
+    { label: "Post hooks",      prompt: "Give me 10 strong hooks for social posts. Ask about the niche and content type." },
+  ],
+  Sales: [
+    { label: "Sales script",    prompt: "Write a sales script. Ask about the product/service, channel, and target audience." },
+    { label: "Objection handling", prompt: "Help me handle objections. Ask for my top 3 client objections." },
+    { label: "Follow-up email", prompt: "Write a follow-up message after a meeting. Ask about the context and meeting outcome." },
+    { label: "Lead qualification", prompt: "Help me qualify a lead. Ask about the product and client profile." },
+    { label: "Client pitch",    prompt: "Write an elevator pitch for a client. Ask about the product, problem, and target audience." },
+  ],
+  Affiliate: [
+    { label: "Offer analysis",  prompt: "Analyze a CPA offer. Ask for the offer name, vertical, terms, and geo." },
+    { label: "GEO research",    prompt: "Do GEO research for traffic. Ask about the vertical and budget." },
+    { label: "Traffic strategy", prompt: "Develop a traffic strategy. Ask about the vertical, geo, and available traffic sources." },
+    { label: "Landing review",  prompt: "Analyze a landing page for affiliate traffic. Provide the URL or a description of the landing page." },
+    { label: "Funnel",          prompt: "Help me build an affiliate funnel. Ask about the offer, geo, and traffic source." },
+  ],
+  Content: [
+    { label: "Article outline", prompt: "Put together an article outline. Ask about the topic, target audience, and goal of the piece." },
+    { label: "Rewrite better",  prompt: "Rewrite my text more professionally. I'll paste the text once you're ready." },
+    { label: "Content hooks",   prompt: "Give me 10 strong hooks for my content. Ask about the topic and content type." },
+    { label: "CTA variants",    prompt: "Write 5 CTA variants for my page. Ask about the product and the action I want." },
+    { label: "Email copy",      prompt: "Write an email for a newsletter. Ask about the goal, audience, and key message." },
+  ],
+  Support: [
+    { label: "FAQ answer",      prompt: "Help me write an FAQ answer. Ask about the question and product context." },
+    { label: "Reply to client", prompt: "Write a reply to an unhappy client. Describe the situation and the client's complaint." },
+    { label: "How-to guide",    prompt: "Write a step-by-step guide. Ask about the product name and steps to explain." },
+    { label: "Support script",  prompt: "Write a support script. Ask about the communication channel and typical situation." },
+  ],
+  Analyst: [
+    { label: "Market analysis", prompt: "Run a market analysis. Ask about the niche, region, and research goal." },
+    { label: "SWOT analysis",   prompt: "Do a SWOT analysis. Ask for the company/product name and context." },
+    { label: "Competitor analysis", prompt: "Compare competitors. Ask about the niche and list of main competitors." },
+    { label: "Report",          prompt: "Help me put together an analytical report. Ask what data is available and the report's goal." },
+  ],
+  "Media Buyer": [
+    { label: "Facebook Ads",    prompt: "Help me set up a Facebook Ads campaign. Ask about the product, goal, and budget." },
+    { label: "Optimization",    prompt: "Help me optimize the ads. Ask about current metrics and the goal." },
+    { label: "Audiences",       prompt: "Find audiences for the ads. Ask about the product and platform." },
+    { label: "ROAS analysis",   prompt: "Calculate and analyze ROAS. Provide current spend and revenue data." },
+  ],
+  Strategy: [
+    { label: "GTM strategy",    prompt: "Develop a go-to-market strategy. Ask about the product, market, and target audience." },
+    { label: "Scaling",         prompt: "Help me with a scaling strategy. Ask about current metrics and resources." },
+    { label: "SWOT",            prompt: "Do a strategic SWOT analysis. Ask about the context and business goals." },
+    { label: "Competitive analysis", prompt: "Run a competitive analysis. Ask about the market and main competitors." },
+  ],
+  Product: [
+    { label: "User story",      prompt: "Write a user story. Ask about the user role, action, and desired outcome." },
+    { label: "Roadmap",         prompt: "Help me put together a product roadmap. Ask about the product stage and priorities." },
+    { label: "Prioritization",  prompt: "Help me prioritize tasks using RICE. Describe the task list and I'll help." },
+    { label: "Product brief",   prompt: "Write a product brief for a feature. Ask for the feature name and its goal." },
+  ],
+}
 
-  for (const [key, skills] of Object.entries(SKILL_REGISTRY)) {
-    if (name.includes(key.toLowerCase()) || prompt.includes(key.toLowerCase())) {
-      return skills
-    }
+function getSkillRegistry(lang: Language) {
+  return lang === "en" ? SKILL_REGISTRY_EN : SKILL_REGISTRY_UK
+}
+
+function getGenericSkills(lang: Language): Skill[] {
+  if (lang === "en") {
+    return [
+      { label: "Give me a task",  prompt: "Help me with a task. I'll explain exactly what's needed." },
+      { label: "Analysis",        prompt: "Run an analysis. Ask for details and I'll provide the information." },
+      { label: "Write text",      prompt: "Write text for me. Ask about the topic, audience, and goal." },
+      { label: "Advice",          prompt: "Give me expert advice on my situation. I'll describe the context." },
+    ]
   }
-
-  // Generic fallback
   return [
     { label: "Поставити задачу",   prompt: "Допоможи мені з задачею. Я поясню що саме потрібно зробити." },
     { label: "Аналіз",            prompt: "Проведи аналіз. Запитай деталі і я надам інформацію." },
     { label: "Написати текст",    prompt: "Напиши текст для мене. Запитай тему, аудиторію і мету." },
     { label: "Порада",            prompt: "Дай експертну пораду по моїй ситуації. Я опишу контекст." },
   ]
+}
+
+function getAgentSkills(agentName: string, systemPrompt: string, lang: Language): Skill[] {
+  const name = (agentName ?? "").toLowerCase()
+  const prompt = (systemPrompt ?? "").toLowerCase()
+  const registry = getSkillRegistry(lang)
+
+  for (const [key, skills] of Object.entries(registry)) {
+    if (name.includes(key.toLowerCase()) || prompt.includes(key.toLowerCase())) {
+      return skills
+    }
+  }
+
+  return getGenericSkills(lang)
 }
 
 type Agent = {
@@ -157,18 +243,19 @@ function blurBorder(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement |
   e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d = Date.now() - new Date(iso).getTime()
   const m = Math.floor(d / 60000)
-  if (m < 1)  return "щойно"
-  if (m < 60) return `${m} хв тому`
+  if (m < 1)  return t.agentDetail.timeJustNow
+  if (m < 60) return `${m} ${t.agentDetail.timeMinAgo}`
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h} год тому`
+  if (h < 24) return `${h} ${t.agentDetail.timeHourAgo}`
   const dy = Math.floor(h / 24)
-  if (dy === 1) return "вчора"
-  if (dy < 7)  return `${dy}д тому`
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
+  if (dy === 1) return t.agentDetail.timeYesterday
+  if (dy < 7)  return `${dy}${t.agentDetail.timeDaysAgo}`
+  const dateLocale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })
 }
 
 function Card({ title, icon: Icon, children, action, accent }: {
@@ -212,8 +299,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function EditForm({ agent, providers, onSaved, onCancel }: {
+function EditForm({ agent, providers, onSaved, onCancel, t }: {
   agent: Agent; providers: Provider[]; onSaved: () => void; onCancel: () => void
+  t: ReturnType<typeof useLanguage>["t"]
 }) {
   const [name,         setName]         = useState(agent.name)
   const [description,  setDescription]  = useState(agent.description ?? "")
@@ -225,7 +313,7 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
   const [loading,      setLoading]      = useState(false)
 
   async function handleSave() {
-    if (!name.trim()) { setError("Назва не може бути порожньою"); return }
+    if (!name.trim()) { setError(t.agentDetail.nameEmptyError); return }
     setLoading(true)
     setError("")
     const sb = getSupabase()
@@ -246,7 +334,7 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
         <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
-          Колір аватара
+          {t.agentDetail.avatarColor}
         </label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           {AVATAR_COLORS.map(c => (
@@ -260,29 +348,29 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
           <div style={{ width: 34, height: 34, borderRadius: 9, background: avatarColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
             {name ? name.charAt(0).toUpperCase() : "A"}
           </div>
-          <span style={{ fontSize: 13, color: T.t2 }}>{name || "Назва агента"}</span>
+          <span style={{ fontSize: 13, color: T.t2 }}>{name || t.agentDetail.nameField}</span>
         </div>
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Назва *</label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.agentDetail.nameRequired}</label>
         <input value={name} onChange={e => setName(e.target.value)} style={inp} onFocus={focusBorder} onBlur={blurBorder} />
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Опис</label>
-        <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Коротко — що вміє цей агент" style={inp} onFocus={focusBorder} onBlur={blurBorder} />
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.agentDetail.description}</label>
+        <input value={description} onChange={e => setDescription(e.target.value)} placeholder={t.agentDetail.descPlaceholder} style={inp} onFocus={focusBorder} onBlur={blurBorder} />
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Провайдер</label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.agentDetail.provider}</label>
         {providers.length === 0 ? (
           <div style={{ padding: "9px 12px", borderRadius: 9, fontSize: 12, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.2)", color: "#FF4D6A" }}>
-            Немає провайдерів. <a href="/providers" style={{ textDecoration: "underline", color: T.red }}>Додайте API ключ</a>
+            {t.agentDetail.noProviderText} <a href="/providers" style={{ textDecoration: "underline", color: T.red }}>{t.agentDetail.addApiKeyLink}</a>
           </div>
         ) : (
           <select value={providerId} onChange={e => setProviderId(e.target.value)} style={{ ...inp, cursor: "pointer" }} onFocus={focusBorder} onBlur={blurBorder}>
-            <option value="">— не вибрано —</option>
+            <option value="">— {t.agentDetail.notSelected} —</option>
             {providers.map(p => (
               <option key={p.id} value={p.id} style={{ background: "#111118" }}>{p.name} — {p.model}</option>
             ))}
@@ -291,12 +379,12 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
       </div>
 
       <div>
-        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Системний промпт</label>
+        <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>{t.agentDetail.systemPrompt}</label>
         <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
-          placeholder="Ти — досвідчений AI агент. Відповідай чітко і по суті..."
+          placeholder={t.agentDetail.systemPromptPlaceholder}
           rows={5} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
           onFocus={focusBorder} onBlur={blurBorder} />
-        <div style={{ fontSize: 11, color: T.t4, marginTop: 5 }}>Визначає поведінку агента. Зміни застосовуються до нових сесій.</div>
+        <div style={{ fontSize: 11, color: T.t4, marginTop: 5 }}>{t.agentDetail.systemPromptHint}</div>
       </div>
 
       {error && (
@@ -306,7 +394,7 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
       )}
       {saved && (
         <div style={{ fontSize: 12, color: T.green, padding: "7px 10px", borderRadius: 7, background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.22)", display: "flex", alignItems: "center", gap: 7 }}>
-          <Check size={12} /> Зміни збережено
+          <Check size={12} /> {t.agentDetail.changesSaved}
         </div>
       )}
 
@@ -314,7 +402,7 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
         <button onClick={onCancel} style={{ flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2 }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
-        >Скасувати</button>
+        >{t.common.cancel}</button>
         <button onClick={handleSave} disabled={loading} style={{
           flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: loading ? "not-allowed" : "pointer",
           background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff",
@@ -323,22 +411,23 @@ function EditForm({ agent, providers, onSaved, onCancel }: {
           onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
           onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
         >
-          <Save size={13} /> {loading ? "Зберігаємо..." : "Зберегти зміни"}
+          <Save size={13} /> {loading ? t.agentDetail.saving : t.agentDetail.saveChanges}
         </button>
       </div>
     </div>
   )
 }
 
-function SessionList({ sessions, onOpen, onDelete }: {
+function SessionList({ sessions, onOpen, onDelete, t, lang }: {
   sessions: ChatSession[]; onOpen: (id: string) => void; onDelete: (id: string) => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   if (sessions.length === 0) {
     return (
       <div style={{ padding: "20px 0", textAlign: "center" }}>
         <MessageSquare size={22} style={{ color: "#252540", margin: "0 auto 8px" }} />
-        <div style={{ fontSize: 12, color: T.t4 }}>Чат-сесій ще немає</div>
-        <div style={{ fontSize: 11, color: "#2E2E4A", marginTop: 4 }}>Натисніть «Новий чат» вгорі щоб розпочати</div>
+        <div style={{ fontSize: 12, color: T.t4 }}>{t.agentDetail.noSessionsYet}</div>
+        <div style={{ fontSize: 11, color: "#2E2E4A", marginTop: 4 }}>{t.agentDetail.noSessionsHint}</div>
       </div>
     )
   }
@@ -347,8 +436,8 @@ function SessionList({ sessions, onOpen, onDelete }: {
       {sessions.map(session => {
         const lastMsg = session.messages[session.messages.length - 1]
         const preview = lastMsg
-          ? (lastMsg.role === "user" ? "Ви: " : "AI: ") + lastMsg.content.slice(0, 72)
-          : "Порожня сесія"
+          ? (lastMsg.role === "user" ? t.agentDetail.youPrefix : t.agentDetail.aiPrefix) + lastMsg.content.slice(0, 72)
+          : t.agentDetail.emptySession
         const time = lastMsg?.createdAt ?? session.createdAt
         return (
           <div key={session.id}
@@ -372,13 +461,13 @@ function SessionList({ sessions, onOpen, onDelete }: {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: T.t4 }}>
-                <Clock size={9} />{formatTime(time)}
+                <Clock size={9} />{formatTime(time, t, lang)}
               </div>
               <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
                 {session.messages.length}
               </span>
               <button className="del-btn"
-                onClick={e => { e.stopPropagation(); if (window.confirm("Видалити цю сесію?")) onDelete(session.id) }}
+                onClick={e => { e.stopPropagation(); if (window.confirm(t.agentDetail.deleteSessionConfirm)) onDelete(session.id) }}
                 style={{ opacity: 0, padding: 4, borderRadius: 5, border: "none", background: "none", cursor: "pointer", color: T.t4, lineHeight: 0, transition: "opacity 130ms ease" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
@@ -394,7 +483,7 @@ function SessionList({ sessions, onOpen, onDelete }: {
   )
 }
 
-function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () => void }) {
+function DangerZone({ agentName, onDelete, t }: { agentName: string; onDelete: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const [confirming, setConfirming] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const isMatch = inputValue.trim() === agentName.trim()
@@ -403,8 +492,8 @@ function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () =
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 3 }}>Видалити агента</div>
-          <div style={{ fontSize: 11.5, color: T.t4 }}>Агент буде видалений назавжди. Чат-сесії залишаться.</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 3 }}>{t.agentDetail.deleteAgentTitle}</div>
+          <div style={{ fontSize: 11.5, color: T.t4 }}>{t.agentDetail.deleteAgentHint}</div>
         </div>
         <button onClick={() => setConfirming(true)} style={{
           display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
@@ -414,7 +503,7 @@ function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () =
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.16)" }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)" }}
         >
-          <Trash2 size={12} /> Видалити
+          <Trash2 size={12} /> {t.agentDetail.delete}
         </button>
       </div>
     )
@@ -423,17 +512,17 @@ function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () =
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ padding: "12px 14px", borderRadius: 9, background: "rgba(232,0,42,0.06)", border: "0.5px solid rgba(232,0,42,0.20)" }}>
-        <div style={{ fontSize: 12, color: "#FF4D6A", marginBottom: 8 }}>Для підтвердження введіть назву агента:</div>
+        <div style={{ fontSize: 12, color: "#FF4D6A", marginBottom: 8 }}>{t.agentDetail.confirmDeleteHint}</div>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agentName}</div>
         <input value={inputValue} onChange={e => setInputValue(e.target.value)}
-          placeholder="Введіть назву..." autoFocus
+          placeholder={t.agentDetail.confirmDeletePlaceholder} autoFocus
           style={{ ...inp, borderColor: isMatch ? "rgba(34,197,94,0.4)" : "rgba(232,0,42,0.3)" }} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => { setConfirming(false); setInputValue("") }} style={{
           flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, cursor: "pointer",
           background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t2,
-        }}>Скасувати</button>
+        }}>{t.common.cancel}</button>
         <button onClick={onDelete} disabled={!isMatch} style={{
           flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 500,
           cursor: isMatch ? "pointer" : "not-allowed",
@@ -442,7 +531,7 @@ function DangerZone({ agentName, onDelete }: { agentName: string; onDelete: () =
           color: isMatch ? "#FF4D6A" : T.t4,
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}>
-          <Trash2 size={12} /> Підтвердити видалення
+          <Trash2 size={12} /> {t.agentDetail.confirmDelete}
         </button>
       </div>
     </div>
@@ -453,6 +542,7 @@ export default function AgentDetailPage() {
   const params  = useParams()
   const router  = useRouter()
   const agentId = params.agentId as string
+  const { t, language } = useLanguage()
 
   const [agent,        setAgent]        = useState<Agent | null>(null)
   const [provider,     setProvider]     = useState<Provider | undefined>()
@@ -487,7 +577,7 @@ export default function AgentDetailPage() {
 
   function handleNewChat() {
     if (!agent) return
-    const session = chatStore.create(agent.id, `Чат з ${agent.name}`)
+    const session = chatStore.create(agent.id, `${t.agentDetail.chatWithPrefix}${agent.name}`)
     router.push(`/chat/${session.id}`)
   }
 
@@ -508,14 +598,14 @@ export default function AgentDetailPage() {
           <div style={{ width: 64, height: 64, borderRadius: 18, margin: "0 auto 20px", background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <AlertCircle size={26} style={{ color: T.red, opacity: 0.7 }} />
           </div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: T.t1, marginBottom: 8 }}>Агента не знайдено</div>
-          <div style={{ fontSize: 13, color: T.t3, marginBottom: 22 }}>Можливо, він був видалений</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.agentDetail.agentNotFound}</div>
+          <div style={{ fontSize: 13, color: T.t3, marginBottom: 22 }}>{t.agentDetail.agentNotFoundHint}</div>
           <button onClick={() => router.push("/agents")} style={{
             display: "inline-flex", alignItems: "center", gap: 7,
             padding: "9px 18px", borderRadius: 9, fontSize: 13, cursor: "pointer",
             background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t2,
           }}>
-            <ArrowLeft size={14} /> Повернутись до агентів
+            <ArrowLeft size={14} /> {t.agentDetail.backToAgents}
           </button>
         </div>
       </div>
@@ -567,7 +657,7 @@ export default function AgentDetailPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t2 }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
             >
-              <ArrowLeft size={13} /> Всі агенти
+              <ArrowLeft size={13} /> {t.agentDetail.allAgents}
             </button>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
@@ -612,7 +702,7 @@ export default function AgentDetailPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                <Plus size={14} /> Новий чат
+                <Plus size={14} /> {t.agentDetail.newChat}
               </button>
             </div>
           </div>
@@ -628,13 +718,13 @@ export default function AgentDetailPage() {
               border: `0.5px solid ${T.b1}`, borderRadius: 14, padding: "18px 20px",
               display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20,
             }}>
-              <InfoRow label="Провайдер" value={provider ? provider.name : "Не знайдено"} />
-              <InfoRow label="Модель"    value={provider ? provider.model : "—"} />
-              <InfoRow label="Сесій"     value={`${sessions.length} чатів`} />
+              <InfoRow label={t.agentDetail.provider} value={provider ? provider.name : t.agentDetail.providerNotFound} />
+              <InfoRow label={t.agentDetail.modelLabel}    value={provider ? provider.model : "—"} />
+              <InfoRow label={t.agentDetail.sessionsLabel}     value={`${sessions.length} ${t.agentDetail.sessionsSuffix}`} />
             </div>
 
             {/* Settings */}
-            <Card title="Налаштування агента" icon={Bot}
+            <Card title={t.agentDetail.settingsCard} icon={Bot}
               action={
                 !isEditing ? (
                   <button onClick={() => setIsEditing(true)} style={{
@@ -644,13 +734,13 @@ export default function AgentDetailPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
                   >
-                    <Edit3 size={11} /> Редагувати
+                    <Edit3 size={11} /> {t.agentDetail.edit}
                   </button>
                 ) : undefined
               }
             >
               {isEditing ? (
-                <EditForm agent={agent} providers={allProviders} onSaved={handleSaved} onCancel={() => setIsEditing(false)} />
+                <EditForm agent={agent} providers={allProviders} onSaved={handleSaved} onCancel={() => setIsEditing(false)} t={t} />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -658,16 +748,16 @@ export default function AgentDetailPage() {
                     <span style={{ fontSize: 12, color: T.t3 }}>{agent.avatar_color ?? "—"}</span>
                   </div>
                   <Divider />
-                  <InfoRow label="Назва" value={agent.name} />
+                  <InfoRow label={t.agentDetail.nameField} value={agent.name} />
                   <Divider />
-                  <InfoRow label="Опис" value={agent.description || "—"} />
+                  <InfoRow label={t.agentDetail.description} value={agent.description || "—"} />
                   <Divider />
-                  <InfoRow label="Провайдер" value={provider ? `${provider.name} — ${provider.model}` : "Провайдер не знайдено"} />
+                  <InfoRow label={t.agentDetail.provider} value={provider ? `${provider.name} — ${provider.model}` : t.agentDetail.providerNotFound} />
                   {agent.system_prompt && (
                     <>
                       <Divider />
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Системний промпт</div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{t.agentDetail.systemPrompt}</div>
                         <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.65, padding: "10px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                           {agent.system_prompt}
                         </div>
@@ -701,10 +791,10 @@ export default function AgentDetailPage() {
                 {/* Skills */}
                 <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-                    Скіли
+                    {t.agentDetail.skills}
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                    {getAgentSkills(agent.name, agent.system_prompt).map(skill => (
+                    {getAgentSkills(agent.name, agent.system_prompt, language).map(skill => (
                       <button key={skill.label}
                         onClick={async () => {
                           const sb = getSupabase()
@@ -745,7 +835,7 @@ export default function AgentDetailPage() {
                 {/* Tools */}
                 <div style={{ padding: "16px 18px", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-                    Інструменти
+                    {t.agentDetail.tools}
                   </div>
                   <AgentTools />
                 </div>
@@ -753,7 +843,7 @@ export default function AgentDetailPage() {
                 {/* Knowledge */}
                 <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-                    Знання
+                    {t.agentDetail.knowledge}
                   </div>
                   <AgentKnowledge systemPrompt={agent.system_prompt} />
                 </div>
@@ -769,7 +859,7 @@ export default function AgentDetailPage() {
             </div>
 
             {/* Sessions */}
-            <Card title={`Чат-сесії (${sessions.length})`} icon={MessageSquare}
+            <Card title={`${t.agentDetail.chatSessions} (${sessions.length})`} icon={MessageSquare}
               action={
                 <button onClick={handleNewChat} style={{
                   display: "flex", alignItems: "center", gap: 5,
@@ -778,16 +868,16 @@ export default function AgentDetailPage() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
                 >
-                  <Plus size={11} /> Новий чат
+                  <Plus size={11} /> {t.agentDetail.newChat}
                 </button>
               }
             >
-              <SessionList sessions={sessions} onOpen={id => router.push(`/chat/${id}`)} onDelete={handleDeleteSession} />
+              <SessionList sessions={sessions} onOpen={id => router.push(`/chat/${id}`)} onDelete={handleDeleteSession} t={t} lang={language} />
             </Card>
 
             {/* Danger */}
-            <Card title="Небезпечна зона" icon={Trash2} accent>
-              <DangerZone agentName={agent.name} onDelete={handleDeleteAgent} />
+            <Card title={t.agentDetail.dangerZoneCard} icon={Trash2} accent>
+              <DangerZone agentName={agent.name} onDelete={handleDeleteAgent} t={t} />
             </Card>
 
           </div>

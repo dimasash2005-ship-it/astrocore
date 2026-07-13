@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
 
 const T = {
   bg:    "#08080F",
@@ -77,9 +78,10 @@ function Divider() {
 // ─── Inline editable field ────────────────────────────────────────
 
 function EditableField({
-  label, value, onSave, type = "text",
+  label, value, onSave, type = "text", editLabel, cancelLabel, saveLabel,
 }: {
   label: string; value: string; onSave: (v: string) => void; type?: string
+  editLabel: string; cancelLabel: string; saveLabel: string
 }) {
   const [editing, setEditing] = useState(false)
   const [val,     setVal]     = useState(value)
@@ -106,7 +108,7 @@ function EditableField({
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}
         >
-          <Edit3 size={11} /> Змінити
+          <Edit3 size={11} /> {editLabel}
         </button>
       </div>
     )
@@ -139,7 +141,7 @@ function EditableField({
         <button onClick={() => { setEditing(false); setVal(value) }} style={{
           flex: 1, padding: "7px", borderRadius: 8, fontSize: 12, cursor: "pointer",
           background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t3,
-        }}>Скасувати</button>
+        }}>{cancelLabel}</button>
         <button onClick={save} style={{
           flex: 1, padding: "7px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
           background: T.red, border: "none", color: "#fff",
@@ -148,7 +150,7 @@ function EditableField({
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
         >
-          <Check size={12} /> Зберегти
+          <Check size={12} /> {saveLabel}
         </button>
       </div>
     </div>
@@ -157,7 +159,7 @@ function EditableField({
 
 // ─── Logout confirm ───────────────────────────────────────────────
 
-function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+function LogoutModal({ onConfirm, onClose, t }: { onConfirm: () => void; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
@@ -174,16 +176,16 @@ function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: (
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
           <LogOut size={17} style={{ color: T.red, flexShrink: 0 }} />
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Вийти з акаунта?</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.account.logoutTitle}</span>
         </div>
         <p style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, marginBottom: 18 }}>
-          Ви будете розлоговані з AstroCore. Локальні дані збережуться в браузері.
+          {t.account.logoutDesc}
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{
             flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer",
             background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t2,
-          }}>Скасувати</button>
+          }}>{t.common.cancel}</button>
           <button onClick={() => { onConfirm(); onClose() }} style={{
             flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer",
             background: "rgba(232,0,42,0.14)", border: "0.5px solid rgba(232,0,42,0.28)",
@@ -192,7 +194,7 @@ function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: (
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.24)" }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.14)" }}
           >
-            <LogOut size={13} /> Вийти
+            <LogOut size={13} /> {t.account.signOut}
           </button>
         </div>
       </div>
@@ -204,6 +206,7 @@ function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: (
 
 export default function AccountPage() {
   const router = useRouter()
+  const { t, language } = useLanguage()
 
   const [pulse,        setPulse]        = useState(false)
   const [showLogout,   setShowLogout]   = useState(false)
@@ -277,8 +280,9 @@ export default function AccountPage() {
     ? email[0].toUpperCase()
     : "?"
 
+  const dateLocale = language === "uk" ? "uk-UA" : "en-US"
   const joinedDate = user
-    ? new Date().toLocaleDateString("uk-UA", { day: "numeric", month: "long", year: "numeric" })
+    ? new Date().toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" })
     : null
 
   return (
@@ -335,7 +339,7 @@ export default function AccountPage() {
                 </span>
               </div>
               <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                Акаунт
+                {t.account.title}
               </h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
                 Security Layer · Account Control · Operator Profile
@@ -352,7 +356,7 @@ export default function AccountPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.16)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)" }}
             >
-              <LogOut size={14} /> Вийти
+              <LogOut size={14} /> {t.account.signOut}
             </button>
           </div>
         </div>
@@ -403,10 +407,10 @@ export default function AccountPage() {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 4 }}>
-                    {displayName || "Оператор"}
+                    {displayName || t.account.operatorFallback}
                   </div>
                   <div style={{ fontSize: 13, color: T.t3, marginBottom: 8 }}>
-                    {email || "Email не вказано"}
+                    {email || t.account.emailNotSet}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <span style={{
@@ -414,14 +418,14 @@ export default function AccountPage() {
                       background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.24)",
                       color: T.green, fontWeight: 500,
                     }}>
-                      ● Активний
+                      {t.account.activeBadge}
                     </span>
                     <span style={{
                       fontSize: 10, padding: "2px 8px", borderRadius: 5,
                       background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`,
                       color: T.t4,
                     }}>
-                      AstroCore Operator
+                      {t.account.operatorTag}
                     </span>
                     {user && (
                       <span style={{
@@ -429,7 +433,7 @@ export default function AccountPage() {
                         background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`,
                         color: T.t4, display: "flex", alignItems: "center", gap: 4,
                       }}>
-                        <Activity size={8} /> Supabase Auth
+                        <Activity size={8} /> {t.account.supabaseAuthTag}
                       </span>
                     )}
                   </div>
@@ -442,46 +446,55 @@ export default function AccountPage() {
                     background: "rgba(34,197,94,0.10)", border: "0.5px solid rgba(34,197,94,0.24)",
                     color: T.green, fontSize: 12,
                   }}>
-                    <Check size={12} /> Збережено
+                    <Check size={12} /> {t.account.savedIndicator}
                   </div>
                 )}
               </div>
 
               {/* ── Profile info ── */}
-              <Card title="Профіль оператора" icon={User}>
+              <Card title={t.account.profileCard} icon={User}>
                 <EditableField
-                  label="Ім'я / Псевдонім"
+                  label={t.account.nameLabel}
                   value={displayName}
                   onSave={saveName}
+                  editLabel={t.account.edit}
+                  cancelLabel={t.common.cancel}
+                  saveLabel={t.common.save}
                 />
                 <Divider />
                 <EditableField
-                  label="Email"
+                  label={t.account.emailLabel}
                   value={email}
                   onSave={saveEmail}
                   type="email"
+                  editLabel={t.account.edit}
+                  cancelLabel={t.common.cancel}
+                  saveLabel={t.common.save}
                 />
               </Card>
 
               {/* ── Account info (Supabase) ── */}
               {user && (
-                <Card title="Інформація акаунта" icon={Mail}>
-                  <Row label="User ID"  value={user.id.slice(0, 16) + "..."} mono />
+                <Card title={t.account.accountInfoCard} icon={Mail}>
+                  <Row label={t.account.userId}  value={user.id.slice(0, 16) + "..."} mono />
                   <Divider />
-                  <Row label="Email"    value={user.email} />
+                  <Row label={t.account.emailLabel}    value={user.email} />
                   <Divider />
-                  <Row label="Провайдер" value="Email / Password" />
+                  <Row label={t.account.providerLabel} value={t.account.emailPasswordProvider} />
                 </Card>
               )}
 
               {/* ── Security ── */}
-              <Card title="Безпека" icon={Shield}>
+              <Card title={t.account.securityCard} icon={Shield}>
                 {user ? (
                   <EditableField
-                    label="Пароль"
+                    label={t.account.passwordLabel}
                     value=""
                     onSave={handlePasswordChange}
                     type="password"
+                    editLabel={t.account.edit}
+                    cancelLabel={t.common.cancel}
+                    saveLabel={t.common.save}
                   />
                 ) : (
                   <div style={{
@@ -491,32 +504,32 @@ export default function AccountPage() {
                   }}>
                     <AlertCircle size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
                     <span style={{ fontSize: 12, color: T.t4, lineHeight: 1.55 }}>
-                      Supabase не налаштовано. Аутентифікація відключена. Дані зберігаються локально в браузері.
+                      {t.account.supabaseNotConfigured}
                     </span>
                   </div>
                 )}
                 <Divider />
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 2 }}>Сховище даних</div>
-                    <div style={{ fontSize: 11.5, color: T.t4 }}>Всі дані зберігаються в localStorage вашого браузера</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 2 }}>{t.account.dataStorageTitle}</div>
+                    <div style={{ fontSize: 11.5, color: T.t4 }}>{t.account.dataStorageDesc}</div>
                   </div>
                   <span style={{
                     fontSize: 11, padding: "2px 9px", borderRadius: 5,
                     background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.22)",
                     color: T.green,
                   }}>
-                    Безпечно
+                    {t.account.secureBadge}
                   </span>
                 </div>
               </Card>
 
               {/* ── Quick navigation ── */}
-              <Card title="Швидкий доступ" icon={Key}>
+              <Card title={t.account.quickAccessCard} icon={Key}>
                 {[
-                  { label: "Провайдери",  desc: "API ключі та підключені моделі",  href: "/providers", icon: Key      },
-                  { label: "Агенти",      desc: "Керування AI агентами",            href: "/agents",   icon: User     },
-                  { label: "Налаштування",desc: "Workspace та системні параметри",  href: "/settings", icon: Shield   },
+                  { label: t.sidebar.providers,  desc: t.account.quickProvidersDesc,  href: "/providers", icon: Key      },
+                  { label: t.sidebar.agents,      desc: t.account.quickAgentsDesc,     href: "/agents",   icon: User     },
+                  { label: t.sidebar.settings,    desc: t.account.quickSettingsDesc,   href: "/settings", icon: Shield   },
                 ].map(({ label, desc, href, icon: Icon }, i) => (
                   <React.Fragment key={href}>
                     {i > 0 && <Divider />}
@@ -553,8 +566,8 @@ export default function AccountPage() {
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
               }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 3 }}>Вийти з акаунта</div>
-                  <div style={{ fontSize: 12, color: T.t4 }}>Локальні дані залишаться в браузері після виходу.</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 3 }}>{t.account.dangerZoneTitle}</div>
+                  <div style={{ fontSize: 12, color: T.t4 }}>{t.account.dangerZoneDesc}</div>
                 </div>
                 <button onClick={() => setShowLogout(true)} style={{
                   display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
@@ -566,7 +579,7 @@ export default function AccountPage() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.20)" }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
                 >
-                  <LogOut size={14} /> Вийти
+                  <LogOut size={14} /> {t.account.signOut}
                 </button>
               </div>
 
@@ -579,6 +592,7 @@ export default function AccountPage() {
         <LogoutModal
           onConfirm={handleLogout}
           onClose={() => setShowLogout(false)}
+          t={t}
         />
       )}
     </>

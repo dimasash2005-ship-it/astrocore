@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
+import { LANGUAGES, translations } from "@/lib/language"
 
 // Collapsed (rail) width — this is what other pages reserve as margin.
 export const SIDEBAR_W = 76
@@ -20,12 +21,18 @@ const EXP_W = 270
 
 const SPD = "200ms cubic-bezier(0.4,0,0.2,1)"
 
+// The set of valid keys into t.sidebar, derived directly from the
+// dictionary itself — if a key is renamed/removed in lib/language.ts,
+// this (and anything using it below) will fail to compile instead of
+// silently indexing with `any` at runtime.
+type SidebarKey = keyof typeof translations.uk.sidebar
+
 // Single flat list, matching the reference layout/order. `/providers`
 // isn't shown in the design reference — kept at the end so the route
 // stays reachable (not removing existing navigation/logic). `labelKey`
 // looks up the actual text from lib/language.ts at render time, so the
 // list itself never hardcodes a language.
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; icon: React.ElementType; labelKey: SidebarKey }[] = [
   { href: "/",             icon: Home,          labelKey: "center"        },
   { href: "/chat",         icon: MessageSquare, labelKey: "chat"          },
   { href: "/agents",       icon: Bot,           labelKey: "agents"        },
@@ -139,6 +146,40 @@ function NavLink({ href, icon: Icon, label, active, open }: {
         {label}
       </Label>
     </Link>
+  )
+}
+
+// Small language toggle — cycles through lib/language.ts's LANGUAGES
+// list on click. Collapsed rail shows just the flag; expanded shows
+// the language code too.
+function LanguageSwitch({ open }: { open: boolean }) {
+  const { language, setLanguage } = useLanguage()
+  const current = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
+
+  function cycle() {
+    const idx = LANGUAGES.findIndex(l => l.code === language)
+    const next = LANGUAGES[(idx + 1) % LANGUAGES.length]
+    setLanguage(next.code)
+  }
+
+  return (
+    <button onClick={cycle} title={current.label} style={{
+      display: "flex", alignItems: "center", justifyContent: open ? "flex-start" : "center",
+      height: 36, width: "100%",
+      borderRadius: 11, padding: "0 12px", gap: 10,
+      border: "0.5px solid rgba(255,255,255,0.07)",
+      background: "rgba(255,255,255,0.03)", cursor: "pointer",
+      overflow: "hidden", flexShrink: 0,
+      transition: `background ${SPD}`,
+    }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
+    >
+      <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>{current.flag}</span>
+      <Label open={open} style={{ fontSize: 12.5, color: "#ABA7C6", fontWeight: 500 }}>
+        {current.label}
+      </Label>
+    </button>
   )
 }
 
@@ -285,6 +326,11 @@ export function Sidebar() {
               AI Workspace
             </div>
           </Label>
+        </div>
+
+        {/* Language switch */}
+        <div style={{ marginBottom: 14, flexShrink: 0 }}>
+          <LanguageSwitch open={open} />
         </div>
 
         {/* Back */}

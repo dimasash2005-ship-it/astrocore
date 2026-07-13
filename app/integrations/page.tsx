@@ -8,6 +8,8 @@ import {
   Clock, KeyRound, Shield, CalendarDays,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 // ── Design tokens — matches the requested premium palette ──
 const T = {
@@ -28,40 +30,24 @@ const T = {
 
 const OBSIDIAN_KEY_NAME = "Obsidian Plugin"
 
-const INSTALL_STEPS = [
-  "Скачай `_integrations/obsidian` з репозиторію AstroCore.",
-  "В Obsidian: Settings → Community Plugins → Turn on community plugins.",
-  "Розпакуй плагін у `<твій vault>/.obsidian/plugins/astrocore/`.",
-  "Онови список плагінів і увімкни AstroCore AI.",
-]
-
-const CAPABILITIES = [
-  "Запити до AI прямо з нотатки",
-  "Надсилання нотатки/виділення в AstroCore Vault",
-  "Переписування та пояснення виділеного тексту",
-  "Підсумок поточної нотатки одним кліком",
-  "Захищений доступ через персональний API-ключ",
-]
-
 type IntegrationDef = {
   id: string
   name: string
   emoji?: string
   icon?: React.ElementType
   color: string
-  desc: string
-  category: string
+  category: "notes" | "dev" | "productivity" | "automation"
   soon: boolean
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
-  { id: "obsidian", name: "Obsidian",          emoji: "🔮",              color: "#8B5CF6", desc: "Працюй зі своїми нотатками прямо в Obsidian.",     category: "Нотатки",         soon: false },
-  { id: "vscode",   name: "VS Code",           icon: Code2,              color: "#007ACC", desc: "Виклик AstroCore прямо з редактора коду.",         category: "Розробка",        soon: true  },
-  { id: "browser",  name: "Browser Extension", icon: Globe,              color: "#F59E0B", desc: "AstroCore в будь-якій вкладці браузера.",          category: "Продуктивність",  soon: true  },
-  { id: "raycast",  name: "Raycast",           icon: Search,             color: "#FF6363", desc: "Швидкий доступ через Raycast launcher.",           category: "Продуктивність",  soon: true  },
-  { id: "zapier",   name: "Zapier",            icon: Zap,                color: "#FF4A00", desc: "Автоматизація з тисячами сервісів через Zapier.",  category: "Автоматизація",   soon: true  },
-  { id: "n8n",      name: "n8n",               icon: Workflow,           color: "#EA4B71", desc: "Self-hosted автоматизація через n8n.",             category: "Автоматизація",   soon: true  },
-  { id: "make",     name: "Make",              icon: Puzzle,             color: "#6D00CC", desc: "Візуальна автоматизація через Make.",              category: "Автоматизація",   soon: true  },
+  { id: "obsidian", name: "Obsidian",          emoji: "🔮",              color: "#8B5CF6", category: "notes",         soon: false },
+  { id: "vscode",   name: "VS Code",           icon: Code2,              color: "#007ACC", category: "dev",           soon: true  },
+  { id: "browser",  name: "Browser Extension", icon: Globe,              color: "#F59E0B", category: "productivity",  soon: true  },
+  { id: "raycast",  name: "Raycast",           icon: Search,             color: "#FF6363", category: "productivity",  soon: true  },
+  { id: "zapier",   name: "Zapier",            icon: Zap,                color: "#FF4A00", category: "automation",    soon: true  },
+  { id: "n8n",      name: "n8n",               icon: Workflow,           color: "#EA4B71", category: "automation",    soon: true  },
+  { id: "make",     name: "Make",              icon: Puzzle,             color: "#6D00CC", category: "automation",    soon: true  },
 ]
 
 type ApiKeyRecord = {
@@ -74,10 +60,11 @@ type ApiKeyRecord = {
   created_at: string
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "Ще не використовувалась"
+function formatDate(iso: string | null, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
+  if (!iso) return t.integrations.neverUsed
   try {
-    return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short", year: "numeric" })
+    const locale = lang === "uk" ? "uk-UA" : "en-US"
+    return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })
   } catch {
     return iso
   }
@@ -121,7 +108,7 @@ function StatusCard({ icon: Icon, label, value, tone }: { icon: React.ElementTyp
 }
 
 // ── One-time reveal modal after (re)generating a key ──
-function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => void }) {
+function RevealKeyModal({ fullKey, onClose, t }: { fullKey: string; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div onClick={onClose} style={{
       position: "fixed", inset: 0, zIndex: 300,
@@ -134,7 +121,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
         border: `1px solid ${T.borderHi}`, boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: `0.5px solid ${T.border}` }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий ключ згенеровано</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.integrations.newKeyGenerated}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}><X size={16} /></button>
         </div>
         <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -145,7 +132,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
           }}>
             <Lock size={13} style={{ color: T.red, flexShrink: 0, marginTop: 1 }} />
             <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.55 }}>
-              Показується <strong style={{ color: T.t1 }}>лише зараз</strong>. Онови ключ у налаштуваннях плагіна Obsidian — старий ключ уже недійсний.
+              {t.integrations.revealKeyWarningPrefix}<strong style={{ color: T.t1 }}>{t.integrations.revealKeyWarningStrong}</strong>{t.integrations.revealKeyWarningSuffix}
             </div>
           </div>
           <div style={{
@@ -159,7 +146,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
           <button onClick={onClose} style={{
             padding: "11px", borderRadius: 10, border: "none", cursor: "pointer",
             background: "rgba(255,255,255,0.06)", color: T.t1, fontSize: 13.5, fontWeight: 500,
-          }}>Готово</button>
+          }}>{t.integrations.done}</button>
         </div>
       </div>
     </div>
@@ -167,6 +154,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
 }
 
 export default function IntegrationsPage() {
+  const { t, language } = useLanguage()
   const [origin, setOrigin] = useState("")
   const [showInstall, setShowInstall] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -181,6 +169,25 @@ export default function IntegrationsPage() {
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
   const endpoint = origin ? `${origin}/api/integrations/obsidian/chat` : "/api/integrations/obsidian/chat"
+
+  const INSTALL_STEPS = [t.integrations.installStep1, t.integrations.installStep2, t.integrations.installStep3, t.integrations.installStep4]
+  const CAPABILITIES = [t.integrations.cap1, t.integrations.cap2, t.integrations.cap3, t.integrations.cap4, t.integrations.cap5]
+
+  const categoryLabels: Record<string, string> = {
+    notes: t.integrations.catNotes,
+    dev: t.integrations.catDev,
+    productivity: t.integrations.catProductivity,
+    automation: t.integrations.catAutomation,
+  }
+  const descriptions: Record<string, string> = {
+    obsidian: t.integrations.obsidianDesc,
+    vscode: t.integrations.vscodeDesc,
+    browser: t.integrations.browserDesc,
+    raycast: t.integrations.raycastDesc,
+    zapier: t.integrations.zapierDesc,
+    n8n: t.integrations.n8nDesc,
+    make: t.integrations.makeDesc,
+  }
 
   const loadConnection = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setConnLoading(true)
@@ -202,7 +209,7 @@ export default function IntegrationsPage() {
 
   async function handleDisconnect() {
     if (!obsidianKey) return
-    if (!window.confirm("Відключити Obsidian? Плагін перестане мати доступ до AstroCore, поки не підключиш знову.")) return
+    if (!window.confirm(t.integrations.disconnectConfirm)) return
     setDisconnecting(true)
     try {
       await fetch(`/api/developer/api-keys/${obsidianKey.id}`, { method: "DELETE" })
@@ -213,7 +220,7 @@ export default function IntegrationsPage() {
   }
 
   async function handleRegenerate() {
-    if (!window.confirm("Перегенерувати ключ? Старий ключ одразу перестане працювати — онови його в плагіні.")) return
+    if (!window.confirm(t.integrations.regenerateConfirm)) return
     setRegenerating(true)
     try {
       const res = await fetch("/api/integrations/obsidian/connect", { method: "POST" })
@@ -269,7 +276,7 @@ export default function IntegrationsPage() {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 40 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <h1 style={{ fontSize: 32, fontWeight: 700, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>Інтеграції</h1>
+                <h1 style={{ fontSize: 32, fontWeight: 700, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.integrations.title}</h1>
                 <div style={{
                   width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
                   background: T.redDim, border: "0.5px solid rgba(232,0,42,0.25)",
@@ -278,7 +285,7 @@ export default function IntegrationsPage() {
                 </div>
               </div>
               <p style={{ fontSize: 14, color: T.t3, marginTop: 8, marginBottom: 0 }}>
-                Підключай інструменти, розширюй можливості та працюй без обмежень.
+                {t.integrations.subtitle}
               </p>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
@@ -287,14 +294,14 @@ export default function IntegrationsPage() {
                 padding: "10px 18px", borderRadius: 10, border: `0.5px solid ${T.border}`,
                 background: T.card, color: T.t2, fontSize: 13.5, fontWeight: 500, cursor: "pointer",
               }}>
-                <HelpCircle size={15} /> Довідка
+                <HelpCircle size={15} /> {t.integrations.help}
               </button>
               <a href="#marketplace" style={{
                 display: "flex", alignItems: "center", gap: 7,
                 padding: "10px 18px", borderRadius: 10, border: "none", textDecoration: "none",
                 background: T.red, color: "#fff", fontSize: 13.5, fontWeight: 600,
               }}>
-                <Plus size={15} /> Додати інтеграцію
+                <Plus size={15} /> {t.integrations.addIntegration}
               </a>
             </div>
           </div>
@@ -319,7 +326,7 @@ export default function IntegrationsPage() {
                   <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, marginBottom: 6 }}>Obsidian</div>
                   {connLoading ? (
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.t4 }}>
-                      <Loader2 size={12} className="astrocore-spin" /> Перевіряємо статус…
+                      <Loader2 size={12} className="astrocore-spin" /> {t.integrations.checkingStatus}
                     </div>
                   ) : connected ? (
                     <div style={{
@@ -328,7 +335,7 @@ export default function IntegrationsPage() {
                       border: "0.5px solid rgba(34,197,94,0.28)", fontSize: 11.5, color: T.green, fontWeight: 600,
                     }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, display: "inline-block" }} />
-                      Підключено
+                      {t.integrations.connected}
                     </div>
                   ) : (
                     <div style={{
@@ -337,31 +344,29 @@ export default function IntegrationsPage() {
                       border: `0.5px solid ${T.border}`, fontSize: 11.5, color: T.t4, fontWeight: 600,
                     }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.t4, display: "inline-block" }} />
-                      Не підключено
+                      {t.integrations.notConnected}
                     </div>
                   )}
                 </div>
               </div>
 
               <p style={{ fontSize: 14.5, color: T.t2, lineHeight: 1.7, margin: 0, maxWidth: 480 }}>
-                {connected
-                  ? "Плагін активний і готовий до роботи."
-                  : "AstroCore прямо в Obsidian — запитуй AI, переписуй, підсумовуй нотатки і зберігай результати у Vault, не виходячи з редактора."}
+                {connected ? t.integrations.obsidianDescConnected : t.integrations.obsidianDescDisconnected}
               </p>
 
               {connected && obsidianKey && (
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <StatusCard icon={Circle} label="Стан підключення" value="Активно" tone="green" />
-                  <StatusCard icon={Clock} label="Останнє використання" value={formatDate(obsidianKey.last_used_at)} />
-                  <StatusCard icon={CalendarDays} label="Підключено" value={formatDate(obsidianKey.created_at)} />
-                  <StatusCard icon={Shield} label="Дозволи" value={`${obsidianKey.permissions?.length ?? 0} з 5`} />
+                  <StatusCard icon={Circle} label={t.integrations.connectionState} value={t.integrations.active} tone="green" />
+                  <StatusCard icon={Clock} label={t.integrations.lastUsed} value={formatDate(obsidianKey.last_used_at, t, language)} />
+                  <StatusCard icon={CalendarDays} label={t.integrations.connectedSince} value={formatDate(obsidianKey.created_at, t, language)} />
+                  <StatusCard icon={Shield} label={t.integrations.permissions} value={`${obsidianKey.permissions?.length ?? 0} ${t.integrations.permissionsOf}`} />
                 </div>
               )}
 
               {connected && obsidianKey && (
                 <div>
                   <div style={{ fontSize: 10.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                    API ключ
+                    {t.integrations.apiKey}
                   </div>
                   <div style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
@@ -384,7 +389,7 @@ export default function IntegrationsPage() {
                       cursor: regenerating ? "default" : "pointer", opacity: regenerating ? 0.7 : 1,
                     }}>
                       {regenerating ? <Loader2 size={14} className="astrocore-spin" /> : <RefreshCw size={14} />}
-                      Перегенерувати ключ
+                      {t.integrations.regenerateKey}
                     </button>
                     <a href="/settings/developer" style={{
                       display: "flex", alignItems: "center", gap: 7,
@@ -392,7 +397,7 @@ export default function IntegrationsPage() {
                       background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.border}`,
                       color: T.t2, fontSize: 13, fontWeight: 500,
                     }}>
-                      <Settings size={14} /> Змінити налаштування
+                      <Settings size={14} /> {t.integrations.changeSettings}
                     </a>
                     <button onClick={handleDisconnect} disabled={disconnecting} style={{
                       display: "flex", alignItems: "center", gap: 7,
@@ -401,7 +406,7 @@ export default function IntegrationsPage() {
                       cursor: disconnecting ? "default" : "pointer",
                     }}>
                       {disconnecting ? <Loader2 size={14} className="astrocore-spin" /> : <Unlink size={14} />}
-                      Відключити
+                      {t.integrations.disconnect}
                     </button>
                   </div>
                 </div>
@@ -414,14 +419,14 @@ export default function IntegrationsPage() {
                     padding: "11px 20px", borderRadius: 10, textDecoration: "none",
                     background: T.red, color: "#fff", fontSize: 13.5, fontWeight: 600,
                   }}>
-                    <KeyRound size={14} /> Connect AstroCore
+                    <KeyRound size={14} /> {t.integrations.connectAstroCore}
                   </a>
                   <button onClick={() => setShowInstall(v => !v)} style={{
                     display: "flex", alignItems: "center", gap: 7,
                     padding: "11px 20px", borderRadius: 10, border: `0.5px solid ${T.border}`,
                     background: "transparent", color: T.t2, fontSize: 13.5, fontWeight: 500, cursor: "pointer",
                   }}>
-                    Як встановити
+                    {t.integrations.howToInstall}
                   </button>
                 </div>
               )}
@@ -451,7 +456,7 @@ export default function IntegrationsPage() {
                 filter: "blur(6px)", animation: "driftGlow 10s ease-in-out infinite", pointerEvents: "none",
               }} />
               <div style={{ position: "relative", fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Що може Obsidian інтеграція
+                {t.integrations.whatObsidianCanDo}
               </div>
               <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 14 }}>
                 {CAPABILITIES.map((cap, i) => (
@@ -462,7 +467,7 @@ export default function IntegrationsPage() {
                 ))}
               </div>
               <div style={{ position: "relative", fontSize: 11.5, color: T.t4, marginTop: 4 }}>
-                Endpoint: <code style={{ color: "#7DD3FC" }}>{endpoint}</code>
+                {t.integrations.endpointLabel} <code style={{ color: "#7DD3FC" }}>{endpoint}</code>
               </div>
             </div>
           </div>
@@ -477,8 +482,8 @@ export default function IntegrationsPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <CheckCircle2 size={22} style={{ color: T.green, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Інтеграція працює коректно</div>
-                  <div style={{ fontSize: 12.5, color: T.t3, marginTop: 2 }}>Обмін даними відбувається успішно.</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.integrations.integrationWorking}</div>
+                  <div style={{ fontSize: 12.5, color: T.t3, marginTop: 2 }}>{t.integrations.dataExchangeSuccess}</div>
                 </div>
               </div>
               <button onClick={handleCheckAgain} disabled={checking} style={{
@@ -488,7 +493,7 @@ export default function IntegrationsPage() {
                 cursor: checking ? "default" : "pointer",
               }}>
                 {checking ? <Loader2 size={13} className="astrocore-spin" /> : <RefreshCw size={13} />}
-                Перевірити знову
+                {t.integrations.checkAgain}
               </button>
             </div>
           )}
@@ -496,9 +501,9 @@ export default function IntegrationsPage() {
           {/* ── Marketplace ── */}
           <div id="marketplace">
             <div style={{ marginBottom: 26 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.t1, margin: 0 }}>Доступні інтеграції</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: T.t1, margin: 0 }}>{t.integrations.availableIntegrations}</h2>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                Підключай улюблені інструменти та розширюй можливості AstroCore.
+                {t.integrations.availableIntegrationsDesc}
               </p>
             </div>
 
@@ -512,7 +517,7 @@ export default function IntegrationsPage() {
                   color: activeCategory === null ? T.t1 : T.t3,
                   fontSize: 13, fontWeight: activeCategory === null ? 600 : 400,
                 }}>
-                  Усі <span style={{ fontSize: 11, color: T.t4 }}>{INTEGRATIONS.length}</span>
+                  {t.integrations.all} <span style={{ fontSize: 11, color: T.t4 }}>{INTEGRATIONS.length}</span>
                 </button>
                 {categories.map(([cat, count]) => (
                   <button key={cat} onClick={() => setActiveCategory(cat)} style={{
@@ -522,7 +527,7 @@ export default function IntegrationsPage() {
                     color: activeCategory === cat ? T.t1 : T.t3,
                     fontSize: 13, fontWeight: activeCategory === cat ? 600 : 400,
                   }}>
-                    {cat} <span style={{ fontSize: 11, color: T.t4 }}>{count}</span>
+                    {categoryLabels[cat]} <span style={{ fontSize: 11, color: T.t4 }}>{count}</span>
                   </button>
                 ))}
               </div>
@@ -568,7 +573,7 @@ export default function IntegrationsPage() {
                             fontSize: 9.5, padding: "2px 8px", borderRadius: 20, fontWeight: 600,
                             background: "rgba(255,255,255,0.05)", color: T.t4, border: `0.5px solid ${T.border}`,
                             textTransform: "uppercase", letterSpacing: "0.06em",
-                          }}>Скоро</span>
+                          }}>{t.integrations.soon}</span>
                         ) : isConnected ? (
                           <span style={{
                             display: "flex", alignItems: "center", gap: 4,
@@ -576,13 +581,13 @@ export default function IntegrationsPage() {
                             background: T.greenDim, color: T.green, border: "0.5px solid rgba(34,197,94,0.28)",
                           }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.green, display: "inline-block" }} />
-                            Підключено
+                            {t.integrations.connected}
                           </span>
                         ) : null}
                       </div>
                       <div>
                         <div style={{ fontSize: 14.5, fontWeight: 600, color: T.t1, marginBottom: 4 }}>{item.name}</div>
-                        <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{item.desc}</div>
+                        <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{descriptions[item.id]}</div>
                       </div>
                     </div>
                   )
@@ -600,7 +605,7 @@ export default function IntegrationsPage() {
         </div>
       </div>
 
-      {revealKey && <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} />}
+      {revealKey && <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} t={t} />}
     </>
   )
 }

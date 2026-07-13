@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
+import { useLanguage } from "@/lib/useLanguage";
 
 const T = {
   bg:   "#08080F",
@@ -25,14 +26,7 @@ const PROVIDERS = [
   { label: "Custom",  color: "#8B5CF6", bg: "rgba(139,92,246,0.12)"  },
 ]
 
-const FEATURES = [
-  { icon: Bot,    title: "AI Agent Layer",     desc: "Create intelligent agents with custom personalities and system prompts." },
-  { icon: Brain,  title: "Persistent Memory",  desc: "Workspace memory injected into every agent request automatically."     },
-  { icon: Zap,    title: "Multi-Provider",     desc: "Switch between Claude, GPT-4o, Gemini and custom endpoints freely."   },
-  { icon: Globe,  title: "Vault & Gallery",    desc: "Save AI outputs, knowledge and generations across all sessions."       },
-]
-
-function LeftPanel() {
+function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const [pulse, setPulse] = useState(false)
   const [scan,  setScan]  = useState(0)
 
@@ -41,6 +35,13 @@ function LeftPanel() {
     const s = setInterval(() => setScan(v => (v + 1) % 3), 3000)
     return () => { clearInterval(p); clearInterval(s) }
   }, [])
+
+  const FEATURES = [
+    { icon: Bot,    title: t.loginPage.feature1Title, desc: t.loginPage.feature1Desc },
+    { icon: Brain,  title: t.loginPage.feature2Title, desc: t.loginPage.feature2Desc },
+    { icon: Zap,    title: t.loginPage.feature3Title, desc: t.loginPage.feature3Desc },
+    { icon: Globe,  title: t.loginPage.feature4Title, desc: t.loginPage.feature4Desc },
+  ]
 
   return (
     <div style={{
@@ -115,7 +116,7 @@ function LeftPanel() {
             transition: "opacity 900ms ease, box-shadow 900ms ease",
             boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
           }} />
-          <span style={{ fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>Online</span>
+          <span style={{ fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase" }}>{t.loginPage.online}</span>
         </div>
       </div>
 
@@ -125,12 +126,12 @@ function LeftPanel() {
           fontSize: 38, fontWeight: 800, color: T.t1,
           letterSpacing: "-0.04em", lineHeight: 1.12, margin: 0, marginBottom: 14,
         }}>
-          AI Operating<br />
-          <span style={{ color: T.red }}>System</span> for<br />
-          Your Workflow
+          {t.loginPage.headline1}<br />
+          <span style={{ color: T.red }}>{t.loginPage.headline2}</span> {t.loginPage.headline3}<br />
+          {t.loginPage.headline4}
         </h1>
         <p style={{ fontSize: 14, color: T.t3, lineHeight: 1.65, margin: 0, maxWidth: 360 }}>
-          Build AI agents, manage knowledge and run multi-model workflows — all in one premium workspace.
+          {t.loginPage.subhead}
         </p>
       </div>
 
@@ -156,7 +157,7 @@ function LeftPanel() {
       {/* Provider badges */}
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ fontSize: 10, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10 }}>
-          Connected Providers
+          {t.loginPage.connectedProviders}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {PROVIDERS.map(p => (
@@ -180,13 +181,13 @@ function LeftPanel() {
         borderRadius: 8, padding: "5px 10px",
       }}>
         <Brain size={12} style={{ color: "#A78BFA" }} />
-        <span style={{ fontSize: 10.5, color: "#A78BFA", fontWeight: 500 }}>Memory Layer Active</span>
+        <span style={{ fontSize: 10.5, color: "#A78BFA", fontWeight: 500 }}>{t.loginPage.memoryLayerActive}</span>
       </div>
     </div>
   )
 }
 
-function LoginForm() {
+function LoginForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const searchParams = useSearchParams()
   const nextPath = searchParams.get("next") ?? "/"
 
@@ -197,11 +198,11 @@ function LoginForm() {
   const [error,   setError]   = useState("")
 
   async function login() {
-    if (!email.trim() || !password.trim()) { setError("Заповніть email і пароль"); return }
+    if (!email.trim() || !password.trim()) { setError(t.loginPage.fillFieldsError); return }
     setLoading(true); setError("")
     const sb = getSupabase()
     const { error: authError } = await sb.auth.signInWithPassword({ email: email.trim(), password })
-    if (authError) { setError("Невірний email або пароль"); setLoading(false); return }
+    if (authError) { setError(t.loginPage.wrongCredentialsError); setLoading(false); return }
     window.location.href = nextPath
   }
 
@@ -213,16 +214,16 @@ function LoginForm() {
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em", marginBottom: 6 }}>
-          Вхід в акаунт
+          {t.loginPage.title}
         </div>
-        <div style={{ fontSize: 13, color: T.t4 }}>Operator Authentication Layer</div>
+        <div style={{ fontSize: 13, color: T.t4 }}>{t.loginPage.subtitle}</div>
       </div>
 
       {/* Fields */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>
-            Email
+            {t.loginPage.email}
           </label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             placeholder="operator@astrocore.ai"
@@ -239,7 +240,7 @@ function LoginForm() {
 
         <div>
           <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>
-            Пароль
+            {t.loginPage.password}
           </label>
           <div style={{ position: "relative" }}>
             <input type={showPw ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
@@ -281,7 +282,7 @@ function LoginForm() {
           onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
         >
           {loading && <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />}
-          {loading ? "Входимо..." : "Увійти в AstroCore"}
+          {loading ? t.loginPage.signingIn : t.loginPage.signIn}
         </button>
       </div>
 
@@ -293,14 +294,14 @@ function LoginForm() {
         fontSize: 11.5, color: T.t4,
       }}>
         <Shield size={12} style={{ flexShrink: 0, color: T.green }} />
-        Захищено Supabase Auth · Дані шифруються
+        {t.loginPage.securityNote}
       </div>
 
       {/* Register link */}
       <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: T.t4 }}>
-        Немає акаунта?{" "}
+        {t.loginPage.noAccount}{" "}
         <Link href="/register" style={{ color: T.red, textDecoration: "none", fontWeight: 600 }}>
-          Зареєструватись
+          {t.loginPage.signUp}
         </Link>
       </div>
     </div>
@@ -308,6 +309,7 @@ function LoginForm() {
 }
 
 function LoginPage() {
+  const { t } = useLanguage()
   return (
     <div style={{
       minHeight: "100vh",
@@ -320,7 +322,7 @@ function LoginPage() {
 
       {/* Left side — only on large screens */}
       <div style={{ display: "flex", flex: 1 }} className="auth-left">
-        <LeftPanel />
+        <LeftPanel t={t} />
       </div>
 
       {/* Right side — form */}
@@ -338,7 +340,7 @@ function LoginPage() {
           pointerEvents: "none",
         }} />
         <Suspense fallback={null}>
-          <LoginForm />
+          <LoginForm t={t} />
         </Suspense>
       </div>
     </div>

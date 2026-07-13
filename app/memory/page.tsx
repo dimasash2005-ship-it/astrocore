@@ -8,6 +8,8 @@ import {
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 type MemoryItem = {
   id: string
@@ -32,18 +34,19 @@ const T = {
   red:  "#E8002A",
 }
 
-function ago(iso: string): string {
+function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d  = Date.now() - new Date(iso).getTime()
   const m  = Math.floor(d / 60000)
-  if (m < 1)  return "щойно"
-  if (m < 60) return `${m} хв тому`
+  if (m < 1)  return t.memory.justNow
+  if (m < 60) return `${m} ${t.memory.minAgo}`
   const h  = Math.floor(m / 60)
-  if (h < 24) return `${h} год тому`
+  if (h < 24) return `${h} ${t.memory.hourAgo}`
   const dy = Math.floor(h / 24)
-  if (dy === 1) return "вчора"
-  if (dy < 7)  return `${dy}д тому`
-  return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" })
+  if (dy === 1) return t.memory.yesterday
+  if (dy < 7)  return `${dy}${t.memory.daysAgo}`
+  const locale = lang === "uk" ? "uk-UA" : "en-US"
+  return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" })
 }
 
 const inp: React.CSSProperties = {
@@ -74,7 +77,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 
 // ─── Add modal ────────────────────────────────────────────────────
 
-function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const [title,   setTitle]   = useState("")
   const [content, setContent] = useState("")
   const [error,   setError]   = useState("")
@@ -82,13 +85,13 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
   const [loading, setLoading] = useState(false)
 
   async function handleAdd() {
-    if (!title.trim())   { setError("Введіть назву"); return }
-    if (!content.trim()) { setError("Введіть вміст пам'яті"); return }
+    if (!title.trim())   { setError(t.memory.enterTitleError); return }
+    if (!content.trim()) { setError(t.memory.enterContentError); return }
     setLoading(true)
     setError("")
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setError("Не авторизовано"); setLoading(false); return }
+    if (!user) { setError(t.memory.notAuthorizedError); setLoading(false); return }
     const { error: dbErr } = await sb.from("memory_items").insert({
       user_id: user.id,
       title:   title.trim(),
@@ -118,8 +121,8 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             <Brain size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>Новий запис пам'яті</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI Memory Layer</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.memory.newEntryTitle}</div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.memory.layerLabel}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -129,10 +132,10 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Назва *
+              {t.memory.nameField}
             </label>
             <input value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Назва контексту або знання..."
+              placeholder={t.memory.namePlaceholder}
               style={inp}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
@@ -141,17 +144,17 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              Вміст *
+              {t.memory.contentField}
             </label>
             <textarea value={content} onChange={e => setContent(e.target.value)}
-              placeholder="Контекст, інформація, інструкції для AI агента..."
+              placeholder={t.memory.contentPlaceholder}
               rows={5}
               style={{ ...inp, resize: "vertical", lineHeight: 1.65 }}
               onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
               onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
             />
             <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>
-              Цей вміст буде автоматично інжектуватись у кожен запит агента.
+              {t.memory.contentHint}
             </div>
           </div>
 
@@ -168,14 +171,14 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
             }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
-            >Скасувати</button>
+            >{t.memory.cancel}</button>
             <button onClick={handleAdd} disabled={loading} style={{
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
               background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
             }}
               onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
               onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
-            >{loading ? "Зберігаємо..." : "Зберегти в пам'ять"}</button>
+            >{loading ? t.memory.saving : t.memory.saveToMemory}</button>
           </div>
         </div>
       </div>
@@ -185,10 +188,11 @@ function AddModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => vo
 
 // ─── Memory card ──────────────────────────────────────────────────
 
-function MemoryCard({ item, onDelete, onUpdate }: {
+function MemoryCard({ item, onDelete, onUpdate, t, lang }: {
   item: MemoryItem
   onDelete: () => void
   onUpdate: (title: string, content: string) => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   const [editing,   setEditing]   = useState(false)
   const [expanded,  setExpanded]  = useState(false)
@@ -266,7 +270,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                 padding: "6px 10px", borderRadius: 7,
                 background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.2)",
               }}>
-                <Check size={12} /> Збережено
+                <Check size={12} /> {t.memory.saved}
               </div>
             )}
 
@@ -278,7 +282,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.07)" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
               >
-                Скасувати
+                {t.memory.cancel}
               </button>
               <button onClick={handleSave} style={{
                 flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 500,
@@ -288,7 +292,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                <Save size={12} /> Зберегти
+                <Save size={12} /> {t.memory.saving.replace("...", "")}
               </button>
             </div>
           </div>
@@ -319,7 +323,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
                   <Edit3 size={12} />
                 </button>
-                <button onClick={() => { if (window.confirm(`Видалити "${item.title}"?`)) onDelete() }} style={{
+                <button onClick={() => { if (window.confirm(`${t.memory.deleteConfirmPrefix}${item.title}${t.memory.deleteConfirmSuffix}`)) onDelete() }} style={{
                   padding: 5, borderRadius: 6, border: "none",
                   background: "rgba(255,255,255,0.06)", cursor: "pointer", lineHeight: 0, color: T.t4,
                 }}
@@ -351,7 +355,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                 marginTop: 7, fontSize: 11, color: T.red,
                 background: "none", border: "none", cursor: "pointer", opacity: 0.8,
               }}>
-                {expanded ? <><ChevronUp size={12} /> Згорнути</> : <><ChevronDown size={12} /> Розгорнути</>}
+                {expanded ? <><ChevronUp size={12} /> {t.memory.collapse}</> : <><ChevronDown size={12} /> {t.memory.expand}</>}
               </button>
             )}
 
@@ -363,11 +367,11 @@ function MemoryCard({ item, onDelete, onUpdate }: {
                 background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)",
                 color: T.red, opacity: 0.85, textTransform: "uppercase", letterSpacing: "0.07em",
               }}>
-                <Zap size={8} /> Active Context
+                <Zap size={8} /> {t.memory.activeContext}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
                 <Clock size={10} />
-                {ago(item.updated_at ?? item.created_at)}
+                {ago(item.updated_at ?? item.created_at, t, lang)}
               </div>
             </div>
           </>
@@ -379,7 +383,7 @@ function MemoryCard({ item, onDelete, onUpdate }: {
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -395,10 +399,10 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Brain size={30} style={{ color: T.red, opacity: 0.7 }} />
       </div>
       <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
-        Пам'ять порожня
+        {t.memory.emptyTitle}
       </div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 8 }}>
-        Додайте контекст, інструкції або знання. Вони будуть автоматично інжектуватись у кожен запит агента.
+        {t.memory.emptyDesc}
       </div>
       <div style={{
         fontSize: 11, color: T.t4, marginBottom: 28,
@@ -406,7 +410,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         background: "rgba(232,0,42,0.06)", border: "0.5px solid rgba(232,0,42,0.14)",
         display: "inline-block",
       }}>
-        Persistent Context · Knowledge Engine
+        {t.memory.persistentContext}
       </div>
       <button onClick={onAdd} style={{
         display: "flex", alignItems: "center", gap: 7,
@@ -417,7 +421,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
       >
-        <Plus size={14} /> Додати пам'ять
+        <Plus size={14} /> {t.memory.addMemory}
       </button>
     </div>
   )
@@ -426,6 +430,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function MemoryPage() {
+  const { t, language } = useLanguage()
   const [items,     setItems]     = useState<MemoryItem[]>([])
   const [search,    setSearch]    = useState("")
   const [showModal, setShowModal] = useState(false)
@@ -527,15 +532,15 @@ export default function MemoryPage() {
                   boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
                 }} />
                 <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  {items.length > 0 ? "Контекст активний" : "Пам'ять порожня"} · {items.length} записів
+                  {items.length > 0 ? t.memory.contextActive : t.memory.memoryEmpty} · {items.length} {t.memory.entriesSuffix}
                 </span>
               </div>
 
               <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                Пам'ять
+                {t.memory.title}
               </h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                AI Memory Layer · Persistent Context · Knowledge Engine
+                {t.memory.subtitle}
               </p>
             </div>
 
@@ -549,7 +554,7 @@ export default function MemoryPage() {
                   color: "#22C55E",
                 }}>
                   <Activity size={12} />
-                  Інжектується в агентів
+                  {t.memory.injectedIntoAgents}
                 </div>
               )}
               <button onClick={() => setShowModal(true)} style={{
@@ -562,7 +567,7 @@ export default function MemoryPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
               >
-                <Plus size={14} /> Нова пам'ять
+                <Plus size={14} /> {t.memory.newMemory}
               </button>
             </div>
           </div>
@@ -570,16 +575,16 @@ export default function MemoryPage() {
 
         {/* ── Body ── */}
         {items.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} />
+          <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
 
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
-                { label: "Записів пам'яті", value: items.length,                  icon: Brain    },
-                { label: "Символів контексту", value: totalChars.toLocaleString(), icon: Zap      },
-                { label: "Інжектується в",    value: "всі агенти",                 icon: Activity },
+                { label: t.memory.statEntries, value: items.length,                  icon: Brain    },
+                { label: t.memory.statChars, value: totalChars.toLocaleString(), icon: Zap      },
+                { label: t.memory.statInjectedInto,    value: t.memory.statAllAgents,                 icon: Activity },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 9,
@@ -602,10 +607,10 @@ export default function MemoryPage() {
               <Brain size={15} style={{ color: T.red, opacity: 0.8, flexShrink: 0, marginTop: 1 }} />
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: T.red, opacity: 0.9, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>
-                  Як це працює
+                  {t.memory.howItWorksTitle}
                 </div>
                 <div style={{ fontSize: 12, color: T.t3, lineHeight: 1.6 }}>
-                  Всі записи пам'яті автоматично інжектуються в системний промпт кожного агента. Це дозволяє агентам знати контекст вашого бізнесу, проекту та правила поведінки.
+                  {t.memory.howItWorksDesc}
                 </div>
               </div>
             </div>
@@ -621,7 +626,7 @@ export default function MemoryPage() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Пошук в пам'яті..."
+                placeholder={t.memory.searchPlaceholder}
                 style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }}
               />
               {search && (
@@ -634,14 +639,14 @@ export default function MemoryPage() {
             {/* Results info */}
             {search && (
               <div style={{ fontSize: 12, color: T.t4, marginBottom: 14 }}>
-                Знайдено {filtered.length} із {items.length} записів
+                {t.memory.foundOfPrefix}{filtered.length}{t.memory.foundOfMid}{items.length}{t.memory.foundOfSuffix}
               </div>
             )}
 
             {/* Memory cards */}
             {filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: T.t4 }}>Нічого не знайдено</div>
+                <div style={{ fontSize: 13, color: T.t4 }}>{t.memory.nothingFound}</div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -651,6 +656,8 @@ export default function MemoryPage() {
                     item={item}
                     onDelete={() => handleDelete(item.id)}
                     onUpdate={(title, content) => handleUpdate(item.id, title, content)}
+                    t={t}
+                    lang={language}
                   />
                 ))}
               </div>
@@ -663,6 +670,7 @@ export default function MemoryPage() {
         <AddModal
           onClose={() => setShowModal(false)}
           onAdded={load}
+          t={t}
         />
       )}
     </>
