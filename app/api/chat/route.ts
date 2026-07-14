@@ -54,6 +54,42 @@ function getDefaultModel(slug: string): string {
   }
 }
 
+// ─── Image extraction ──────────────────────────────────────────────
+//
+// The chat UI embeds attached images directly into a message's plain
+// text content as standard markdown image syntax pointing at a base64
+// data URL: ![filename](data:image/png;base64,AAAA...). This keeps the
+// chat_messages table (and every other consumer of message content —
+// history rendering, copy-to-vault, etc.) as plain text with zero
+// schema changes.
+//
+// Right before a request actually goes out to a model provider, we
+// pull those data URLs back out of the text and turn them into the
+// image content blocks each provider's API actually expects, so the
+// model can see the image instead of just getting a wall of base64
+// text. The stored/displayed message content is never touched.
+
+type ExtractedImage = { mediaType: string; base64: string }
+
+const IMAGE_MD_REGEX = /!\[[^\]]*\]\((data:image\/[a-zA-Z0-9+.\-]+;base64,[A-Za-z0-9+/=]+)\)/g
+
+function extractImages(content: string): { text: string; images: ExtractedImage[] } {
+  if (!content || !content.includes("data:image/")) {
+    return { text: content, images: [] }
+  }
+
+  const images: ExtractedImage[] = []
+  const text = content.replace(IMAGE_MD_REGEX, (_match, dataUrl: string) => {
+    const commaIdx = dataUrl.indexOf(",")
+    const meta     = dataUrl.slice(5, dataUrl.indexOf(";")) // "image/png"
+    const base64   = dataUrl.slice(commaIdx + 1)
+    images.push({ mediaType: meta, base64 })
+    return ""
+  }).trim()
+
+  return { text, images }
+}
+
 // ─── Anthropic ────────────────────────────────────────────────────
 
 async function callAnthropic(
@@ -65,10 +101,23 @@ async function callAnthropic(
   // Filter out any system messages — Anthropic takes system separately
   const filtered = messages.filter(m => m.role === "user" || m.role === "assistant")
 
+  const anthropicMessages = filtered.map(m => {
+    const { text, images } = extractImages(m.content)
+    if (images.length === 0) {
+      return { role: m.role, content: m.content }
+    }
+    const blocks: Record<string, unknown>[] = images.map(img => ({
+      type: "image",
+      source: { type: "base64", media_type: img.mediaType, data: img.base64 },
+    }))
+    if (text) blocks.push({ type: "text", text })
+    return { role: m.role, content: blocks }
+  })
+
   const body: Record<string, unknown> = {
     model,
     max_tokens: 4096,
-    messages: filtered,
+    messages: anthropicMessages,
   }
 
   if (systemPrompt) {
@@ -99,7 +148,12 @@ async function callAnthropic(
       .map((block: { type: string; text?: string }) => block.text as string)
 
     if (textBlocks.length > 0) {
-      return textBlocks.join("\n")
+      // Defensive: if the response ever comes back as multiple text
+      // blocks that repeat the exact same content (seen intermittently
+      // with multimodal/image requests), collapse the repeats instead
+      // of concatenating duplicate text into the reply.
+      const uniqueBlocks = textBlocks.filter((text, i) => textBlocks.indexOf(text) === i)
+      return uniqueBlocks.join("\n")
     }
 
     // No text blocks found — throw with raw preview
@@ -121,16 +175,27 @@ async function callOpenAI(
   messages: { role: string; content: string }[],
   systemPrompt: string
 ): Promise<string> {
-  const msgs: { role: string; content: string }[] = []
+  const msgs: Record<string, unknown>[] = []
 
   if (systemPrompt) {
     msgs.push({ role: "system", content: systemPrompt })
   }
 
   for (const m of messages) {
-    if (m.role === "user" || m.role === "assistant") {
-      msgs.push(m)
+    if (m.role !== "user" && m.role !== "assistant") continue
+
+    const { text, images } = extractImages(m.content)
+    if (images.length === 0) {
+      msgs.push({ role: m.role, content: m.content })
+      continue
     }
+
+    const blocks: Record<string, unknown>[] = []
+    if (text) blocks.push({ type: "text", text })
+    images.forEach(img => {
+      blocks.push({ type: "image_url", image_url: { url: `data:${img.mediaType};base64,${img.base64}` } })
+    })
+    msgs.push({ role: m.role, content: blocks })
   }
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -166,10 +231,22 @@ async function callGoogle(
 ): Promise<string> {
   const contents = messages
     .filter(m => m.role === "user" || m.role === "assistant")
-    .map(m => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }))
+    .map(m => {
+      const { text, images } = extractImages(m.content)
+      const parts: Record<string, unknown>[] = []
+      if (images.length === 0) {
+        parts.push({ text: m.content })
+      } else {
+        if (text) parts.push({ text })
+        images.forEach(img => {
+          parts.push({ inlineData: { mimeType: img.mediaType, data: img.base64 } })
+        })
+      }
+      return {
+        role: m.role === "assistant" ? "model" : "user",
+        parts,
+      }
+    })
 
   const body: Record<string, unknown> = { contents }
 
@@ -208,9 +285,27 @@ async function callCustom(
 ): Promise<string> {
   const endpoint = provider.webhookUrl || "https://api.openai.com/v1/chat/completions"
 
-  const msgs: { role: string; content: string }[] = []
+  // Custom endpoints are assumed to be OpenAI-compatible, so images use
+  // the same image_url block shape as callOpenAI above.
+  const msgs: Record<string, unknown>[] = []
   if (systemPrompt) msgs.push({ role: "system", content: systemPrompt })
-  msgs.push(...messages.filter(m => m.role === "user" || m.role === "assistant"))
+
+  for (const m of messages) {
+    if (m.role !== "user" && m.role !== "assistant") continue
+
+    const { text, images } = extractImages(m.content)
+    if (images.length === 0) {
+      msgs.push({ role: m.role, content: m.content })
+      continue
+    }
+
+    const blocks: Record<string, unknown>[] = []
+    if (text) blocks.push({ type: "text", text })
+    images.forEach(img => {
+      blocks.push({ type: "image_url", image_url: { url: `data:${img.mediaType};base64,${img.base64}` } })
+    })
+    msgs.push({ role: m.role, content: blocks })
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

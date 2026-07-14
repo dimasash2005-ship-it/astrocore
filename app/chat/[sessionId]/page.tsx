@@ -350,7 +350,7 @@ function SaveMemoryBtn({ content, t }: { content: string; t: ReturnType<typeof u
 function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
-  const parts   = msg.content.split(/(```[\s\S]*?```)/g)
+  const parts   = msg.content.split(/(```[\s\S]*?```|!\[[^\]]*\]\(data:image\/[^)]+\))/g)
 
   return (
     <div style={{
@@ -397,6 +397,17 @@ function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?
                   <pre style={{ background: "rgba(0,0,0,0.40)", border: "0.5px solid rgba(125,211,252,0.12)", borderRadius: 8, padding: "12px 14px", fontSize: 12.5, color: "#7DD3FC", overflow: "auto", margin: 0, fontFamily: "monospace", lineHeight: 1.6 }}>
                     {code}
                   </pre>
+                </div>
+              )
+            }
+            const imgMatch = part.match(/^!\[([^\]]*)\]\((data:image\/[^)]+)\)$/)
+            if (imgMatch) {
+              const [, alt, src] = imgMatch
+              return (
+                <div key={i} style={{ marginTop: 8, marginBottom: 4 }}>
+                  <img src={src} alt={alt}
+                    style={{ maxWidth: "100%", maxHeight: 340, borderRadius: 12, display: "block", border: "0.5px solid rgba(255,255,255,0.10)" }}
+                  />
                 </div>
               )
             }
@@ -506,7 +517,7 @@ export default function SessionPage() {
   const [focused,     setFocused]     = useState(false)
 
   // Attachments: name + optional text content
-  const [attachments, setAttachments] = useState<{ name: string; content?: string }[]>([])
+  const [attachments, setAttachments] = useState<{ name: string; content?: string; imageDataUrl?: string }[]>([])
 
   // Microphone
   const [isListening, setIsListening] = useState(false)
@@ -524,6 +535,14 @@ export default function SessionPage() {
   const scrollRef  = useRef<HTMLDivElement>(null)
   const fileRef    = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
+  // Synchronous re-entrancy guard for handleSend. `loading` (React state)
+  // updates asynchronously, so if handleSend fires twice in the same tick
+  // — double Enter, IME composition sending a duplicate keydown, a fast
+  // double-click — the second call can read the still-stale `loading`
+  // value and slip through, firing a second AI request/insert. A ref is
+  // checked and set synchronously, so the second call is blocked
+  // immediately regardless of what triggered it.
+  const sendingRef = useRef(false)
 
   const loadSession = useCallback(async () => {
     const sb = getSupabase()
@@ -584,6 +603,15 @@ export default function SessionPage() {
   function handleFiles(files: FileList | null) {
     if (!files) return
     Array.from(files).forEach(file => {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onload = ev => {
+          const dataUrl = ev.target?.result as string
+          setAttachments(prev => [...prev, { name: file.name, imageDataUrl: dataUrl }])
+        }
+        reader.readAsDataURL(file)
+        return
+      }
       const ext = getExt(file.name)
       if (TEXT_EXTENSIONS.has(ext)) {
         const reader = new FileReader()
@@ -644,11 +672,14 @@ export default function SessionPage() {
   // ── Send ─────────────────────────────────────────────────────────
 
   async function handleSend() {
+    if (sendingRef.current) return
     const text = input.trim()
     const hasAttachments = attachments.length > 0
     if ((!text && !hasAttachments) || loading || !session) return
+    sendingRef.current = true
 
     const attachmentLines = attachments.map(a => {
+      if (a.imageDataUrl) return `![${a.name}](${a.imageDataUrl})`
       if (a.content !== undefined) return `${t.chatSession.fileLabel}: ${a.name}\n${a.content}`
       return `${t.chatSession.attachedFileLabel}: ${a.name}`
     })
@@ -703,6 +734,7 @@ export default function SessionPage() {
         }).select().single()
         setMessages(prev => [...prev, { id: errMsgData?.id ?? crypto.randomUUID(), role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
         setLoading(false)
+        sendingRef.current = false
         return
       }
 
@@ -749,6 +781,7 @@ export default function SessionPage() {
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: errContent, createdAt: new Date().toISOString() }])
     } finally {
       setLoading(false)
+      sendingRef.current = false
       inputRef.current?.focus()
     }
   }
@@ -930,9 +963,14 @@ export default function SessionPage() {
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 8 }}>
                 {attachments.map((a, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, fontSize: 11.5, color: T.t2, maxWidth: 220 }}>
-                    <Paperclip size={11} style={{ color: T.t4, flexShrink: 0 }} />
+                    {a.imageDataUrl ? (
+                      <img src={a.imageDataUrl} alt={a.name} style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <Paperclip size={11} style={{ color: T.t4, flexShrink: 0 }} />
+                    )}
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
                     {a.content !== undefined && <span style={{ fontSize: 9.5, color: T.t4, flexShrink: 0 }}>txt</span>}
+                    {a.imageDataUrl && <span style={{ fontSize: 9.5, color: T.t4, flexShrink: 0 }}>img</span>}
                     <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: 0, flexShrink: 0 }}><X size={10} /></button>
                   </div>
                 ))}
