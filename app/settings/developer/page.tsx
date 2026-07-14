@@ -8,6 +8,8 @@ import {
   AlertCircle, Activity, Lock, X, Loader2,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
+import { useLanguage } from "@/lib/useLanguage"
+import type { Language } from "@/lib/language"
 
 const T = {
   bg:   "#08080F",
@@ -44,10 +46,11 @@ type ApiKeyRecord = {
   created_at: string
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "Ніколи"
+function formatDate(iso: string | null, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
+  if (!iso) return t.developer.neverLabel
   try {
-    return new Date(iso).toLocaleDateString("uk-UA", { year: "numeric", month: "short", day: "numeric" })
+    const locale = lang === "uk" ? "uk-UA" : "en-US"
+    return new Date(iso).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })
   } catch {
     return iso
   }
@@ -154,14 +157,14 @@ function ModalShell({ children, onClose }: { children: React.ReactNode; onClose:
 
 // ── Generate key modal (asks for name, then creates via API) ──
 function GenerateKeyModal({
-  onClose, onCreated,
-}: { onClose: () => void; onCreated: (fullKey: string, record: ApiKeyRecord) => void }) {
+  onClose, onCreated, t,
+}: { onClose: () => void; onCreated: (fullKey: string, record: ApiKeyRecord) => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const [name, setName] = useState("")
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState("")
 
   async function submit() {
-    if (!name.trim()) { setErr("Введи назву ключа."); return }
+    if (!name.trim()) { setErr(t.developer.modalNewKeyNameError); return }
     setBusy(true); setErr("")
     try {
       const res = await fetch("/api/developer/api-keys", {
@@ -170,7 +173,7 @@ function GenerateKeyModal({
         body: JSON.stringify({ name: name.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || "Не вдалося створити ключ.")
+      if (!res.ok) throw new Error(data?.error || t.developer.modalCreateError)
 
       const created = data.key as { id: string; name: string; key: string; key_prefix: string; permissions: string[]; created_at: string }
       const record: ApiKeyRecord = {
@@ -184,7 +187,7 @@ function GenerateKeyModal({
       }
       onCreated(created.key, record)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Помилка сервера.")
+      setErr(e instanceof Error ? e.message : t.developer.serverError)
     } finally {
       setBusy(false)
     }
@@ -193,19 +196,19 @@ function GenerateKeyModal({
   return (
     <ModalShell onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
-        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>Новий API ключ</span>
+        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalNewKeyTitle}</span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
           <X size={16} />
         </button>
       </div>
       <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-        <label style={{ fontSize: 11.5, color: T.t3 }}>Назва ключа</label>
+        <label style={{ fontSize: 11.5, color: T.t3 }}>{t.developer.modalNewKeyLabel}</label>
         <input
           autoFocus
           value={name}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && submit()}
-          placeholder="напр. Obsidian Plugin"
+          placeholder={t.developer.modalNewKeyPlaceholder}
           style={{
             padding: "10px 12px", borderRadius: 9, outline: "none",
             background: "rgba(0,0,0,0.3)", border: `0.5px solid ${T.b1}`,
@@ -224,7 +227,7 @@ function GenerateKeyModal({
           }}
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          {busy ? "Створення…" : "Створити ключ"}
+          {busy ? t.developer.modalCreating : t.developer.modalCreateBtn}
         </button>
       </div>
     </ModalShell>
@@ -232,11 +235,11 @@ function GenerateKeyModal({
 }
 
 // ── Reveal-once modal, shown immediately after creation ──
-function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => void }) {
+function RevealKeyModal({ fullKey, onClose, t }: { fullKey: string; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
-        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>Ключ створено</span>
+        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalKeyCreatedTitle}</span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
           <X size={16} />
         </button>
@@ -249,7 +252,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
         }}>
           <Lock size={13} style={{ color: T.red, flexShrink: 0, marginTop: 1 }} />
           <div style={{ fontSize: 12, color: T.t3, lineHeight: 1.55 }}>
-            Цей ключ показується <strong style={{ color: T.t1 }}>лише один раз</strong>. Скопіюй і збережи його зараз — повторно побачити повний ключ буде неможливо.
+            {t.developer.modalRevealWarningPrefix}<strong style={{ color: T.t1 }}>{t.developer.modalRevealWarningStrong}</strong>{t.developer.modalRevealWarningSuffix}
           </div>
         </div>
         <div style={{
@@ -269,7 +272,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
             background: "rgba(255,255,255,0.06)", color: T.t1, fontSize: 13, fontWeight: 500,
           }}
         >
-          Готово, я зберіг ключ
+          {t.developer.modalDoneBtn}
         </button>
       </div>
     </ModalShell>
@@ -277,6 +280,7 @@ function RevealKeyModal({ fullKey, onClose }: { fullKey: string; onClose: () => 
 }
 
 export default function DeveloperPage() {
+  const { t, language } = useLanguage()
   const [pulse, setPulse] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone?: "amber" | "red" | "green" } | null>(null)
 
@@ -296,16 +300,16 @@ export default function DeveloperPage() {
     try {
       const res = await fetch("/api/developer/api-keys")
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || "Не вдалося завантажити ключі.")
+      if (!res.ok) throw new Error(data?.error || t.developer.loadKeysError)
       // Revoked keys stay in the database for audit/history — just hide
       // them from this default view.
       setKeys((data.keys ?? []).filter((k: ApiKeyRecord) => !k.revoked_at))
     } catch (e) {
-      setToast({ msg: e instanceof Error ? e.message : "Помилка завантаження ключів.", tone: "red" })
+      setToast({ msg: e instanceof Error ? e.message : t.developer.loadKeysErrorGeneric, tone: "red" })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => { loadKeys() }, [loadKeys])
 
@@ -316,18 +320,18 @@ export default function DeveloperPage() {
   }
 
   async function handleRevoke(id: string) {
-    if (!window.confirm("Відкликати цей ключ? Це незворотно.")) return
+    if (!window.confirm(t.developer.revokeConfirm)) return
     try {
       const res = await fetch(`/api/developer/api-keys/${id}`, { method: "DELETE" })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || "Не вдалося відкликати ключ.")
+      if (!res.ok) throw new Error(data?.error || t.developer.revokeError)
       // Backend only sets revoked_at — the row still exists for audit
       // purposes. We just drop it from the local list immediately so it
       // never reappears in the default view.
       setKeys(prev => prev.filter(k => k.id !== id))
-      setToast({ msg: "Ключ відкликано.", tone: "green" })
+      setToast({ msg: t.developer.revokeSuccessToast, tone: "green" })
     } catch (e) {
-      setToast({ msg: e instanceof Error ? e.message : "Помилка сервера.", tone: "red" })
+      setToast({ msg: e instanceof Error ? e.message : t.developer.serverError, tone: "red" })
     }
   }
 
@@ -379,7 +383,7 @@ export default function DeveloperPage() {
               API Keys
             </h1>
             <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-              Для Obsidian, VS Code, Browser Extension та майбутніх інтеграцій
+              {t.developer.subtitle}
             </p>
           </div>
         </div>
@@ -388,7 +392,7 @@ export default function DeveloperPage() {
         <div style={{ padding: "28px 48px 56px", maxWidth: 860, display: "flex", flexDirection: "column", gap: 28 }}>
 
           {/* ── API Keys ── */}
-          <Section title="API Ключі">
+          <Section title={t.developer.sectionApiKeys}>
             <Card>
               {/* Card header */}
               <div style={{
@@ -398,7 +402,7 @@ export default function DeveloperPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Key size={13} style={{ color: T.red, opacity: 0.75 }} />
                   <span style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
-                    {loading ? "Завантаження…" : `${keys.length} ${keys.length === 1 ? "ключ" : "ключів"}`}
+                    {loading ? t.developer.loadingKeys : `${keys.length} ${keys.length === 1 ? t.developer.keySingular : t.developer.keyPlural}`}
                   </span>
                 </div>
                 <button onClick={() => setShowGenerate(true)} style={{
@@ -423,9 +427,9 @@ export default function DeveloperPage() {
                 {!loading && keys.length === 0 ? (
                   <div style={{ padding: "36px 18px", textAlign: "center" }}>
                     <Key size={24} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 12px" }} />
-                    <div style={{ fontSize: 13, color: T.t4 }}>API ключів ще немає</div>
+                    <div style={{ fontSize: 13, color: T.t4 }}>{t.developer.noKeysYet}</div>
                     <div style={{ fontSize: 12, color: T.t4, opacity: 0.6, marginTop: 4 }}>
-                      Натисни «Generate API Key» щоб створити перший ключ
+                      {t.developer.noKeysHint}
                     </div>
                   </div>
                 ) : keys.map(k => {
@@ -458,7 +462,7 @@ export default function DeveloperPage() {
                             border: `0.5px solid ${isActive ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.08)"}`,
                             textTransform: "uppercase",
                           }}>
-                            {isActive ? "Активний" : "Відкликано"}
+                            {isActive ? t.developer.activeLabel : t.developer.revokedLabel}
                           </span>
                         </div>
 
@@ -478,10 +482,10 @@ export default function DeveloperPage() {
                         {/* Meta */}
                         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
                           <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
-                            <Clock size={10} /> Створено {formatDate(k.created_at)}
+                            <Clock size={10} /> {t.developer.createdPrefix}{formatDate(k.created_at, t, language)}
                           </span>
                           <span style={{ fontSize: 11, color: T.t4 }}>
-                            Останнє використання: {formatDate(k.last_used_at)}
+                            {t.developer.lastUsedLabel}{formatDate(k.last_used_at, t, language)}
                           </span>
                         </div>
 
@@ -508,7 +512,7 @@ export default function DeveloperPage() {
                             ;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"
                           }}
                         >
-                          <Trash2 size={12} /> Відкликати
+                          <Trash2 size={12} /> {t.developer.revokeBtn}
                         </button>
                       )}
                     </div>
@@ -519,11 +523,11 @@ export default function DeveloperPage() {
           </Section>
 
           {/* ── Permissions ── */}
-          <Section title="Дозволи">
+          <Section title={t.developer.sectionPermissions}>
             <Card>
               <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ fontSize: 12.5, color: T.t3, marginBottom: 4, lineHeight: 1.55 }}>
-                  Нові ключі отримують усі дозволи нижче. Гранульований вибір дозволів під час генерації з'явиться найближчим часом.
+                  {t.developer.permissionsDesc}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 8 }}>
                   {PERMISSIONS.map(({ id, icon: Icon, label }) => (
@@ -548,14 +552,14 @@ export default function DeveloperPage() {
           </Section>
 
           {/* ── Usage ── */}
-          <Section title="Використання">
+          <Section title={t.developer.sectionUsage}>
             <Card>
               <div style={{ padding: "16px 18px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 14 }}>
                 {[
-                  { label: "Запити сьогодні",    value: "—",      icon: Activity },
-                  { label: "Запити цього місяця", value: "—",      icon: Zap      },
-                  { label: "Останній запит",       value: "Ніколи", icon: Clock    },
-                  { label: "Поточний план",        value: "Beta",   icon: Shield   },
+                  { label: t.developer.usageRequestsToday, value: "—",      icon: Activity },
+                  { label: t.developer.usageRequestsMonth, value: "—",      icon: Zap      },
+                  { label: t.developer.usageLastRequest,   value: t.developer.neverLabel, icon: Clock    },
+                  { label: t.developer.usageCurrentPlan,   value: "Beta",   icon: Shield   },
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -570,7 +574,7 @@ export default function DeveloperPage() {
           </Section>
 
           {/* ── Security ── */}
-          <Section title="Безпека">
+          <Section title={t.developer.sectionSecurity}>
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 11,
               padding: "13px 16px", borderRadius: 11,
@@ -578,9 +582,8 @@ export default function DeveloperPage() {
             }}>
               <Lock size={14} style={{ color: T.red, flexShrink: 0, marginTop: 1 }} />
               <div style={{ fontSize: 12.5, color: T.t3, lineHeight: 1.65 }}>
-                <strong style={{ color: T.t1 }}>API ключі — це секрет.</strong>{" "}
-                Не передавай їх нікому і не публікуй у відкритих репозиторіях.
-                Якщо ключ скомпрометований — одразу відкличи його тут. Ми не зберігаємо ключі у відкритому вигляді.
+                <strong style={{ color: T.t1 }}>{t.developer.securityBold}</strong>
+                {t.developer.securityRest}
               </div>
             </div>
           </Section>
@@ -589,10 +592,10 @@ export default function DeveloperPage() {
       </div>
 
       {showGenerate && (
-        <GenerateKeyModal onClose={() => setShowGenerate(false)} onCreated={handleCreated} />
+        <GenerateKeyModal onClose={() => setShowGenerate(false)} onCreated={handleCreated} t={t} />
       )}
       {revealKey && (
-        <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} />
+        <RevealKeyModal fullKey={revealKey} onClose={() => setRevealKey(null)} t={t} />
       )}
       {toast && <Toast msg={toast.msg} tone={toast.tone} onHide={() => setToast(null)} />}
     </>

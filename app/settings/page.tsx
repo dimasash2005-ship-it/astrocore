@@ -183,9 +183,10 @@ function Chip({ icon: Icon, label, value, color }: {
 // ─── Confirm danger modal ─────────────────────────────────────────
 
 function ConfirmModal({
-  title, desc, onConfirm, onClose,
+  title, desc, onConfirm, onClose, cancelLabel, confirmLabel,
 }: {
   title: string; desc: string; onConfirm: () => void; onClose: () => void
+  cancelLabel: string; confirmLabel: string
 }) {
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -210,7 +211,7 @@ function ConfirmModal({
           <button onClick={onClose} style={{
             flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer",
             background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t2,
-          }}>Скасувати</button>
+          }}>{cancelLabel}</button>
           <button onClick={() => { onConfirm(); onClose() }} style={{
             flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
             background: "rgba(232,0,42,0.15)", border: "0.5px solid rgba(232,0,42,0.30)",
@@ -218,7 +219,7 @@ function ConfirmModal({
           }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.25)" }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.15)" }}
-          >Підтвердити</button>
+          >{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -255,14 +256,6 @@ export default function SettingsPage() {
 
   function showConfirm(title: string, desc: string, action: () => void) {
     setConfirm({ title, desc, action })
-  }
-
-  function clearData(key: string, label: string, action: () => void) {
-    showConfirm(
-      `Очистити ${label}?`,
-      `Всі ${label.toLowerCase()} будуть видалені назавжди. Це неможливо скасувати.`,
-      () => { action(); loadStats(); setCleared(label); setTimeout(() => setCleared(null), 2500) }
-    )
   }
 
   return (
@@ -321,7 +314,7 @@ export default function SettingsPage() {
               {t.sidebar.settings}
             </h1>
             <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-              AI Operating Layer · Workspace Settings · System Control
+              {t.settings.subtitleTagline}
             </p>
           </div>
         </div>
@@ -331,11 +324,11 @@ export default function SettingsPage() {
 
           {/* System status */}
           <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
-            <Chip icon={Bot}           label="агентів"   value={stats.agents}    />
-            <Chip icon={MessageSquare} label="чатів"     value={stats.sessions}  />
-            <Chip icon={Key}           label="провайдерів" value={stats.providers} />
-            <Chip icon={BookOpen}      label="у сховищі" value={stats.vault}     />
-            <Chip icon={ImageIcon}     label="у галереї" value={stats.gallery}   />
+            <Chip icon={Bot}           label={t.settings.statAgents}   value={stats.agents}    />
+            <Chip icon={MessageSquare} label={t.settings.statChats}     value={stats.sessions}  />
+            <Chip icon={Key}           label={t.settings.statProviders} value={stats.providers} />
+            <Chip icon={BookOpen}      label={t.settings.statVault}     value={stats.vault}     />
+            <Chip icon={ImageIcon}     label={t.settings.statGallery}   value={stats.gallery}   />
           </div>
 
           {/* Success cleared */}
@@ -346,53 +339,53 @@ export default function SettingsPage() {
               background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.22)",
               color: T.green, fontSize: 13,
             }}>
-              <Check size={14} /> {cleared} успішно очищено
+              <Check size={14} /> {cleared} {t.settings.clearedSuffix}
             </div>
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
             {/* ── Navigation ── */}
-            <SectionCard title="Розділи" icon={Settings}>
+            <SectionCard title={t.settings.sectionsTitle} icon={Settings}>
               <SettingRow
                 icon={User}
                 label={t.sidebar.account}
-                desc="Профіль, аватар, особиста інформація"
+                desc={t.settings.accountDesc}
                 href="/account"
               />
               <Divider />
               <SettingRow
                 icon={Key}
                 label={t.sidebar.providers}
-                desc="API ключі, підключені AI моделі"
+                desc={t.settings.providersDesc}
                 href="/providers"
               />
               <Divider />
               <SettingRow
                 icon={Brain}
                 label={t.sidebar.memory}
-                desc="Контекст і знання що інжектуються в агентів"
+                desc={t.settings.memoryDesc}
                 href="/memory"
               />
               <Divider />
               <SettingRow
                 icon={BookOpen}
                 label={t.sidebar.vault}
-                desc="Збережені знання та нотатки"
+                desc={t.settings.vaultDesc}
                 href="/vault"
               />
               <Divider />
               <SettingRow
                 icon={ImageIcon}
                 label={t.sidebar.gallery}
-                desc="Збережені виводи AI"
+                desc={t.settings.galleryDesc}
                 href="/gallery"
               />
               <Divider />
               <SettingRow
                 icon={Key}
-                label="Developer Center"
-                desc="API Keys, Webhooks, Integrations and Developer tools."
+                label={t.settings.devCenterLabel}
+                desc={t.settings.devCenterDesc}
                 href="/settings/developer"
               />
             </SectionCard>
@@ -431,13 +424,13 @@ export default function SettingsPage() {
             </SectionCard>
 
             {/* ── System status ── */}
-            <SectionCard title="Статус системи" icon={Activity}>
+            <SectionCard title={t.settings.systemStatusTitle} icon={Activity}>
               <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
-                  { label: "AI Core",          value: "Онлайн",         ok: true  },
-                  { label: "localStorage",      value: "Доступно",       ok: true  },
-                  { label: "Провайдери",        value: stats.providers > 0 ? `${stats.providers} підключено` : "Немає",  ok: stats.providers > 0 },
-                  { label: "Активні агенти",    value: stats.agents > 0  ? `${stats.agents} агентів`  : "Немає",         ok: stats.agents > 0  },
+                  { label: t.settings.aiCoreLabel,       value: t.settings.onlineLabel,         ok: true  },
+                  { label: t.settings.localStorageLabel, value: t.settings.availableLabel,       ok: true  },
+                  { label: t.settings.providersStatusLabel, value: stats.providers > 0 ? `${stats.providers} ${t.settings.connectedSuffix}` : t.settings.noneLabel,  ok: stats.providers > 0 },
+                  { label: t.settings.activeAgentsLabel, value: stats.agents > 0  ? `${stats.agents} ${t.settings.agentsCountSuffix}`  : t.settings.noneLabel,         ok: stats.agents > 0  },
                 ].map(({ label, value, ok }) => (
                   <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, color: T.t2 }}>{label}</span>
@@ -455,7 +448,7 @@ export default function SettingsPage() {
             </SectionCard>
 
             {/* ── Security ── */}
-            <SectionCard title="Безпека та приватність" icon={Shield}>
+            <SectionCard title={t.settings.securityTitle} icon={Shield}>
               <div style={{ padding: "12px 16px 6px" }}>
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: 9,
@@ -465,88 +458,113 @@ export default function SettingsPage() {
                 }}>
                   <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
                   <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
-                    Всі дані зберігаються локально у вашому браузері. API ключі, агенти, чати і вся пам'ять — тільки у вашому localStorage. Жодних зовнішніх серверів.
+                    {t.settings.securityDesc}
                   </span>
                 </div>
               </div>
               <Divider />
               <SettingRow
                 icon={Key}
-                label="API ключі"
-                desc="Перейти до налаштування провайдерів"
+                label={t.settings.apiKeysLabel}
+                desc={t.settings.apiKeysDesc}
                 href="/providers"
               />
             </SectionCard>
 
             {/* ── Data management ── */}
-            <SectionCard title="Управління даними" icon={Database} accent>
+            <SectionCard title={t.settings.dataManagementTitle} icon={Database} accent>
               <SettingRow
                 icon={Bot}
-                label="Очистити агентів"
-                desc={`Видалити всіх ${stats.agents} агентів назавжди`}
-                action={() => clearData("Агенти", "Агенти", () => {
-                  agentStore.getAll().forEach(a => agentStore.remove(a.id))
-                })}
-                actionLabel="Очистити"
+                label={t.settings.clearAgentsLabel}
+                desc={`${t.settings.clearAgentsDescPrefix}${stats.agents}${t.settings.clearAgentsDescSuffix}`}
+                action={() => showConfirm(
+                  t.settings.clearAgentsConfirmTitle,
+                  t.settings.clearAgentsConfirmDesc,
+                  () => {
+                    agentStore.getAll().forEach(a => agentStore.remove(a.id))
+                    loadStats(); setCleared(t.settings.agentsName); setTimeout(() => setCleared(null), 2500)
+                  }
+                )}
+                actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
                 danger
               />
               <Divider />
               <SettingRow
                 icon={MessageSquare}
-                label="Очистити чати"
-                desc={`Видалити всі ${stats.sessions} сесії назавжди`}
-                action={() => clearData("Чати", "Чати", () => {
-                  chatStore.getAll().forEach(s => chatStore.remove(s.id))
-                })}
-                actionLabel="Очистити"
+                label={t.settings.clearChatsLabel}
+                desc={`${t.settings.clearChatsDescPrefix}${stats.sessions}${t.settings.clearChatsDescSuffix}`}
+                action={() => showConfirm(
+                  t.settings.clearChatsConfirmTitle,
+                  t.settings.clearChatsConfirmDesc,
+                  () => {
+                    chatStore.getAll().forEach(s => chatStore.remove(s.id))
+                    loadStats(); setCleared(t.settings.chatsName); setTimeout(() => setCleared(null), 2500)
+                  }
+                )}
+                actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
                 danger
               />
               <Divider />
               <SettingRow
                 icon={Brain}
-                label="Очистити пам'ять"
-                desc="Видалити весь контекст та знання"
-                action={() => clearData("Пам'ять", "Пам'ять", () => {
-                  localStorage.removeItem("astrocore_memory")
-                })}
-                actionLabel="Очистити"
+                label={t.settings.clearMemoryLabel}
+                desc={t.settings.clearMemoryDesc}
+                action={() => showConfirm(
+                  t.settings.clearMemoryConfirmTitle,
+                  t.settings.clearMemoryConfirmDesc,
+                  () => {
+                    localStorage.removeItem("astrocore_memory")
+                    loadStats(); setCleared(t.settings.memoryName); setTimeout(() => setCleared(null), 2500)
+                  }
+                )}
+                actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
                 danger
               />
               <Divider />
               <SettingRow
                 icon={BookOpen}
-                label="Очистити сховище"
-                desc={`Видалити всі ${stats.vault} записи`}
-                action={() => clearData("Сховище", "Сховище", () => {
-                  vaultStore.getAll().forEach(i => vaultStore.remove(i.id))
-                })}
-                actionLabel="Очистити"
+                label={t.settings.clearVaultLabel}
+                desc={`${t.settings.clearVaultDescPrefix}${stats.vault}${t.settings.clearVaultDescSuffix}`}
+                action={() => showConfirm(
+                  t.settings.clearVaultConfirmTitle,
+                  t.settings.clearVaultConfirmDesc,
+                  () => {
+                    vaultStore.getAll().forEach(i => vaultStore.remove(i.id))
+                    loadStats(); setCleared(t.settings.vaultName); setTimeout(() => setCleared(null), 2500)
+                  }
+                )}
+                actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
                 danger
               />
               <Divider />
               <SettingRow
                 icon={ImageIcon}
-                label="Очистити галерею"
-                desc={`Видалити всі ${stats.gallery} виводів`}
-                action={() => clearData("Галерея", "Галерея", () => {
-                  galleryStore.getAll().forEach(i => galleryStore.remove(i.id))
-                })}
-                actionLabel="Очистити"
+                label={t.settings.clearGalleryLabel}
+                desc={`${t.settings.clearGalleryDescPrefix}${stats.gallery}${t.settings.clearGalleryDescSuffix}`}
+                action={() => showConfirm(
+                  t.settings.clearGalleryConfirmTitle,
+                  t.settings.clearGalleryConfirmDesc,
+                  () => {
+                    galleryStore.getAll().forEach(i => galleryStore.remove(i.id))
+                    loadStats(); setCleared(t.settings.galleryName); setTimeout(() => setCleared(null), 2500)
+                  }
+                )}
+                actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
                 danger
               />
               <Divider />
               <SettingRow
                 icon={Trash2}
-                label="Скинути всі дані"
-                desc="Повністю очистити весь AstroCore workspace"
+                label={t.settings.resetAllLabel}
+                desc={t.settings.resetAllDesc}
                 action={() => showConfirm(
-                  "Скинути весь workspace?",
-                  "Всі агенти, чати, провайдери, пам'ять, сховище і галерея будуть видалені. Це неможливо скасувати.",
+                  t.settings.resetAllConfirmTitle,
+                  t.settings.resetAllConfirmDesc,
                   () => {
                     agentStore.getAll().forEach(a => agentStore.remove(a.id))
                     chatStore.getAll().forEach(s => chatStore.remove(s.id))
@@ -555,23 +573,23 @@ export default function SettingsPage() {
                     galleryStore.getAll().forEach(i => galleryStore.remove(i.id))
                     localStorage.removeItem("astrocore_memory")
                     loadStats()
-                    setCleared("Весь workspace")
+                    setCleared(t.settings.wholeWorkspaceName)
                   }
                 )}
-                actionLabel="Скинути все"
+                actionLabel={t.settings.resetAllBtn}
                 actionVariant="danger"
                 danger
               />
             </SectionCard>
 
             {/* ── About ── */}
-            <SectionCard title="Про AstroCore" icon={Settings}>
+            <SectionCard title={t.settings.aboutTitle} icon={Settings}>
               <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
-                  { label: "Версія",      value: "0.1.0 Beta"        },
-                  { label: "Фреймворк",   value: "Next.js 16"        },
-                  { label: "Зберігання",  value: "localStorage"      },
-                  { label: "AI Layer",    value: "AstroCore Engine"  },
+                  { label: t.settings.versionLabel,   value: t.settings.versionValue   },
+                  { label: t.settings.frameworkLabel, value: "Next.js 16"              },
+                  { label: t.settings.storageLabel,   value: t.settings.storageValue   },
+                  { label: t.settings.aiLayerLabel,   value: t.settings.aiLayerValue   },
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, color: T.t3 }}>{label}</span>
@@ -591,6 +609,8 @@ export default function SettingsPage() {
           desc={confirm.desc}
           onConfirm={confirm.action}
           onClose={() => setConfirm(null)}
+          cancelLabel={t.settings.confirmCancel}
+          confirmLabel={t.settings.confirmConfirm}
         />
       )}
     </>
