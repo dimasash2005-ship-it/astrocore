@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
-  ArrowLeft, Send, Mail, AtSign, X, User, Puzzle,
+  ArrowLeft, Send, Mail, X, User, Puzzle,
   ChevronDown, LogOut,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
@@ -75,9 +75,8 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
       </div>
       <div style={{ padding: "8px 8px 10px" }}>
         {[
-          { href: "https://t.me/astrocore_support", target: "_blank", Icon: Send,    ic: "#0088CC", ib: "rgba(0,136,204,0.14)",   ibd: "rgba(0,136,204,0.28)",   title: "Telegram",  sub: t.sidebar.telegramSubtitle },
-          { href: "mailto:support@astrocore.ai",    target: undefined, Icon: Mail,   ic: "#E8002A", ib: "rgba(232,0,42,0.12)",    ibd: "rgba(232,0,42,0.28)",    title: "Email",     sub: "support@astrocore.ai" },
-          { href: "https://instagram.com/astrocore", target: "_blank", Icon: AtSign, ic: "#C13584", ib: "rgba(193,53,132,0.12)",  ibd: "rgba(193,53,132,0.28)",  title: "Instagram", sub: "@astrocore"          },
+          { href: "https://t.me/AstroCore_Manager", target: "_blank", Icon: Send,  ic: "#0088CC", ib: "rgba(0,136,204,0.14)", ibd: "rgba(0,136,204,0.28)", title: "Telegram", sub: t.sidebar.telegramSubtitle },
+          { href: "mailto:gbtauent21@outlook.com",  target: undefined, Icon: Mail, ic: "#E8002A", ib: "rgba(232,0,42,0.12)",  ibd: "rgba(232,0,42,0.28)",  title: "Email",    sub: "gbtauent21@outlook.com" },
         ].map(({ href, target, Icon, ic, ib, ibd, title, sub }) => (
           <a key={href} href={href} target={target} rel="noopener noreferrer"
             style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 10px", borderRadius: 10, textDecoration: "none" }}
