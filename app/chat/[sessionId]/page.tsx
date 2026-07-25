@@ -36,6 +36,10 @@ type Message = {
   role: "user" | "assistant" | "system"
   content: string
   createdAt: string
+  // Client-only marker for a reply that's still being streamed in —
+  // never persisted, just tells MessageBubble to show a typing
+  // indicator instead of an empty bubble while content is still "".
+  streaming?: boolean
 }
 
 type DBMessage = {
@@ -350,6 +354,7 @@ function SaveMemoryBtn({ content, t }: { content: string; t: ReturnType<typeof u
 function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
+  const isStreamingEmpty = !!msg.streaming && !msg.content
   const parts   = msg.content.split(/(```[\s\S]*?```|!\[[^\]]*\]\(data:image\/[^)]+\))/g)
 
   return (
@@ -386,7 +391,13 @@ function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?
           color: isUser ? T.t1 : isError ? "#FF4D6A" : T.t1,
           wordBreak: "break-word",
         }}>
-          {parts.map((part, i) => {
+          {isStreamingEmpty ? (
+            <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "3px 1px" }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+          ) : parts.map((part, i) => {
             if (part.startsWith("```") && part.endsWith("```")) {
               const lines = part.slice(3, -3).split("\n")
               const lang  = lines[0].trim()
@@ -414,6 +425,7 @@ function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?
             return <span key={i} style={{ whiteSpace: "pre-wrap" }}>{part}</span>
           })}
         </div>
+        {!isStreamingEmpty && (
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexDirection: isUser ? "row-reverse" : "row" }}>
           <span style={{ fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
           {!isUser && (
@@ -427,6 +439,7 @@ function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   )
@@ -544,7 +557,18 @@ export default function SessionPage() {
   // immediately regardless of what triggered it.
   const sendingRef = useRef(false)
 
+  // On first opening a session, jump straight to the bottom with no
+  // visible animation — nobody wants to watch the page glide down past
+  // old messages every time they open a chat. Once that first jump has
+  // happened, later message updates (sending, receiving a reply) still
+  // scroll smoothly, since those really do benefit from the animation.
+  // Reset inside loadSession (not just on mount) so switching to a
+  // different chat also gets the instant jump, not just the first one
+  // ever opened.
+  const hasScrolledInitially = useRef(false)
+
   const loadSession = useCallback(async () => {
+    hasScrolledInitially.current = false
     const sb = getSupabase()
     const [{ data: sessionData }, { data: messagesData }] = await Promise.all([
       sb.from("chat_sessions").select("*").eq("id", sessionId).single(),
@@ -577,6 +601,12 @@ export default function SessionPage() {
   useEffect(() => { loadSession() }, [loadSession])
 
   useEffect(() => {
+    if (messages.length === 0) return
+    if (!hasScrolledInitially.current) {
+      hasScrolledInitially.current = true
+      bottomRef.current?.scrollIntoView({ behavior: "auto" })
+      return
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
@@ -749,32 +779,61 @@ export default function SessionPage() {
         memoryContext ? `\n\n[Workspace context]:\n${memoryContext}` : "",
       ].filter(Boolean).join("")
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
-          systemPrompt,
-          provider: { slug: currentProvider.slug, apiKey: currentProvider.api_key, model: currentProvider.model },
-        }),
-      })
+      // Belt-and-braces client-side timeout: if some hosting layer
+      // stalls the stream without ever closing the connection or
+      // erroring, this guarantees the request still fails loudly
+      // instead of leaving the UI stuck "loading" forever.
+      const abortController = new AbortController()
+      const abortTimer = setTimeout(() => abortController.abort(), 55000)
 
-      const data       = await res.json()
-      const replyContent = data.content ?? data.error ?? t.chatSession.noReply
-
-      const { data: replyMsgData } = await sb.from("chat_messages").insert({
-        user_id: user.id, session_id: sessionId, role: "assistant", content: replyContent,
-      }).select().single()
-
-      await sb.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId)
-
-      const reply: Message = {
-        id:        replyMsgData?.id ?? crypto.randomUUID(),
-        role:      "assistant",
-        content:   replyContent,
-        createdAt: replyMsgData?.created_at ?? new Date().toISOString(),
+      let res: Response
+      try {
+        res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
+            systemPrompt,
+            providerId: currentProvider.id,
+          }),
+          signal: abortController.signal,
+        })
+      } finally {
+        clearTimeout(abortTimer)
       }
-      setMessages(prev => [...prev, reply])
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        const errContent = errData?.error || t.chatSession.noReply
+
+        const { data: errMsgData } = await sb.from("chat_messages").insert({
+          user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
+        }).select().single()
+
+        setMessages(prev => [...prev, {
+          id: errMsgData?.id ?? crypto.randomUUID(),
+          role: "assistant",
+          content: errContent,
+          createdAt: errMsgData?.created_at ?? new Date().toISOString(),
+        }])
+      } else {
+        const data = await res.json()
+        const replyContent = data.content ?? data.error ?? t.chatSession.noReply
+
+        const { data: replyMsgData } = await sb.from("chat_messages").insert({
+          user_id: user.id, session_id: sessionId, role: "assistant", content: replyContent,
+        }).select().single()
+
+        await sb.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId)
+
+        const reply: Message = {
+          id:        replyMsgData?.id ?? crypto.randomUUID(),
+          role:      "assistant",
+          content:   replyContent,
+          createdAt: replyMsgData?.created_at ?? new Date().toISOString(),
+        }
+        setMessages(prev => [...prev, reply])
+      }
     } catch {
       const errContent = t.chatSession.sendError
       await sb.from("chat_messages").insert({ user_id: user.id, session_id: sessionId, role: "assistant", content: errContent })

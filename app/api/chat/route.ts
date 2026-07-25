@@ -1,24 +1,68 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+import { decryptSecret } from "@/lib/server/encryption"
+import { assertSafeProviderUrl, joinProviderPath, UnsafeProviderUrlError } from "@/lib/server/ssrf-guard"
+import { safeFetch, readCappedText, SafeFetchError } from "@/lib/server/safe-fetch"
+
+type ProviderRow = {
+  id: string
+  slug: string
+  model: string
+  api_key: string | null
+  encrypted_api_key: string | null
+  webhook_url: string | null
+  auth_header: string | null
+  custom_headers: Record<string, string> | null
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { messages, systemPrompt, provider } = body
+    const { messages, systemPrompt, providerId } = body
 
-    if (!provider?.slug || !provider?.apiKey) {
-      return NextResponse.json(
-        { error: "Провайдер не вказано або відсутній API ключ." },
-        { status: 400 }
-      )
+    if (!providerId || typeof providerId !== "string") {
+      return NextResponse.json({ error: "Провайдер не вказано." }, { status: 400 })
     }
 
-    const { slug, apiKey, model } = provider
-    const finalModel = model || getDefaultModel(slug)
+    // The API key never travels through the browser: the client only
+    // ever sends a providerId, and this route is the only place that
+    // looks the row up (RLS-scoped to the caller) and decrypts the
+    // secret, entirely server-side.
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: provider, error: providerError } = await supabase
+      .from("providers")
+      .select("id, slug, model, api_key, encrypted_api_key, webhook_url, auth_header, custom_headers")
+      .eq("id", providerId)
+      .eq("user_id", user.id)
+      .single()
+
+    if (providerError || !provider) {
+      return NextResponse.json({ error: "Провайдера не знайдено або він вам не належить." }, { status: 404 })
+    }
+
+    const row = provider as ProviderRow
+
+    let apiKey: string
+    try {
+      apiKey = row.encrypted_api_key ? decryptSecret(row.encrypted_api_key) : (row.api_key ?? "")
+    } catch {
+      return NextResponse.json({ error: "Не вдалося розшифрувати ключ провайдера." }, { status: 500 })
+    }
+    if (!apiKey) {
+      return NextResponse.json({ error: "У провайдера відсутній API ключ." }, { status: 400 })
+    }
+
+    const finalModel = row.model || getDefaultModel(row.slug)
     const finalSystemPrompt = systemPrompt || ""
 
     let content: string
 
-    switch (slug) {
+    switch (row.slug) {
       case "anthropic":
         content = await callAnthropic(apiKey, finalModel, messages, finalSystemPrompt)
         break
@@ -29,10 +73,13 @@ export async function POST(req: NextRequest) {
         content = await callGoogle(apiKey, finalModel, messages, finalSystemPrompt)
         break
       case "custom":
-        content = await callCustom(provider, messages, finalSystemPrompt)
+        content = await callCustom(
+          { apiKey, model: finalModel, webhookUrl: row.webhook_url, authHeader: row.auth_header, customHeaders: row.custom_headers ?? undefined },
+          messages, finalSystemPrompt
+        )
         break
       default:
-        return NextResponse.json({ error: `Невідомий провайдер: ${slug}` }, { status: 400 })
+        return NextResponse.json({ error: `Невідомий провайдер: ${row.slug}` }, { status: 400 })
     }
 
     return NextResponse.json({ content })
@@ -98,7 +145,6 @@ async function callAnthropic(
   messages: { role: string; content: string }[],
   systemPrompt: string
 ): Promise<string> {
-  // Filter out any system messages — Anthropic takes system separately
   const filtered = messages.filter(m => m.role === "user" || m.role === "assistant")
 
   const anthropicMessages = filtered.map(m => {
@@ -141,9 +187,8 @@ async function callAnthropic(
     throw new Error(`Anthropic error ${res.status}: ${errMsg}`)
   }
 
-  // Robust parsing: collect all text blocks
   if (Array.isArray(data.content)) {
-    const textBlocks = data.content
+    const textBlocks: string[] = data.content
       .filter((block: { type: string; text?: string }) => block.type === "text" && block.text)
       .map((block: { type: string; text?: string }) => block.text as string)
 
@@ -152,11 +197,10 @@ async function callAnthropic(
       // blocks that repeat the exact same content (seen intermittently
       // with multimodal/image requests), collapse the repeats instead
       // of concatenating duplicate text into the reply.
-      const uniqueBlocks = textBlocks.filter((text, i) => textBlocks.indexOf(text) === i)
+      const uniqueBlocks = textBlocks.filter((text: string, i: number) => textBlocks.indexOf(text) === i)
       return uniqueBlocks.join("\n")
     }
 
-    // No text blocks found — throw with raw preview
     throw new Error(
       `Anthropic returned no text blocks. Raw: ${JSON.stringify(data).slice(0, 300)}`
     )
@@ -277,16 +321,29 @@ async function callGoogle(
 }
 
 // ─── Custom / webhook ─────────────────────────────────────────────
+//
+// Unlike the fixed anthropic.com/openai.com/googleapis.com hosts above,
+// this one is a user-supplied URL, so it goes through the SSRF guard +
+// safeFetch (timeout, no redirects, capped response size) rather than
+// a bare fetch().
 
 async function callCustom(
-  provider: { apiKey: string; model: string; webhookUrl?: string; authHeader?: string; customHeaders?: Record<string, string> },
+  provider: { apiKey: string; model: string; webhookUrl: string | null; authHeader?: string | null; customHeaders?: Record<string, string> },
   messages: { role: string; content: string }[],
   systemPrompt: string
 ): Promise<string> {
-  const endpoint = provider.webhookUrl || "https://api.openai.com/v1/chat/completions"
+  if (!provider.webhookUrl) {
+    throw new Error("У цього провайдера не вказано Endpoint URL.")
+  }
 
-  // Custom endpoints are assumed to be OpenAI-compatible, so images use
-  // the same image_url block shape as callOpenAI above.
+  let safeUrl: URL
+  try {
+    safeUrl = assertSafeProviderUrl(provider.webhookUrl)
+  } catch (e) {
+    throw new Error(e instanceof UnsafeProviderUrlError ? e.message : "Некоректний Endpoint URL провайдера.")
+  }
+  const endpoint = joinProviderPath(safeUrl.toString(), "chat/completions")
+
   const msgs: Record<string, unknown>[] = []
   if (systemPrompt) msgs.push({ role: "system", content: systemPrompt })
 
@@ -311,33 +368,45 @@ async function callCustom(
     "Content-Type": "application/json",
     ...(provider.customHeaders ?? {}),
   }
+  headers["Authorization"] = provider.authHeader || `Bearer ${provider.apiKey}`
 
-  if (provider.authHeader) {
-    headers["Authorization"] = provider.authHeader
-  } else {
-    headers["Authorization"] = `Bearer ${provider.apiKey}`
+  let res: Response
+  try {
+    res = await safeFetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: provider.model,
+        messages: msgs,
+        max_tokens: 4096,
+        user: `astrocore:${provider.model}`,
+      }),
+      timeoutMs: 30_000,
+    })
+  } catch (e) {
+    throw new Error(e instanceof SafeFetchError ? e.message : "Не вдалося з'єднатися з Custom провайдером.")
   }
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: provider.model,
-      messages: msgs,
-      max_tokens: 4096,
-    }),
-  })
-
-  const data = await res.json()
+  const rawText = await readCappedText(res)
 
   if (!res.ok) {
-    const errMsg = data?.error?.message ?? JSON.stringify(data)
-    throw new Error(`Custom provider error ${res.status}: ${errMsg}`)
+    throw new Error(`Custom provider error ${res.status}: ${rawText.slice(0, 300)}`)
   }
 
-  const text = data.choices?.[0]?.message?.content
-  if (!text) {
-    throw new Error(`Custom provider returned no content. Raw: ${JSON.stringify(data).slice(0, 300)}`)
+  let data: unknown
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    throw new Error("Custom provider returned non-JSON response.")
   }
-  return text
+
+  const obj = data as Record<string, unknown>
+  const choices = obj.choices as { message?: { content?: unknown } }[] | undefined
+  const fromChoices = choices?.[0]?.message?.content
+  if (typeof fromChoices === "string" && fromChoices) return fromChoices
+
+  const directContent = obj.content
+  if (typeof directContent === "string" && directContent) return directContent
+
+  throw new Error(`Custom provider returned no recognizable content. Raw: ${rawText.slice(0, 300)}`)
 }

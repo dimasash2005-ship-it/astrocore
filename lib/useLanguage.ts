@@ -4,12 +4,21 @@ import { useCallback, useEffect, useState } from "react"
 import { translations, DEFAULT_LANGUAGE, type Language } from "@/lib/language"
 
 const STORAGE_KEY = "astrocore_language"
+const COOKIE_KEY = "astrocore_language"
 const EVENT_NAME = "astrocore:language-change"
 
 function readStoredLanguage(): Language {
   if (typeof window === "undefined") return DEFAULT_LANGUAGE
   const stored = window.localStorage.getItem(STORAGE_KEY)
   return stored === "uk" || stored === "en" ? stored : DEFAULT_LANGUAGE
+}
+
+function writeCookie(lang: Language) {
+  // Mirrors the language into a cookie (in addition to localStorage) so
+  // server-side API routes — which can't read localStorage — can still
+  // localize error messages via lib/server-language.ts. 1 year expiry,
+  // readable on every path.
+  document.cookie = `${COOKIE_KEY}=${lang}; path=/; max-age=31536000; SameSite=Lax`
 }
 
 /**
@@ -26,7 +35,9 @@ export function useLanguage() {
   const [language, setLanguageState] = useState<Language>(DEFAULT_LANGUAGE)
 
   useEffect(() => {
-    setLanguageState(readStoredLanguage())
+    const initial = readStoredLanguage()
+    setLanguageState(initial)
+    writeCookie(initial) // keep the cookie in sync even if it drifted
 
     function handleChange() {
       setLanguageState(readStoredLanguage())
@@ -41,6 +52,7 @@ export function useLanguage() {
 
   const setLanguage = useCallback((lang: Language) => {
     window.localStorage.setItem(STORAGE_KEY, lang)
+    writeCookie(lang)
     window.dispatchEvent(new Event(EVENT_NAME))
   }, [])
 

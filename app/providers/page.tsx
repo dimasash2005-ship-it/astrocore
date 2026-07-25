@@ -4,9 +4,8 @@ import { useState, useEffect } from "react"
 import {
   Key, Plus, Trash2, Eye, EyeOff, Check,
   Zap, Activity, Shield, ChevronDown, ChevronUp, X,
+  Loader2, AlertCircle, Globe,
 } from "lucide-react"
-import { getSupabase } from "@/lib/supabase/client"
-import { type ProviderSlug } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 
@@ -23,22 +22,25 @@ const T = {
   t4:   "#585878",
   red:  "#E8002A",
   green:"#22C55E",
+  amber:"#F59E0B",
 }
 
-// ─── Local Provider type (from Supabase rows) ─────────────────────
+// ─── Provider shape as returned by /api/providers ──────────────────
+// No secret material — api_key/encrypted_api_key/auth_header/
+// custom_headers never leave the server after being saved.
+
+type ProviderSlug = "openai" | "anthropic" | "google" | "custom"
 
 type Provider = {
-  id:             string
-  user_id:        string
-  name:           string
-  slug:           ProviderSlug
-  api_key:        string
-  model:          string
-  is_active:      boolean
-  created_at:     string
-  webhook_url?:   string | null
-  auth_header?:   string | null
-  custom_headers?: Record<string, string> | null
+  id:          string
+  name:        string
+  slug:        ProviderSlug
+  model:       string
+  is_active:   boolean
+  status:      "unverified" | "connected" | "failed"
+  key_preview: string | null
+  webhook_url: string | null
+  created_at:  string
 }
 
 const inp: React.CSSProperties = {
@@ -46,6 +48,13 @@ const inp: React.CSSProperties = {
   border: "0.5px solid rgba(255,255,255,0.10)",
   borderRadius: 9, padding: "9px 12px",
   fontSize: 13, color: T.t1, outline: "none", width: "100%",
+}
+
+function focusBorder(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)"
+}
+function blurBorder(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"
 }
 
 // ─── Add provider modal ───────────────────────────────────────────
@@ -65,42 +74,96 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
     { slug: "custom", name: "Custom / Webhook", models: ["custom"], color: "#8B5CF6", desc: t.providers.customDesc, placeholder: "sk-..." },
   ]
 
-  const [slug,    setSlug]    = useState<ProviderSlug>("openai")
-  const [apiKey,  setApiKey]  = useState("")
-  const [model,   setModel]   = useState(PRESETS[0].models[0])
-  const [name,    setName]    = useState("")
-  const [showKey, setShowKey] = useState(false)
-  const [error,   setError]   = useState("")
-  const [loading, setLoading] = useState(false)
+  const [slug,          setSlug]          = useState<ProviderSlug>("openai")
+  const [apiKey,        setApiKey]        = useState("")
+  const [model,         setModel]         = useState(PRESETS[0].models[0])
+  const [customModel,   setCustomModel]   = useState("")
+  const [name,          setName]          = useState("")
+  const [webhookUrl,    setWebhookUrl]    = useState("")
+  const [authHeader,    setAuthHeader]    = useState("")
+  const [customHeaders, setCustomHeaders] = useState("")
+  const [showKey,       setShowKey]       = useState(false)
+  const [error,         setError]         = useState("")
+  const [loading,       setLoading]       = useState(false)
+
+  const [testState, setTestState]   = useState<"idle" | "testing" | "success" | "error">("idle")
+  const [testMsg,   setTestMsg]     = useState("")
 
   const preset = PRESETS.find(p => p.slug === slug)!
+  const effectiveModel = slug === "custom" ? customModel.trim() : model
 
   function handleSlugChange(s: ProviderSlug) {
     setSlug(s)
     setModel(PRESETS.find(p => p.slug === s)!.models[0])
     setError("")
+    setTestState("idle")
+  }
+
+  async function handleTest() {
+    if (slug !== "custom") return
+    if (!webhookUrl.trim() || !effectiveModel || !apiKey.trim()) {
+      setTestState("error")
+      setTestMsg(t.providers.testMissingFields)
+      return
+    }
+    setTestState("testing")
+    setTestMsg("")
+    try {
+      const res = await fetch("/api/providers/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: webhookUrl.trim(),
+          model: effectiveModel,
+          apiKey: apiKey.trim(),
+          customHeaders: customHeaders.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setTestState("success")
+        setTestMsg(data.latencyMs ? `${t.providers.testSuccess} (${data.latencyMs}ms)` : t.providers.testSuccess)
+      } else {
+        setTestState("error")
+        setTestMsg(data.message || t.providers.testFailed)
+      }
+    } catch {
+      setTestState("error")
+      setTestMsg(t.providers.testFailed)
+    }
   }
 
   async function handleAdd() {
     if (!apiKey.trim()) { setError(t.providers.enterApiKeyError); return }
+    if (slug === "custom" && !webhookUrl.trim()) { setError(t.providers.webhookRequiredError); return }
+    if (slug === "custom" && !customModel.trim()) { setError(t.providers.modelRequiredError); return }
+
     setLoading(true)
     setError("")
-    const sb = getSupabase()
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setError(t.providers.notAuthorizedError); setLoading(false); return }
 
-    const { error: dbErr } = await sb.from("providers").insert({
-      user_id:   user.id,
-      slug,
-      name:      name.trim() || preset.name,
-      api_key:   apiKey.trim(),
-      model,
-      is_active: true,
-    })
+    try {
+      const res = await fetch("/api/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim() || preset.name,
+          slug,
+          model: effectiveModel,
+          apiKey: apiKey.trim(),
+          webhookUrl: slug === "custom" ? webhookUrl.trim() : undefined,
+          authHeader: slug === "custom" ? authHeader.trim() || undefined : undefined,
+          customHeaders: slug === "custom" ? customHeaders.trim() || undefined : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data?.error || t.providers.saveFailedError); setLoading(false); return }
 
-    if (dbErr) { setError(dbErr.message); setLoading(false); return }
-    onAdded()
-    onClose()
+      onAdded()
+      onClose()
+    } catch {
+      setError(t.providers.saveFailedError)
+      setLoading(false)
+    }
   }
 
   return (
@@ -166,26 +229,47 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
               </label>
               <input value={name} onChange={e => setName(e.target.value)}
                 placeholder={t.providers.providerNamePlaceholder}
-                style={inp}
-                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+                style={inp} onFocus={focusBorder} onBlur={blurBorder}
               />
             </div>
           )}
 
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-              {t.providers.modelField}
-            </label>
-            <select value={model} onChange={e => setModel(e.target.value)}
-              style={{ ...inp, cursor: "pointer" }}
-              onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-              onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}>
-              {preset.models.map(m => (
-                <option key={m} value={m} style={{ background: "#111118" }}>{m}</option>
-              ))}
-            </select>
-          </div>
+          {slug === "custom" ? (
+            <>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  {t.providers.webhookUrlField}
+                </label>
+                <input value={webhookUrl} onChange={e => { setWebhookUrl(e.target.value); setTestState("idle") }}
+                  placeholder="https://your-agent.example.com/v1"
+                  style={inp} onFocus={focusBorder} onBlur={blurBorder}
+                />
+                <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.webhookUrlHint}</div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  {t.providers.modelField}
+                </label>
+                <input value={customModel} onChange={e => { setCustomModel(e.target.value); setTestState("idle") }}
+                  placeholder="my-agent-v1"
+                  style={inp} onFocus={focusBorder} onBlur={blurBorder}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                {t.providers.modelField}
+              </label>
+              <select value={model} onChange={e => setModel(e.target.value)}
+                style={{ ...inp, cursor: "pointer" }} onFocus={focusBorder} onBlur={blurBorder}>
+                {preset.models.map(m => (
+                  <option key={m} value={m} style={{ background: "#111118" }}>{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
@@ -194,12 +278,11 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
             <div style={{ position: "relative" }}>
               <input
                 value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
+                onChange={e => { setApiKey(e.target.value); setTestState("idle") }}
                 type={showKey ? "text" : "password"}
                 placeholder={preset.placeholder}
                 style={{ ...inp, paddingRight: 40 }}
-                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+                onFocus={focusBorder} onBlur={blurBorder}
               />
               <button onClick={() => setShowKey(v => !v)} style={{
                 position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
@@ -209,6 +292,57 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
               </button>
             </div>
           </div>
+
+          {slug === "custom" && (
+            <>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  {t.providers.authHeaderField}
+                </label>
+                <input value={authHeader} onChange={e => setAuthHeader(e.target.value)}
+                  placeholder="Bearer sk-..."
+                  style={inp} onFocus={focusBorder} onBlur={blurBorder}
+                />
+                <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.authHeaderHint}</div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  {t.providers.customHeadersField}
+                </label>
+                <textarea value={customHeaders} onChange={e => setCustomHeaders(e.target.value)}
+                  placeholder={`{\n  "X-Org-Id": "12345"\n}`}
+                  rows={3}
+                  style={{ ...inp, resize: "vertical", fontFamily: "monospace", lineHeight: 1.5 }}
+                  onFocus={focusBorder} onBlur={blurBorder}
+                />
+                <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.customHeadersHint}</div>
+              </div>
+
+              <div>
+                <button onClick={handleTest} disabled={testState === "testing"} style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 500,
+                  cursor: testState === "testing" ? "default" : "pointer",
+                  background: "rgba(139,92,246,0.10)", border: "0.5px solid rgba(139,92,246,0.24)",
+                  color: "#A78BFA",
+                }}>
+                  {testState === "testing" ? <Loader2 size={13} style={{ animation: "spin 0.8s linear infinite" }} /> : <Globe size={13} />}
+                  {testState === "testing" ? t.providers.testing : t.providers.testConnectionBtn}
+                </button>
+                {testState === "success" && (
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: T.green }}>
+                    <Check size={13} /> {testMsg}
+                  </div>
+                )}
+                {testState === "error" && (
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#FF4D6A" }}>
+                    <AlertCircle size={13} /> {testMsg}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           <div style={{
             display: "flex", alignItems: "flex-start", gap: 8,
@@ -258,17 +392,15 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
   onToggle: () => void
   t: ReturnType<typeof useLanguage>["t"]
 }) {
-  const [showKey,  setShowKey]  = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   const colorMap: Record<string, string> = { openai: "#10A37F", anthropic: "#D97757", google: "#4285F4", custom: "#8B5CF6" }
   const color = colorMap[provider.slug] ?? T.t4
 
-  function maskKey(key: string) {
-    if (!key) return "—"
-    if (key.length <= 8) return "•".repeat(key.length)
-    return key.slice(0, 6) + "•".repeat(Math.min(key.length - 8, 16)) + key.slice(-4)
-  }
+  const statusColor = provider.status === "connected" ? T.green : provider.status === "failed" ? "#FF4D6A" : T.amber
+  const statusLabel = provider.status === "connected" ? t.providers.statusConnected
+    : provider.status === "failed" ? t.providers.statusFailed
+    : t.providers.statusUnverified
 
   return (
     <div style={{
@@ -332,19 +464,26 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
               <div>
                 <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{t.providers.apiKeyLabel}</div>
                 <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", letterSpacing: "0.05em" }}>
-                  {showKey ? provider.api_key : maskKey(provider.api_key)}
+                  {provider.key_preview ?? "••••••••"}
                 </div>
               </div>
-              <button onClick={() => setShowKey(v => !v)} style={{
-                padding: 5, borderRadius: 6, border: "none",
-                background: "rgba(255,255,255,0.06)", cursor: "pointer", lineHeight: 0, color: T.t4,
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
-              >
-                {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
+              <span style={{
+                fontSize: 10, padding: "2px 8px", borderRadius: 5, fontWeight: 500,
+                color: statusColor, background: `${statusColor}18`, border: `0.5px solid ${statusColor}40`,
+              }}>
+                {statusLabel}
+              </span>
             </div>
+
+            {provider.slug === "custom" && provider.webhook_url && (
+              <div style={{
+                padding: "8px 12px", borderRadius: 8,
+                background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{t.providers.webhookUrlField}</div>
+                <div style={{ fontSize: 11.5, color: T.t2, wordBreak: "break-all" }}>{provider.webhook_url}</div>
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={onToggle} style={{
@@ -432,6 +571,7 @@ export default function ProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([])
   const [showModal, setShowModal] = useState(false)
   const [pulse,     setPulse]     = useState(false)
+  const [loaded,    setLoaded]    = useState(false)
 
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 2000)
@@ -439,27 +579,30 @@ export default function ProvidersPage() {
   }, [])
 
   async function load() {
-    const sb = getSupabase()
-    const { data } = await sb
-      .from("providers")
-      .select("*")
-      .order("created_at", { ascending: true })
-    if (data) setProviders(data as Provider[])
+    try {
+      const res = await fetch("/api/providers")
+      const data = await res.json()
+      if (res.ok) setProviders(data.providers ?? [])
+    } finally {
+      setLoaded(true)
+    }
   }
 
   useEffect(() => { load() }, [])
 
   async function handleDelete(id: string) {
-    const sb = getSupabase()
-    await sb.from("providers").delete().eq("id", id)
+    await fetch(`/api/providers/${id}`, { method: "DELETE" })
     load()
   }
 
   async function handleToggle(id: string) {
     const p = providers.find(x => x.id === id)
     if (!p) return
-    const sb = getSupabase()
-    await sb.from("providers").update({ is_active: !p.is_active }).eq("id", id)
+    await fetch(`/api/providers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: !p.is_active }),
+    })
     load()
   }
 
@@ -474,6 +617,7 @@ export default function ProvidersPage() {
           90%  { opacity: 1; }
           100% { transform: translateX(200%); opacity: 0; }
         }
+        @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
 
       <div style={{
@@ -549,7 +693,7 @@ export default function ProvidersPage() {
         </div>
 
         {/* Body */}
-        {providers.length === 0 ? (
+        {!loaded ? null : providers.length === 0 ? (
           <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
