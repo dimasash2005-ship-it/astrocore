@@ -351,17 +351,28 @@ export function Sidebar() {
           </button>
         )}
 
-        {/* Navigation — flat list, generous spacing */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: 7, flexShrink: 0, overflowY: "auto" }}>
+        {/* Navigation — now the flexible/scrollable middle section: it
+            takes whatever vertical space is left between the header
+            (logo/language/back) and the footer (contact/subscription/
+            profile), and scrolls internally with the mouse wheel once
+            the item list doesn't fit — instead of silently overflowing
+            and getting clipped by the parent's overflow:hidden. */}
+        <nav
+          className="astrocore-sidebar-nav"
+          style={{
+            display: "flex", flexDirection: "column", gap: 7,
+            flex: "1 1 auto", minHeight: 0,
+            overflowY: "auto", overflowX: "hidden",
+            marginRight: -14, paddingRight: 14,
+          }}
+        >
           {NAV_ITEMS.map(item => (
             <NavLink key={item.href} href={item.href} icon={item.icon} label={t.sidebar[item.labelKey]} active={isActive(item.href)} open={open} />
           ))}
         </nav>
 
-        <div style={{ flex: 1, minHeight: 12 }} />
-
         {/* Contact */}
-        <div style={{ position: "relative", flexShrink: 0, marginBottom: 12 }}>
+        <div style={{ position: "relative", flexShrink: 0, marginTop: 12, marginBottom: 12 }}>
           <button onClick={() => setContact(v => !v)} style={{
             display: "flex", alignItems: "center", height: 40, width: "100%",
             borderRadius: 12, padding: "0 12px", gap: 10, border: "none", cursor: "pointer",
@@ -482,6 +493,14 @@ export function Sidebar() {
         </div>
 
       </div>
+
+      {/* Thin, unobtrusive scrollbar for the nav list — matches the dark theme instead of the default OS scrollbar. */}
+      <style jsx global>{`
+        .astrocore-sidebar-nav::-webkit-scrollbar { width: 4px; }
+        .astrocore-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+        .astrocore-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(232,0,42,0.35); border-radius: 4px; }
+        .astrocore-sidebar-nav { scrollbar-width: thin; scrollbar-color: rgba(232,0,42,0.35) transparent; }
+      `}</style>
     </div>
   )
 }
