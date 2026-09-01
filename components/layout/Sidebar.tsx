@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
-  ArrowLeft, Send, Mail, X, User, Puzzle,
+  ArrowLeft, Send, Mail, X, User, Users, Puzzle,
   ChevronDown, LogOut,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
@@ -39,6 +39,7 @@ const NAV_ITEMS: { href: string; icon: React.ElementType; labelKey: SidebarKey }
   { href: "/memory",       icon: Brain,         labelKey: "memory"        },
   { href: "/vault",        icon: BookOpen,      labelKey: "vault"         },
   { href: "/gallery",      icon: ImageIcon,     labelKey: "gallery"       },
+  { href: "/forum",        icon: Users,         labelKey: "forum"         },
   { href: "/integrations", icon: Puzzle,        labelKey: "integrations"  },
   { href: "/settings",     icon: Settings,      labelKey: "settings"      },
   { href: "/providers",    icon: Key,           labelKey: "providers"     },

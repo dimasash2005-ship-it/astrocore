@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
+import CookieConsent from "@/components/CookieConsent";
 
 export const metadata: Metadata = {
   title: "AstroCore",
@@ -42,6 +43,7 @@ export default function RootLayout({
         }}
       >
         <AuthProvider>{children}</AuthProvider>
+        <CookieConsent />
         <Analytics />
       </body>
     </html>
