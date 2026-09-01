@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { encryptSecret, maskSecret } from "@/lib/server/encryption"
 import { assertSafeProviderUrl, UnsafeProviderUrlError } from "@/lib/server/ssrf-guard"
 
-const VALID_SLUGS = ["openai", "anthropic", "google", "custom"] as const
+const VALID_SLUGS = ["openai", "anthropic", "google", "custom", "leonardo"] as const
 type ProviderSlug = (typeof VALID_SLUGS)[number]
 
 interface CreateBody {
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
 
     const presetNames: Record<ProviderSlug, string> = {
-      openai: "OpenAI", anthropic: "Anthropic Claude", google: "Google Gemini", custom: "Custom / Webhook",
+      openai: "OpenAI", anthropic: "Anthropic Claude", google: "Google Gemini", custom: "Custom / Webhook", leonardo: "Leonardo AI",
     }
     const name = validateName(body.name, presetNames[slug])
 

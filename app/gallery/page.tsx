@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import {
   Image as ImageIcon, Plus, Search, Trash2, X,
   Code2, FileText, Layers, Clock, Copy, Check,
-  Sparkles, Download,
+  Sparkles, Download, Video, Wand2, Loader2,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -15,7 +15,7 @@ type GalleryItem = {
   user_id: string
   title: string
   content: string
-  type: "text" | "code" | "image"
+  type: "text" | "code" | "image" | "video"
   tags: string[]
   created_at: string
 }
@@ -35,13 +35,14 @@ const T = {
   red:  "#E8002A",
 }
 
-type FilterType = "all" | "text" | "code" | "image"
+type FilterType = "all" | "text" | "code" | "image" | "video"
 
-function getTypeMeta(t: ReturnType<typeof useLanguage>["t"]): Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> {
+function getTypeMeta(t: ReturnType<typeof useLanguage>["t"], lang: Language = "uk"): Record<string, { label: string; icon: React.ElementType; color: string; bg: string; border: string }> {
   return {
     text:  { label: t.gallery.typeText,  icon: FileText,  color: "#C8C4D8", bg: "rgba(255,255,255,0.06)",  border: "rgba(255,255,255,0.10)" },
     code:  { label: t.gallery.typeCode,  icon: Code2,     color: "#7DD3FC", bg: "rgba(125,211,252,0.09)",  border: "rgba(125,211,252,0.22)" },
     image: { label: t.gallery.typeImage, icon: ImageIcon, color: "#A78BFA", bg: "rgba(167,139,250,0.09)", border: "rgba(167,139,250,0.22)" },
+    video: { label: lang === "uk" ? "Відео" : "Video", icon: Video, color: "#F59E0B", bg: "rgba(245,158,11,0.09)", border: "rgba(245,158,11,0.22)" },
   }
 }
 
@@ -226,6 +227,222 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
   )
 }
 
+// ─── Generate (AI) modal ────────────────────────────────────────────
+// Calls /api/generate-media (Leonardo, via lib/server/media-generation.ts),
+// then inserts the result into gallery_items exactly like AddModal does —
+// same table, same shape, just content = the generated URL.
+
+type LeonardoProviderOption = { id: string; name: string }
+
+function GenerateModal({ onClose, onAdded, t, language }: {
+  onClose: () => void; onAdded: () => void
+  t: ReturnType<typeof useLanguage>["t"]; language: Language
+}) {
+  const isUk = language === "uk"
+
+  const [providers, setProviders]             = useState<LeonardoProviderOption[]>([])
+  const [providerId, setProviderId]           = useState("")
+  const [loadingProviders, setLoadingProviders] = useState(true)
+
+  const [prompt, setPrompt]       = useState("")
+  const [mediaType, setMediaType] = useState<"image" | "video">("image")
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState("")
+
+  useEffect(() => {
+    fetch("/api/providers")
+      .then(res => res.json())
+      .then(data => {
+        const leo: LeonardoProviderOption[] = (data.providers ?? [])
+          .filter((p: { slug: string }) => p.slug === "leonardo")
+          .map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }))
+        setProviders(leo)
+        if (leo.length > 0) setProviderId(leo[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProviders(false))
+  }, [])
+
+  const inp: React.CSSProperties = {
+    background: "#09090F", border: "0.5px solid rgba(255,255,255,0.10)",
+    borderRadius: 9, padding: "9px 12px", fontSize: 13,
+    color: T.t1, outline: "none", width: "100%",
+  }
+
+  async function handleGenerate() {
+    if (!prompt.trim()) { setError(isUk ? "Введіть опис." : "Enter a description."); return }
+    if (!providerId)    { setError(isUk ? "Немає підключеного Leonardo AI." : "No Leonardo AI provider connected."); return }
+
+    setLoading(true)
+    setError("")
+    try {
+      const res = await fetch("/api/generate-media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim(), mediaType, providerId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Generation failed.")
+
+      const sb = getSupabase()
+      const { data: { user } } = await sb.auth.getUser()
+      if (!user) throw new Error(isUk ? "Не авторизовано." : "Not authorized.")
+
+      const { error: dbErr } = await sb.from("gallery_items").insert({
+        user_id: user.id,
+        title:   prompt.trim().slice(0, 80),
+        content: data.url,
+        type:    data.mediaType,
+        tags:    ["ai"],
+      })
+      if (dbErr) throw new Error(dbErr.message)
+
+      onAdded()
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal onClose={loading ? () => {} : onClose}>
+      <div style={{
+        width: "100%", maxWidth: 520, borderRadius: 16,
+        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
+        border: "1px solid rgba(232,0,42,0.22)",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.85)",
+        padding: "24px 24px 20px",
+        maxHeight: "90vh", overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: "rgba(232,0,42,0.12)", border: "0.5px solid rgba(232,0,42,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Wand2 size={15} style={{ color: T.red }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>
+              {isUk ? "Згенерувати за допомогою AI" : "Generate with AI"}
+            </div>
+            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Leonardo AI
+            </div>
+          </div>
+          {!loading && (
+            <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {!loadingProviders && providers.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6 }}>
+              {isUk
+                ? "Спершу підключіть Leonardo AI як провайдера на сторінці Провайдери — там же отримаєте API-ключ."
+                : "First connect Leonardo AI as a provider on the Providers page — that's where you get an API key."}
+            </div>
+            <a href="/providers" style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
+              background: T.red, color: "#fff", textDecoration: "none",
+              borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500,
+            }}>
+              {isUk ? "Перейти до провайдерів" : "Go to Providers"}
+            </a>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+            {/* Media type toggle */}
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 }}>
+                {isUk ? "Тип" : "Type"}
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {([
+                  { value: "image" as const, label: isUk ? "Зображення" : "Image", Icon: ImageIcon },
+                  { value: "video" as const, label: isUk ? "Відео" : "Video", Icon: Video },
+                ]).map(opt => {
+                  const active = mediaType === opt.value
+                  return (
+                    <button key={opt.value} disabled={loading} onClick={() => setMediaType(opt.value)} style={{
+                      flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+                      padding: "10px 8px", borderRadius: 9, border: "none", cursor: loading ? "not-allowed" : "pointer",
+                      background: active ? "rgba(232,0,42,0.10)" : "rgba(255,255,255,0.03)",
+                      outline: active ? "1px solid rgba(232,0,42,0.30)" : "1px solid rgba(255,255,255,0.07)",
+                    }}>
+                      <opt.Icon size={16} style={{ color: active ? T.red : T.t4 }} />
+                      <span style={{ fontSize: 11, color: active ? T.red : T.t4, fontWeight: active ? 500 : 400 }}>{opt.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Provider select — only shown if the user has more than one Leonardo provider */}
+            {providers.length > 1 && (
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  {isUk ? "Провайдер" : "Provider"}
+                </label>
+                <select value={providerId} disabled={loading} onChange={e => setProviderId(e.target.value)} style={inp}>
+                  {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Prompt */}
+            <div>
+              <label style={{ fontSize: 10, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                {isUk ? "Опис (промпт)" : "Prompt"}
+              </label>
+              <textarea value={prompt} disabled={loading} onChange={e => setPrompt(e.target.value)}
+                placeholder={isUk ? "Наприклад: неонове місто вночі, кіберпанк, дощ…" : "e.g. a neon city at night, cyberpunk, rain…"}
+                rows={4}
+                style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
+              />
+            </div>
+
+            {loading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.t3 }}>
+                <Loader2 size={14} style={{ color: T.red, animation: "spin 1s linear infinite" }} />
+                {mediaType === "video"
+                  ? (isUk ? "Генерація відео може тривати 1–2 хвилини…" : "Video generation can take 1–2 minutes…")
+                  : (isUk ? "Генерація зображення, зазвичай ~15–30 секунд…" : "Generating image, usually ~15–30 seconds…")}
+              </div>
+            )}
+
+            {error && (
+              <div style={{ fontSize: 12, color: "#FF4D6A", padding: "7px 10px", borderRadius: 7, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.2)" }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={onClose} disabled={loading} style={{
+                flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: loading ? "not-allowed" : "pointer",
+                background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.10)", color: T.t2,
+              }}>{t.gallery.cancel}</button>
+              <button onClick={handleGenerate} disabled={loading} style={{
+                flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
+                background: loading ? "rgba(232,0,42,0.3)" : T.red, border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
+              }}>
+                {loading ? (isUk ? "Генерується…" : "Generating…") : (isUk ? "Згенерувати" : "Generate")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Gallery card ─────────────────────────────────────────────────
 
 function GalleryCard({ item, onDelete, t, lang }: {
@@ -233,7 +450,7 @@ function GalleryCard({ item, onDelete, t, lang }: {
   t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   const [copied, setCopied] = useState(false)
-  const TYPE_META = getTypeMeta(t)
+  const TYPE_META = getTypeMeta(t, lang)
   const meta = TYPE_META[item.type ?? "text"] ?? TYPE_META.text
   const Icon = meta.icon
 
@@ -252,7 +469,8 @@ function GalleryCard({ item, onDelete, t, lang }: {
 
   const isCode  = item.type === "code"
   const isImage = item.type === "image"
-  const isUrl   = isImage && item.content.startsWith("http")
+  const isVideo = item.type === "video"
+  const isUrl   = (isImage || isVideo) && item.content.startsWith("http")
 
   return (
     <div style={{
@@ -298,6 +516,26 @@ function GalleryCard({ item, onDelete, t, lang }: {
         </div>
       )}
 
+      {/* video preview — plays on hover, muted */}
+      {isVideo && isUrl && (
+        <div style={{
+          height: 160, overflow: "hidden", position: "relative",
+          background: "rgba(255,255,255,0.02)",
+        }}>
+          <video src={item.content} muted loop playsInline
+            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLVideoElement).play().catch(() => {}) }}
+            onMouseLeave={e => { (e.currentTarget as HTMLVideoElement).pause() }}
+            onError={e => { (e.currentTarget as HTMLElement).style.display = "none" }}
+          />
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(0deg,rgba(8,8,15,0.6) 0%,transparent 60%)",
+            pointerEvents: "none",
+          }} />
+        </div>
+      )}
+
       {/* card body */}
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
 
@@ -330,8 +568,8 @@ function GalleryCard({ item, onDelete, t, lang }: {
           </div>
         </div>
 
-        {/* content preview */}
-        {!isImage && (
+        {/* content preview (text/code, and image/video fallback when content isn't a URL) */}
+        {!isImage && !isVideo && (
           <div style={{
             fontSize: isCode ? 11.5 : 12, color: isCode ? "#7DD3FC" : T.t3,
             lineHeight: 1.65, padding: "9px 11px", borderRadius: 8,
@@ -345,8 +583,7 @@ function GalleryCard({ item, onDelete, t, lang }: {
           </div>
         )}
 
-        {/* image text fallback */}
-        {isImage && !isUrl && (
+        {(isImage || isVideo) && !isUrl && (
           <div style={{
             fontSize: 12, color: T.t3, lineHeight: 1.65, padding: "9px 11px", borderRadius: 8,
             background: "rgba(167,139,250,0.04)", border: "0.5px solid rgba(167,139,250,0.10)",
@@ -418,9 +655,11 @@ export default function GalleryPage() {
   const [search,    setSearch]    = useState("")
   const [typeFilter, setTypeFilter] = useState<FilterType>("all")
   const [showModal, setShowModal] = useState(false)
+  const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [pulse,     setPulse]     = useState(false)
 
-  const TYPE_META = getTypeMeta(t)
+  const isUk = language === "uk"
+  const TYPE_META = getTypeMeta(t, language)
 
   useEffect(() => {
     const id = setInterval(() => setPulse(p => !p), 2000)
@@ -455,6 +694,7 @@ export default function GalleryPage() {
     text:  items.filter(i => (i.type ?? "text") === "text").length,
     code:  items.filter(i => i.type === "code").length,
     image: items.filter(i => i.type === "image").length,
+    video: items.filter(i => i.type === "video").length,
   }), [items])
 
   return (
@@ -465,6 +705,10 @@ export default function GalleryPage() {
           10%  { opacity: 1; }
           90%  { opacity: 1; }
           100% { transform: translateX(200%); opacity: 0; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
       `}</style>
 
@@ -518,18 +762,32 @@ export default function GalleryPage() {
                 {t.gallery.subtitle}
               </p>
             </div>
-            <button onClick={() => setShowModal(true)} style={{
-              display: "flex", alignItems: "center", gap: 7,
-              background: T.red, color: "#fff", border: "none",
-              borderRadius: 9, padding: "9px 18px",
-              fontSize: 13, fontWeight: 500, cursor: "pointer",
-              transition: "background 130ms ease",
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >
-              <Plus size={14} /> {t.gallery.addOutput}
-            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowGenerateModal(true)} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                background: "rgba(232,0,42,0.10)", color: T.red, border: `0.5px solid ${T.bRed}`,
+                borderRadius: 9, padding: "9px 18px",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+                transition: "background 130ms ease",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.18)" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
+              >
+                <Wand2 size={14} /> {isUk ? "Згенерувати AI" : "Generate AI"}
+              </button>
+              <button onClick={() => setShowModal(true)} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                background: T.red, color: "#fff", border: "none",
+                borderRadius: 9, padding: "9px 18px",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+                transition: "background 130ms ease",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+              >
+                <Plus size={14} /> {t.gallery.addOutput}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -546,6 +804,7 @@ export default function GalleryPage() {
                 { label: t.gallery.textsLabel,         value: counts.text,   icon: FileText },
                 { label: t.gallery.codesLabel,           value: counts.code,   icon: Code2    },
                 { label: t.gallery.imagesLabel,       value: counts.image,  icon: ImageIcon },
+                { label: isUk ? "Відео" : "Video",       value: counts.video,  icon: Video },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} style={{
                   display: "flex", alignItems: "center", gap: 9,
@@ -586,6 +845,7 @@ export default function GalleryPage() {
                   { value: "text",  label: t.gallery.typeText   },
                   { value: "code",  label: t.gallery.typeCode     },
                   { value: "image", label: t.gallery.typeImage },
+                  { value: "video", label: isUk ? "Відео" : "Video" },
                 ] as const).map(f => {
                   const active = typeFilter === f.value
                   const meta   = f.value !== "all" ? TYPE_META[f.value] : null
@@ -642,6 +902,9 @@ export default function GalleryPage() {
 
       {showModal && (
         <AddModal onClose={() => setShowModal(false)} onAdded={load} t={t} />
+      )}
+      {showGenerateModal && (
+        <GenerateModal onClose={() => setShowGenerateModal(false)} onAdded={load} t={t} language={language} />
       )}
     </>
   )

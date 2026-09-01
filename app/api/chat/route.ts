@@ -3,6 +3,17 @@ import { createClient } from "@/lib/supabase/server"
 import { decryptSecret } from "@/lib/server/encryption"
 import { assertSafeProviderUrl, joinProviderPath, UnsafeProviderUrlError } from "@/lib/server/ssrf-guard"
 import { safeFetch, readCappedText, SafeFetchError } from "@/lib/server/safe-fetch"
+import { generateMedia } from "@/lib/server/media-generation"
+
+// Normal chat replies are fast, but a generate_image/generate_video
+// tool call can add up to ~55s (image) or ~110s (video: base image +
+// motion, each polled separately) on top of that. This raises the
+// function's time limit accordingly. On Vercel Hobby, 60s is the max —
+// if agent-triggered VIDEO generation times out in practice, either
+// upgrade the plan for a higher limit or generate video only via the
+// Gallery's dedicated button (app/api/generate-media/route.ts) instead
+// of through chat, until this route has a proper async version.
+export const maxDuration = 60
 
 type ProviderRow = {
   id: string
@@ -14,6 +25,13 @@ type ProviderRow = {
   auth_header: string | null
   custom_headers: Record<string, string> | null
 }
+
+// Passed into callAnthropic only when the user has a connected,
+// active Leonardo provider — lets it offer generate_image/generate_video
+// as tools the model can call mid-conversation. null/undefined = no
+// image-gen provider connected, so no tools are offered at all (keeps
+// existing behavior identical for users who haven't set up Leonardo).
+type MediaGenContext = { providerId: string; userId: string }
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,11 +78,28 @@ export async function POST(req: NextRequest) {
     const finalModel = row.model || getDefaultModel(row.slug)
     const finalSystemPrompt = systemPrompt || ""
 
+    // Only the Anthropic path gets image/video tool-calling for now.
+    // If/when this proves out, the same pattern can be added to the
+    // OpenAI and Google branches below.
+    let mediaGen: MediaGenContext | null = null
+    if (row.slug === "anthropic") {
+      const { data: leonardo } = await supabase
+        .from("providers")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("slug", "leonardo")
+        .eq("is_active", true)
+        .maybeSingle()
+      if (leonardo?.id) {
+        mediaGen = { providerId: leonardo.id, userId: user.id }
+      }
+    }
+
     let content: string
 
     switch (row.slug) {
       case "anthropic":
-        content = await callAnthropic(apiKey, finalModel, messages, finalSystemPrompt)
+        content = await callAnthropic(apiKey, finalModel, messages, finalSystemPrompt, mediaGen)
         break
       case "openai":
         content = await callOpenAI(apiKey, finalModel, messages, finalSystemPrompt)
@@ -138,12 +173,58 @@ function extractImages(content: string): { text: string; images: ExtractedImage[
 }
 
 // ─── Anthropic ────────────────────────────────────────────────────
+//
+// When `mediaGen` is set (an active Leonardo provider is connected),
+// this offers two tools — generate_image / generate_video — that
+// Claude can call mid-reply. We execute them synchronously (via
+// lib/server/media-generation.ts, which itself polls Leonardo until
+// done) and splice the resulting URL into the final text as a
+// markdown image/video link, rather than doing a full second
+// tool-result round-trip back to the model. That keeps this route's
+// contract unchanged (always returns a single plain-text `content`
+// string) and avoids touching how messages are persisted.
+
+const IMAGE_TOOL = {
+  name: "generate_image",
+  description:
+    "Generate an image from a text description using AI (Leonardo). Use this whenever the user asks to create, draw, generate, design, or imagine a picture, image, illustration, artwork, or photo.",
+  input_schema: {
+    type: "object",
+    properties: {
+      prompt: {
+        type: "string",
+        description: "A detailed, vivid description of the image to generate — subject, style, mood, composition.",
+      },
+    },
+    required: ["prompt"],
+  },
+}
+
+const VIDEO_TOOL = {
+  name: "generate_video",
+  description:
+    "Generate a short AI video/animation from a text description using AI (Leonardo Motion). Use this when the user asks to create, animate, or generate a video, clip, or motion/animated visual.",
+  input_schema: {
+    type: "object",
+    properties: {
+      prompt: {
+        type: "string",
+        description: "A detailed description of the video's subject and motion/action.",
+      },
+    },
+    required: ["prompt"],
+  },
+}
+
+type AnthropicToolUseBlock = { type: "tool_use"; id: string; name: string; input: unknown }
+type AnthropicTextBlock = { type: "text"; text: string }
 
 async function callAnthropic(
   apiKey: string,
   model: string,
   messages: { role: string; content: string }[],
-  systemPrompt: string
+  systemPrompt: string,
+  mediaGen?: MediaGenContext | null
 ): Promise<string> {
   const filtered = messages.filter(m => m.role === "user" || m.role === "assistant")
 
@@ -170,6 +251,10 @@ async function callAnthropic(
     body.system = systemPrompt
   }
 
+  if (mediaGen) {
+    body.tools = [IMAGE_TOOL, VIDEO_TOOL]
+  }
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -192,14 +277,58 @@ async function callAnthropic(
       .filter((block: { type: string; text?: string }) => block.type === "text" && block.text)
       .map((block: { type: string; text?: string }) => block.text as string)
 
-    if (textBlocks.length > 0) {
-      // Defensive: if the response ever comes back as multiple text
-      // blocks that repeat the exact same content (seen intermittently
-      // with multimodal/image requests), collapse the repeats instead
-      // of concatenating duplicate text into the reply.
-      const uniqueBlocks = textBlocks.filter((text: string, i: number) => textBlocks.indexOf(text) === i)
-      return uniqueBlocks.join("\n")
+    // Defensive: if the response ever comes back as multiple text
+    // blocks that repeat the exact same content (seen intermittently
+    // with multimodal/image requests), collapse the repeats instead
+    // of concatenating duplicate text into the reply.
+    const uniqueTextBlocks = textBlocks.filter((text: string, i: number) => textBlocks.indexOf(text) === i)
+    let finalText = uniqueTextBlocks.join("\n")
+
+    const toolUseBlocks = (data.content as (AnthropicTextBlock | AnthropicToolUseBlock)[])
+      .filter((block): block is AnthropicToolUseBlock => block.type === "tool_use")
+
+    if (toolUseBlocks.length > 0 && mediaGen) {
+      for (const block of toolUseBlocks) {
+        const prompt = (block.input as { prompt?: string } | undefined)?.prompt
+        if (!prompt) continue
+        const mediaType = block.name === "generate_video" ? "video" : "image"
+
+        try {
+          const result = await generateMedia({
+            userId: mediaGen.userId,
+            providerId: mediaGen.providerId,
+            prompt,
+            mediaType,
+          })
+
+          // Also save it to the Gallery automatically, tagged so it's
+          // clear it came from an agent rather than the manual button.
+          try {
+            const supabase = await createClient()
+            await supabase.from("gallery_items").insert({
+              user_id: mediaGen.userId,
+              title:   prompt.slice(0, 80),
+              content: result.url,
+              type:    result.mediaType,
+              tags:    ["agent"],
+            })
+          } catch {
+            // Non-fatal — the chat reply below still includes the media.
+          }
+
+          finalText += (finalText ? "\n\n" : "") +
+            (result.mediaType === "video"
+              ? `🎬 [${prompt.slice(0, 60)}](${result.url})`
+              : `![${prompt.slice(0, 60)}](${result.url})`)
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e)
+          finalText += (finalText ? "\n\n" : "") +
+            `⚠️ Не вдалося згенерувати ${mediaType === "video" ? "відео" : "зображення"}: ${errMsg}`
+        }
+      }
     }
+
+    if (finalText) return finalText
 
     throw new Error(
       `Anthropic returned no text blocks. Raw: ${JSON.stringify(data).slice(0, 300)}`
