@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation"
 import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
-  ArrowLeft, Send, Mail, X, User, Users, Puzzle,
+  Send, Mail, X, User, Users, Puzzle,
   ChevronDown, LogOut,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
@@ -27,22 +27,38 @@ const SPD = "200ms cubic-bezier(0.4,0,0.2,1)"
 // silently indexing with `any` at runtime.
 type SidebarKey = keyof typeof translations.uk.sidebar
 
-// Single flat list, matching the reference layout/order. `/providers`
-// isn't shown in the design reference — kept at the end so the route
-// stays reachable (not removing existing navigation/logic). `labelKey`
-// looks up the actual text from lib/language.ts at render time, so the
-// list itself never hardcodes a language.
-const NAV_ITEMS: { href: string; icon: React.ElementType; labelKey: SidebarKey }[] = [
-  { href: "/",             icon: Home,          labelKey: "center"        },
-  { href: "/chat",         icon: MessageSquare, labelKey: "chat"          },
-  { href: "/agents",       icon: Bot,           labelKey: "agents"        },
-  { href: "/memory",       icon: Brain,         labelKey: "memory"        },
-  { href: "/vault",        icon: BookOpen,      labelKey: "vault"         },
-  { href: "/gallery",      icon: ImageIcon,     labelKey: "gallery"       },
-  { href: "/forum",        icon: Users,         labelKey: "forum"         },
-  { href: "/integrations", icon: Puzzle,        labelKey: "integrations"  },
-  { href: "/settings",     icon: Settings,      labelKey: "settings"      },
-  { href: "/providers",    icon: Key,           labelKey: "providers"     },
+// Grouped instead of one flat list — the items genuinely cluster into
+// three kinds of thing (core AI workspace, saved content, system/config),
+// so the grouping communicates real structure rather than decorating it.
+// The first group has no label: it's the default landing area and
+// doesn't need introducing. `label` is given in both languages directly
+// (not via t.sidebar) since these group headers don't have dictionary
+// keys yet.
+const NAV_GROUPS: { label?: { uk: string; en: string }; items: { href: string; icon: React.ElementType; labelKey: SidebarKey }[] }[] = [
+  {
+    items: [
+      { href: "/",       icon: Home,          labelKey: "center" },
+      { href: "/chat",   icon: MessageSquare, labelKey: "chat"   },
+      { href: "/agents", icon: Bot,           labelKey: "agents" },
+      { href: "/memory", icon: Brain,         labelKey: "memory" },
+    ],
+  },
+  {
+    label: { uk: "Контент", en: "Content" },
+    items: [
+      { href: "/vault",   icon: BookOpen,  labelKey: "vault"   },
+      { href: "/gallery", icon: ImageIcon, labelKey: "gallery" },
+      { href: "/forum",   icon: Users,     labelKey: "forum"   },
+    ],
+  },
+  {
+    label: { uk: "Система", en: "System" },
+    items: [
+      { href: "/integrations", icon: Puzzle,   labelKey: "integrations" },
+      { href: "/settings",     icon: Settings, labelKey: "settings"     },
+      { href: "/providers",    icon: Key,      labelKey: "providers"    },
+    ],
+  },
 ]
 
 function ContactPanel({ onClose }: { onClose: () => void }) {
@@ -117,35 +133,86 @@ function NavLink({ href, icon: Icon, label, active, open }: {
   href: string; icon: React.ElementType; label: string; active: boolean; open: boolean
 }) {
   const [hov, setHov] = useState(false)
+  const [tipY, setTipY] = useState(0)
+  const linkRef = useRef<HTMLAnchorElement>(null)
+
+  function handleEnter() {
+    setHov(true)
+    if (linkRef.current) {
+      const rect = linkRef.current.getBoundingClientRect()
+      setTipY(rect.top + rect.height / 2)
+    }
+  }
+
   return (
-    <Link href={href}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        position: "relative",
-        display: "flex", alignItems: "center",
-        height: 44, borderRadius: 14,
-        padding: "0 14px", gap: 12,
-        textDecoration: "none", overflow: "hidden", flexShrink: 0,
-        cursor: "pointer",
-        background: active
-          ? "linear-gradient(135deg,rgba(140,4,26,0.55) 0%,rgba(90,2,17,0.35) 100%)"
-          : hov ? "rgba(255,255,255,0.055)" : "transparent",
-        boxShadow: active
-          ? "0 0 0 1px rgba(232,0,42,0.35), 0 4px 18px rgba(232,0,42,0.22), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 14px rgba(0,0,0,0.25)"
-          : "none",
-        transition: `background ${SPD}, box-shadow ${SPD}`,
-      }}>
-      <Icon size={18} style={{
-        flexShrink: 0,
-        color: active ? "#FFFFFF" : hov ? "#E4E0F8" : "#ADA9C8",
-        filter: active ? "drop-shadow(0 0 5px rgba(232,0,42,0.85))" : "none",
-        transition: `color ${SPD}`,
-      }} />
-      <Label open={open} style={{ fontSize: 13.5, fontWeight: active ? 600 : 400, color: active ? "#FFFFFF" : hov ? "#DAD6F0" : "#ABA7C6", letterSpacing: "-0.01em" }}>
-        {label}
-      </Label>
-    </Link>
+    <>
+      <Link href={href} ref={linkRef}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setHov(false)}
+        style={{
+          position: "relative",
+          display: "flex", alignItems: "center",
+          height: 44, borderRadius: 14,
+          padding: "0 14px", gap: 12,
+          textDecoration: "none", overflow: "hidden", flexShrink: 0,
+          cursor: "pointer",
+          background: active
+            ? "linear-gradient(135deg,rgba(140,4,26,0.55) 0%,rgba(90,2,17,0.35) 100%)"
+            : hov ? "rgba(255,255,255,0.055)" : "transparent",
+          boxShadow: active
+            ? "0 0 0 1px rgba(232,0,42,0.35), 0 4px 18px rgba(232,0,42,0.22), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 14px rgba(0,0,0,0.25)"
+            : "none",
+          transition: `background ${SPD}, box-shadow ${SPD}`,
+        }}>
+        <Icon size={18} style={{
+          flexShrink: 0,
+          color: active ? "#FFFFFF" : hov ? "#E4E0F8" : "#ADA9C8",
+          filter: active ? "drop-shadow(0 0 5px rgba(232,0,42,0.85))" : "none",
+          transition: `color ${SPD}`,
+        }} />
+        <Label open={open} style={{ fontSize: 13.5, fontWeight: active ? 600 : 400, color: active ? "#FFFFFF" : hov ? "#DAD6F0" : "#ABA7C6", letterSpacing: "-0.01em" }}>
+          {label}
+        </Label>
+
+        {/* Active indicator — same "thin line" language as the rail's
+            signal line, but steady/non-animated: this means "you are
+            here", not "something is live right now", so it deliberately
+            doesn't pulse. Clipped to a rounded edge by the link's own
+            overflow:hidden + border-radius. */}
+        {active && (
+          <span aria-hidden style={{
+            position: "absolute", left: 0, top: "50%",
+            transform: "translateY(-50%)",
+            width: 2.5, height: 18, borderRadius: 2,
+            background: "#E8002A",
+            boxShadow: "0 0 8px rgba(232,0,42,0.7)",
+          }} />
+        )}
+      </Link>
+
+      {/* Instant tooltip while the rail is still collapsed — hovering
+          the sidebar starts expanding it immediately, but the label
+          fade-in takes a moment to catch up. This shows the name right
+          away instead of making people wait on the animation. */}
+      {hov && !open && (
+        <div aria-hidden style={{
+          position: "fixed",
+          top: tipY, left: SIDEBAR_W + 10,
+          transform: "translateY(-50%)",
+          zIndex: 400,
+          background: "linear-gradient(160deg,#151524 0%,#0E0E1A 100%)",
+          border: "0.5px solid rgba(232,0,42,0.25)",
+          borderRadius: 8,
+          padding: "6px 11px",
+          fontSize: 12.5, fontWeight: 500, color: "#EAE6FF",
+          whiteSpace: "nowrap",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+          pointerEvents: "none",
+        }}>
+          {label}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -186,23 +253,18 @@ function LanguageSwitch({ open }: { open: boolean }) {
 export function Sidebar() {
   const pathname = usePathname()
   const router    = useRouter()
-  const { t }     = useLanguage()
+  const { t, language } = useLanguage()
   const [open,     setOpen]     = useState(false)
   const [contact,  setContact]  = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoErr,  setLogoErr]  = useState(false)
-  const [pulse,    setPulse]    = useState(false)
-  const [account,  setAccount]  = useState<{ name: string; email: string } | null>(null)
+  const [account,  setAccount]  = useState<{ name: string; email: string; avatarUrl: string | null } | null>(null)
   const ref   = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Red pulse animation cycle
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 1800)
-    return () => clearInterval(id)
-  }, [])
-
-  // Real account info for the bottom profile row.
+  // Real account info for the bottom profile row. avatarUrl comes from
+  // the same user_metadata.avatar_url the Account page writes to when
+  // someone uploads a photo — so a photo set there shows up here too.
   useEffect(() => {
     const sb = getSupabase()
     sb.auth.getUser().then(({ data }) => {
@@ -212,7 +274,8 @@ export function Sidebar() {
         || (user.user_metadata?.name as string | undefined)
         || user.email?.split("@")[0]
         || "Користувач"
-      setAccount({ name, email: user.email ?? "" })
+      const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
+      setAccount({ name, email: user.email ?? "", avatarUrl })
     })
   }, [])
 
@@ -272,16 +335,28 @@ export function Sidebar() {
       <div aria-hidden style={{ position: "absolute", top: 60, right: 0, width: 1.5, height: 120, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.55),transparent)" }} />
       <div aria-hidden style={{ position: "absolute", top: "60%", right: 0, width: 1, height: 90, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.20),transparent)" }} />
 
-      {/* animated red pulse dot — vertical center-left, visible even collapsed */}
+      {/* signal line — thin, tall, with a bright pulse travelling down
+          it. Replaces the old decorative dot: that one blinked on a
+          timer with no meaning behind it. This still doesn't wire up
+          to a real per-agent status yet (that needs actual data from
+          the chat/agents backend), but as a rail-wide "system is on"
+          heartbeat it's at least an honest, real, always-true signal
+          rather than a fake one — and the visual language is now in
+          place for when a real status feed is ready to drive it. */}
       <div aria-hidden style={{
-        position: "absolute", top: "50%", left: 8,
-        width: 3, height: 3, borderRadius: "50%",
-        background: "#E8002A", transform: "translateY(-50%)",
-        transition: "opacity 900ms ease, box-shadow 900ms ease",
-        opacity: pulse ? 1 : 0.2,
-        boxShadow: pulse ? "0 0 8px rgba(232,0,42,1), 0 0 16px rgba(232,0,42,0.5)" : "none",
+        position: "absolute", top: "18%", bottom: "18%", left: 9,
+        width: 1.5,
+        background: "rgba(255,255,255,0.06)",
+        overflow: "hidden",
         pointerEvents: "none",
-      }} />
+      }}>
+        <div className="astrocore-rail-sweep" style={{
+          position: "absolute", left: 0, top: "-35%",
+          width: "100%", height: "35%",
+          background: "linear-gradient(180deg, transparent, #E8002A, transparent)",
+          boxShadow: "0 0 8px rgba(232,0,42,0.85)",
+        }} />
+      </div>
 
       {/* inner column */}
       <div style={{
@@ -310,19 +385,21 @@ export function Sidebar() {
                 <span style={{ color: "#fff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.05em" }}>A</span>
               )}
             </div>
-            <div style={{
+            {/* Core glow ring — the logo *is* the "core", so a slow
+                breathing glow here is a deliberate, meaningful use of
+                motion (unlike the old blinking dot). Pure CSS now
+                instead of a JS setInterval driving re-renders. */}
+            <div className="astrocore-core-glow" style={{
               position: "absolute", inset: -3, borderRadius: 15,
               border: "1px solid rgba(232,0,42,0.5)",
-              transition: "opacity 900ms ease",
-              opacity: pulse ? 0.8 : 0.2,
               pointerEvents: "none",
             }} />
           </div>
           <Label open={open}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#EEE8FF", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#EEE8FF", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Astro<span style={{ color: "#E8002A" }}>Core</span>
             </div>
-            <div style={{ fontSize: 9.5, color: "#3A3A5E", fontWeight: 600, letterSpacing: "0.09em", textTransform: "uppercase", marginTop: 2 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#3A3A5E", fontWeight: 500, letterSpacing: "0.06em", marginTop: 2 }}>
               AI Workspace
             </div>
           </Label>
@@ -333,30 +410,17 @@ export function Sidebar() {
           <LanguageSwitch open={open} />
         </div>
 
-        {/* Back */}
-        {pathname !== "/" && (
-          <button onClick={() => router.back()} style={{
-            display: "flex", alignItems: "center", height: 38, width: "100%",
-            borderRadius: 12, padding: "0 12px", gap: 10,
-            border: "0.5px solid rgba(255,255,255,0.07)",
-            background: "rgba(255,255,255,0.03)", cursor: "pointer",
-            marginBottom: 14, flexShrink: 0, overflow: "hidden",
-            transition: `background ${SPD}`,
-          }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
-          >
-            <ArrowLeft size={16} style={{ flexShrink: 0, color: "#9490B4" }} />
-            <Label open={open} style={{ fontSize: 12.5, color: "#9490B4" }}>{t.sidebar.back}</Label>
-          </button>
-        )}
+        {/* Back button removed — the persistent nav below already
+            covers every section, so a browser-history "back" affordance
+            was redundant chrome that also caused a layout shift
+            (everything below jumped ~52px depending on whether the
+            button was present on the current route). */}
 
-        {/* Navigation — now the flexible/scrollable middle section: it
+        {/* Navigation — the flexible/scrollable middle section: it
             takes whatever vertical space is left between the header
             (logo/language/back) and the footer (contact/subscription/
             profile), and scrolls internally with the mouse wheel once
-            the item list doesn't fit — instead of silently overflowing
-            and getting clipped by the parent's overflow:hidden. */}
+            the item list doesn't fit. */}
         <nav
           className="astrocore-sidebar-nav"
           style={{
@@ -366,8 +430,27 @@ export function Sidebar() {
             marginRight: -14, paddingRight: 14,
           }}
         >
-          {NAV_ITEMS.map(item => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={t.sidebar[item.labelKey]} active={isActive(item.href)} open={open} />
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {group.label && open && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  margin: "10px 2px 1px",
+                }}>
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 9.5, color: "#4A4A6A", letterSpacing: "0.06em",
+                    whiteSpace: "nowrap", flexShrink: 0,
+                  }}>
+                    {language === "uk" ? group.label.uk : group.label.en}
+                  </span>
+                  <span style={{ flex: 1, height: 0.5, background: "rgba(255,255,255,0.08)" }} />
+                </div>
+              )}
+              {group.items.map(item => (
+                <NavLink key={item.href} href={item.href} icon={item.icon} label={t.sidebar[item.labelKey]} active={isActive(item.href)} open={open} />
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -390,36 +473,29 @@ export function Sidebar() {
           {contact && open && <ContactPanel onClose={() => setContact(false)} />}
         </div>
 
-        {/* Subscription card — only when expanded, too much text for the rail */}
+        {/* Plan — compact single-row bar (matches the height of the
+            other rail buttons) instead of a padded multi-line card. */}
         {open && (
-          <div style={{
-            borderRadius: 16, padding: "14px 15px", marginBottom: 12, flexShrink: 0,
+          <Link href="/account" style={{
+            display: "flex", alignItems: "center", gap: 9,
+            height: 40, borderRadius: 12, padding: "0 12px", marginBottom: 12, flexShrink: 0,
+            textDecoration: "none",
             background: "linear-gradient(160deg,rgba(232,0,42,0.10) 0%,rgba(20,10,16,0.6) 100%)",
             border: "0.5px solid rgba(232,0,42,0.20)",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-          }}>
-            <div style={{ fontSize: 10.5, color: "#8A86A8", marginBottom: 6 }}>{t.sidebar.yourPlan}</div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "#F4F0FF" }}>Operator</span>
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: "#fff",
-                background: "linear-gradient(135deg,#E8002A,#B4001F)",
-                padding: "2px 9px", borderRadius: 6, letterSpacing: "0.04em",
-              }}>PRO</span>
-            </div>
-            <Link href="/account" style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              height: 34, borderRadius: 9, textDecoration: "none",
-              background: "rgba(255,255,255,0.06)", color: "#E4E0F4",
-              fontSize: 12.5, fontWeight: 500,
-              transition: `background ${SPD}`,
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.10)" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
-            >
-              {t.sidebar.upgrade}
-            </Link>
-          </div>
+            transition: `background ${SPD}`,
+          }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg,rgba(232,0,42,0.16) 0%,rgba(20,10,16,0.7) 100%)" }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(160deg,rgba(232,0,42,0.10) 0%,rgba(20,10,16,0.6) 100%)" }}
+          >
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#F4F0FF" }}>Operator</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 9, fontWeight: 600, color: "#fff",
+              background: "linear-gradient(135deg,#E8002A,#B4001F)",
+              padding: "1.5px 7px", borderRadius: 5, letterSpacing: "0.04em",
+            }}>PRO</span>
+            <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 500, color: "#C8C4D8" }}>{t.sidebar.upgrade}</span>
+          </Link>
         )}
 
         {/* User profile */}
@@ -436,18 +512,23 @@ export function Sidebar() {
           >
             <div style={{
               width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-              background: "linear-gradient(135deg,#3A3A5C,#222238)",
+              background: account?.avatarUrl ? "#000" : "linear-gradient(135deg,#3A3A5C,#222238)",
               border: "0.5px solid rgba(255,255,255,0.15)",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 13, fontWeight: 700, color: "#D6D2F0",
+              overflow: "hidden",
             }}>
-              {avatarLetter}
+              {account?.avatarUrl ? (
+                <img src={account.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                avatarLetter
+              )}
             </div>
             <Label open={open} style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: "#E8E4F8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {account?.name ?? "…"}
               </div>
-              <div style={{ fontSize: 10.5, color: "#5C5A78", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5C5A78", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {account?.email ?? ""}
               </div>
             </Label>
@@ -494,12 +575,33 @@ export function Sidebar() {
 
       </div>
 
-      {/* Thin, unobtrusive scrollbar for the nav list — matches the dark theme instead of the default OS scrollbar. */}
+      {/* Fonts (Space Grotesk for the wordmark/headings, JetBrains Mono
+          for small system-style text) + the sweep/glow keyframes +
+          thin themed scrollbar for the nav list. Loading fonts via
+          @import here is a quick way to test them on just this
+          component — once you're happy with the direction, moving
+          this to next/font/google in app/layout.tsx is better for
+          performance (no render-blocking @import) and makes the fonts
+          available to every page, not just the Sidebar. */}
       <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500&display=swap');
+
         .astrocore-sidebar-nav::-webkit-scrollbar { width: 4px; }
         .astrocore-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
         .astrocore-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(232,0,42,0.35); border-radius: 4px; }
         .astrocore-sidebar-nav { scrollbar-width: thin; scrollbar-color: rgba(232,0,42,0.35) transparent; }
+
+        .astrocore-rail-sweep { animation: astrocoreRailSweep 2.4s linear infinite; }
+        @keyframes astrocoreRailSweep {
+          0%   { top: -35%; }
+          100% { top: 105%; }
+        }
+
+        .astrocore-core-glow { animation: astrocoreCoreGlow 2.4s ease-in-out infinite; }
+        @keyframes astrocoreCoreGlow {
+          0%, 100% { opacity: 0.8; }
+          50%      { opacity: 0.2; }
+        }
       `}</style>
     </div>
   )

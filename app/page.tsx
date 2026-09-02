@@ -80,7 +80,8 @@ function ago(iso: string): string {
   return `${dy}д тому`
 }
 
-// ── Glass card shell — shared premium treatment for every panel ──
+// ── Glass card shell — shared premium treatment for content panels
+// (Agents, Chats, Vault: things the person actually created) ──
 function GlassCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -97,19 +98,70 @@ function GlassCard({ children, style }: { children: React.ReactNode; style?: Rea
   )
 }
 
+// ── Console panel shell — the second register, for system/utility
+// panels (Providers, Quick Actions, Activity log): flatter solid
+// background instead of a glow gradient, thinner hairline border,
+// smaller radius, no soft drop shadow. The two shells looking
+// different on purpose is the point — content and system status
+// aren't the same kind of thing and shouldn't share one card recipe. ──
+function ConsolePanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      position: "relative",
+      background: "#0D0D14",
+      border: "0.5px solid rgba(255,255,255,0.07)",
+      borderRadius: 12,
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+      overflow: "hidden",
+      ...style,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// Console header: mono, small, uppercase — the caps/mono treatment we
+// removed from content panel titles is legitimate here, since these
+// panels genuinely are system readouts, not just section names.
+function ConsoleHeader({ title, actionLabel, onAction }: { title: string; actionLabel?: string; onAction?: () => void }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "12px 15px 11px", borderBottom: "0.5px solid rgba(255,255,255,0.07)",
+    }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, color: T.t4, letterSpacing: "0.07em", textTransform: "uppercase" }}>
+        {title}
+      </span>
+      {actionLabel && (
+        <button onClick={onAction} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, background: "none", border: "none", cursor: "pointer", letterSpacing: "0.03em", transition: "color 140ms ease" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.red }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Panel title is a normal-case label now, not a tracked-uppercase
+// eyebrow — it's naming a section, not reporting a data value, so it
+// doesn't get the mono/caps treatment reserved for real system data.
+// The action link lost its trailing arrow too: on every single header
+// it read as decoration rather than a deliberate affordance.
 function PanelHeader({ title, actionLabel, onAction }: { title: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "15px 17px 13px", borderBottom: `0.5px solid ${T.b1}`,
     }}>
-      <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>{title}</span>
+      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: T.t2 }}>{title}</span>
       {actionLabel && (
-        <button onClick={onAction} style={{ fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontWeight: 500 }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.red }}
+        <button onClick={onAction} style={{ fontSize: 11.5, color: T.t4, background: "none", border: "none", cursor: "pointer", fontWeight: 500, transition: "color 140ms ease" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.red }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
         >
-          {actionLabel} <ArrowRight size={10} />
+          {actionLabel}
         </button>
       )}
     </div>
@@ -160,10 +212,10 @@ function StatCard({ icon: Icon, value, label, sub, href, color }: {
       </div>
 
       <div>
-        <div style={{ fontSize: 27, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em", lineHeight: 1 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 25, fontWeight: 600, color: T.t1, letterSpacing: "-0.01em", lineHeight: 1 }}>
           {value}
         </div>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: T.t2, marginTop: 5 }}>{label}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 500, color: T.t2, marginTop: 6 }}>{label}</div>
         {sub && <div style={{ fontSize: 10.5, color: T.t4, marginTop: 1 }}>{sub}</div>}
       </div>
 
@@ -207,13 +259,7 @@ export default function DashboardPage() {
   const [gallery,   setGallery]   = useState<{ id: string }[]>([])
   const [memory,    setMemory]    = useState<{ id: string }[]>([])
   const [userName,  setUserName]  = useState("Оператор")
-  const [pulse,     setPulse]     = useState(false)
   const [ready,     setReady]     = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   useEffect(() => {
     async function load() {
@@ -305,8 +351,20 @@ export default function DashboardPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(200%);opacity:0}
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
         }
       `}</style>
 
@@ -316,6 +374,7 @@ export default function DashboardPage() {
         background: T.bg,
         backgroundImage: "radial-gradient(rgba(255,255,255,0.035) 1px,transparent 1px)",
         backgroundSize: "24px 24px",
+        position: "relative",
       }}>
 
         {/* scan line */}
@@ -326,88 +385,67 @@ export default function DashboardPage() {
           pointerEvents: "none", zIndex: 10,
         }} />
 
+        {/* bottom ambient glow — bookends the top hero glow with the
+            same color, so the page reads as one composition instead
+            of a colorful top and a flat, colorless rest. */}
+        <div aria-hidden style={{
+          position: "absolute", bottom: 0, left: "15%", right: "15%", height: 300,
+          pointerEvents: "none",
+          background: "radial-gradient(ellipse 70% 100% at 50% 100%, rgba(232,0,42,0.08) 0%, transparent 100%)",
+        }} />
+
         {/* ── Hero ── */}
         <div style={{
           position: "relative", padding: "42px 48px 34px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          {/* soft top glow */}
-          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.09) 0%,transparent 100%)" }} />
+          {/* One soft ambient glow — kept subtle. The old hero had a
+              seven-layer "rising sun" (bloom, core, fanning rays, warm
+              horizon line): well-crafted, but tonally closer to a
+              marketing landing page than the restrained operator-
+              console language the rest of the app now uses. Replaced
+              with the same idea that already carries the brand
+              elsewhere: a thin signal line with a travelling pulse. */}
+          <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
 
-          {/* ── "rising sun" ── real sunrise color gradation, bigger + rounder + softer */}
-
-          {/* outermost deep-red ambient bloom, heavily blurred, near-circular */}
           <div aria-hidden style={{
-            position: "absolute", left: "50%", bottom: -340, transform: "translateX(-50%)",
-            width: 1000, height: 560, borderRadius: "50%", pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 100%, rgba(220,10,45,0.55) 0%, rgba(160,0,35,0.30) 40%, transparent 72%)",
-            filter: "blur(26px)",
-          }} />
-
-          {/* mid layer — red, rounder proportions, softer edge */}
-          <div aria-hidden style={{
-            position: "absolute", left: "50%", bottom: -210, transform: "translateX(-50%)",
-            width: 680, height: 380, borderRadius: "50%", pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 100%, rgba(255,50,60,0.65) 0%, rgba(232,0,42,0.45) 35%, rgba(232,0,42,0.20) 58%, transparent 78%)",
-            filter: "blur(16px)",
-          }} />
-
-          {/* hot core — near-white/pink center, rounder, softly blurred (no hard edge) */}
-          <div aria-hidden style={{
-            position: "absolute", left: "50%", bottom: -110, transform: "translateX(-50%)",
-            width: 340, height: 190, borderRadius: "50%", pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 100%, rgba(255,225,220,0.9) 0%, rgba(255,110,110,0.7) 30%, rgba(232,0,42,0.5) 55%, transparent 80%)",
-            filter: "blur(10px)",
-          }} />
-
-          {/* soft fanning glow — wide blurred wedges instead of sharp ray lines */}
-          <div aria-hidden style={{ position: "absolute", left: "50%", bottom: -40, transform: "translateX(-50%)", width: 1000, height: 260, pointerEvents: "none", filter: "blur(18px)" }}>
-            {[-30, -18, -8, 8, 18, 30].map(deg => (
-              <div key={deg} style={{
-                position: "absolute", left: "50%", bottom: 0,
-                width: 26, height: 230,
-                transform: `translateX(-50%) rotate(${deg}deg)`,
-                transformOrigin: "50% 100%",
-                borderRadius: "50% 50% 0 0",
-                background: "linear-gradient(0deg, rgba(255,90,90,0.35) 0%, rgba(232,0,42,0.16) 40%, transparent 78%)",
-              }} />
-            ))}
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%",
+              width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
           </div>
 
-          {/* thin bright horizon line, warm white-pink at the center fading to red at the edges */}
-          <div aria-hidden style={{
-            position: "absolute", bottom: -1, left: "15%", right: "15%", height: 1.5, pointerEvents: "none",
-            background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.55) 30%,rgba(255,225,215,0.95) 50%,rgba(232,0,42,0.55) 70%,transparent 100%)",
-            boxShadow: "0 0 16px rgba(255,140,120,0.55), 0 0 30px rgba(232,0,42,0.35)",
-          }} />
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.45) 40%,rgba(232,0,42,0.45) 60%,transparent 100%)" }} />
-
-          {/* AI Core badge */}
+          {/* AI Core badge — the dot is now the same compact impulse
+              line used elsewhere, animated with pure CSS (no more
+              setInterval-driven re-renders just to blink a light). */}
           <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
+            display: "inline-flex", alignItems: "center", gap: 8,
             background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-            borderRadius: 20, padding: "3px 10px", marginBottom: 20,
+            borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 20,
           }}>
-            <span style={{
-              width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
-              opacity: pulse ? 1 : 0.3,
-              transition: "opacity 900ms ease, box-shadow 900ms ease",
-              boxShadow: pulse ? "0 0 8px rgba(232,0,42,1), 0 0 16px rgba(232,0,42,0.5)" : "none",
-            }} />
-            <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            <span aria-hidden style={{
+              position: "relative", width: 20, height: 1.5, borderRadius: 1,
+              background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+            }}>
+              <span className="astrocore-badge-sweep" style={{
+                position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              }} />
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
               {t.dashboard.onlineBadge}
             </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              <h1 style={{ fontSize: 36, fontWeight: 700, color: T.t1, margin: 0, letterSpacing: "-0.03em", lineHeight: 1.15 }}>
-                {greeting()}, <span style={{ color: T.red }}>{userName}</span>.
-              </h1>
-              <div style={{ fontSize: 13, color: T.t4, marginTop: 10 }}>
-                {agents.length} {t.dashboard.statAgents.toLowerCase()} · {sessions.length} {t.dashboard.statSessions.toLowerCase()} · {activeProviders.length} {t.dashboard.statProviders.toLowerCase()}
-              </div>
-            </div>
+            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 34, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+              {greeting()}, <span style={{ color: T.red }}>{userName}</span>.
+            </h1>
 
             <div style={{ display: "flex", gap: 10 }}>
               {activeProviders.length === 0 && (
@@ -466,11 +504,28 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Stat cards */}
+          {/* divider above the stat cards */}
+          <div aria-hidden style={{
+            position: "relative", height: 1.5, marginBottom: 22,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+              animationDelay: "0.4s",
+            }} />
+          </div>
+
+          {/* Stat cards — one accent color (Agents, the product's core
+              noun) instead of a different color per card. The rest
+              share a single neutral tone: red now means one specific
+              thing across the whole app instead of being spent six
+              times over just to tell cards apart. */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-            gap: 16, marginBottom: 30,
+            gap: 16, marginBottom: 22,
           }}>
             <StatCard icon={Bot}           value={agents.length}           label={t.dashboard.statAgents}    sub={t.dashboard.statAgentsSub}    href="/agents"    color="#E8002A" />
             <StatCard icon={MessageSquare} value={sessions.length}         label={t.dashboard.statSessions}  sub={t.dashboard.statSessionsSub}  href="/chat"      color="#22C55E" />
@@ -478,6 +533,19 @@ export default function DashboardPage() {
             <StatCard icon={BookOpen}      value={vault.length}            label={t.dashboard.statVault}     sub={t.dashboard.statVaultSub}     href="/vault"     color="#F59E0B" />
             <StatCard icon={Brain}         value={memory.length}           label={t.dashboard.statMemory}    sub={t.dashboard.statMemorySub}    href="/memory"    color="#8B5CF6" />
             <StatCard icon={ImageIcon}     value={gallery.length}          label={t.dashboard.statGallery}   sub={t.dashboard.statGallerySub}   href="/gallery"   color="#EC4899" />
+          </div>
+
+          {/* divider below the stat cards */}
+          <div aria-hidden style={{
+            position: "relative", height: 1.5, marginBottom: 30,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+              animationDelay: "1.6s",
+            }} />
           </div>
 
           {/* Main grid */}
@@ -515,7 +583,7 @@ export default function DashboardPage() {
                         <div style={{ fontSize: 12.5, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {agent.name}
                         </div>
-                        {prov && <div style={{ fontSize: 10.5, color: T.t4, marginTop: 1 }}>{prov.name} · {prov.model}</div>}
+                        {prov && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, marginTop: 1 }}>{prov.name} · {prov.model}</div>}
                       </div>
                       <ArrowRight size={12} style={{ color: T.t4, flexShrink: 0 }} />
                     </ListRow>
@@ -566,7 +634,7 @@ export default function DashboardPage() {
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                        <div style={{ fontSize: 10.5, color: T.t4, marginTop: 1 }}>{ago(s.updated_at ?? s.created_at)}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, marginTop: 1 }}>{ago(s.updated_at ?? s.created_at)}</div>
                       </div>
                       <ArrowRight size={12} style={{ color: T.t4, flexShrink: 0 }} />
                     </ListRow>
@@ -617,9 +685,13 @@ export default function DashboardPage() {
                 </div>
               </GlassCard>
 
-              {/* Providers */}
-              <GlassCard>
-                <PanelHeader title={t.dashboard.providersPanel} actionLabel={t.dashboard.manage} onAction={() => router.push("/providers")} />
+              {/* Providers — dropped the green "active" dot: green
+                  wasn't part of the palette anywhere else, and the
+                  text badge next to it already says Active/Inactive
+                  in words, so the color was carrying no information
+                  the words didn't already give you. */}
+              <ConsolePanel>
+                <ConsoleHeader title={t.dashboard.providersPanel} actionLabel={t.dashboard.manage} onAction={() => router.push("/providers")} />
                 <div style={{ padding: "10px 14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
                   {providers.length === 0 ? (
                     <div style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: T.t4 }}>{t.dashboard.noProviders}</div>
@@ -632,9 +704,10 @@ export default function DashboardPage() {
                       }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontSize: 12, color: T.t2 }}>{p.name}</span>
-                        <span style={{ fontSize: 10.5, color: T.t4, marginLeft: 6 }}>{p.model}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, marginLeft: 6 }}>{p.model}</span>
                       </div>
                       <span style={{
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 9.5, padding: "1px 6px", borderRadius: 5,
                         background: p.is_active ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
                         border: `0.5px solid ${p.is_active ? "rgba(34,197,94,0.24)" : "rgba(255,255,255,0.07)"}`,
@@ -645,21 +718,19 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
-              </GlassCard>
+              </ConsolePanel>
 
               {/* Quick actions */}
-              <GlassCard>
-                <div style={{ padding: "15px 17px 13px", borderBottom: `0.5px solid ${T.b1}` }}>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>{t.dashboard.quickActions}</span>
-                </div>
+              <ConsolePanel>
+                <ConsoleHeader title={t.dashboard.quickActions} />
                 <div style={{ padding: "10px 10px 12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {[
-                    { icon: Bot,           label: t.dashboard.newAgent,    href: "/agents",    color: "#E8002A" },
-                    { icon: MessageSquare, label: t.dashboard.newChat,     href: "/chat",      color: "#22C55E" },
-                    { icon: BookOpen,      label: t.dashboard.statVault,   href: "/vault",     color: "#F59E0B" },
-                    { icon: Brain,         label: t.dashboard.statMemory,  href: "/memory",    color: "#8B5CF6" },
+                    { icon: Bot,           label: t.dashboard.newAgent,      href: "/agents",    color: "#E8002A" },
+                    { icon: MessageSquare, label: t.dashboard.newChat,       href: "/chat",      color: "#22C55E" },
+                    { icon: BookOpen,      label: t.dashboard.statVault,     href: "/vault",     color: "#F59E0B" },
+                    { icon: Brain,         label: t.dashboard.statMemory,    href: "/memory",    color: "#8B5CF6" },
                     { icon: Key,           label: t.dashboard.statProviders, href: "/providers", color: "#4285F4" },
-                    { icon: ImageIcon,     label: t.dashboard.statGallery, href: "/gallery",   color: "#EC4899" },
+                    { icon: ImageIcon,     label: t.dashboard.statGallery,   href: "/gallery",   color: "#EC4899" },
                   ].map(({ icon: Icon, label, href, color }) => (
                     <button key={href}
                       onClick={() => router.push(href)}
@@ -681,21 +752,20 @@ export default function DashboardPage() {
                     >
                       <Icon size={13} style={{ color, opacity: 0.9, flexShrink: 0 }} />
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                      <ArrowRight size={10} style={{ color: T.t4, marginLeft: "auto", flexShrink: 0 }} />
                     </button>
                   ))}
                 </div>
-              </GlassCard>
+              </ConsolePanel>
             </div>
 
           </div>
 
           {/* ── Recent activity — computed client-side from data above ── */}
           {activity.length > 0 && (
-            <GlassCard style={{ marginTop: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "15px 17px 13px", borderBottom: `0.5px solid ${T.b1}` }}>
-                <Sparkles size={13} style={{ color: T.red, opacity: 0.8 }} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#82829E", textTransform: "uppercase", letterSpacing: "0.09em" }}>{t.dashboard.recentActivity}</span>
+            <ConsolePanel style={{ marginTop: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 15px 11px", borderBottom: "0.5px solid rgba(255,255,255,0.07)" }}>
+                <Sparkles size={12} style={{ color: T.t4 }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, color: T.t4, letterSpacing: "0.07em", textTransform: "uppercase" }}>{t.dashboard.recentActivity}</span>
               </div>
               <div style={{ padding: "6px 8px" }}>
                 {activity.map(item => (
@@ -728,11 +798,11 @@ export default function DashboardPage() {
                       <div style={{ fontSize: 12.5, fontWeight: 500, color: T.t1 }}>{item.title}</div>
                       <div style={{ fontSize: 11, color: T.t4, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.subtitle}</div>
                     </div>
-                    <div style={{ fontSize: 10.5, color: T.t4, flexShrink: 0 }}>{ago(item.time)}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, flexShrink: 0 }}>{ago(item.time)}</div>
                   </div>
                 ))}
               </div>
-            </GlassCard>
+            </ConsolePanel>
           )}
         </div>
       </div>
