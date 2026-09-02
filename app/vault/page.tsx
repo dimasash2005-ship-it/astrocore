@@ -11,6 +11,8 @@ import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { getStoredVaultName, setStoredVaultName, openInObsidian } from "@/lib/obsidian-uri"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 type VaultItem = {
   id: string
@@ -64,6 +66,80 @@ function cut(s: string, n: number) {
 
 function sanitizeFilename(name: string): string {
   return (name || "vault-item").replace(/[\\/:*?"<>|]/g, "-").trim() || "vault-item"
+}
+
+// Strips markdown syntax down to plain text for the compact card
+// preview (a line-clamped snippet has no room to actually render
+// headers/lists, but showing literal "**text**" asterisks looks
+// broken) — the full PreviewModal below renders real markdown instead.
+function stripMarkdownForPreview(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .trim()
+}
+
+// ─── Markdown rendering (full preview) ─────────────────────────────
+// Same pattern used in the chat session view: override `pre` instead
+// of relying on the `inline` prop, so this works across react-markdown
+// major versions.
+
+const mdComponents: Record<string, (props: any) => React.ReactElement> = {
+  p:  ({ children }) => <p style={{ margin: "0 0 10px" }}>{children}</p>,
+  strong: ({ children }) => <strong style={{ color: "#fff", fontWeight: 600 }}>{children}</strong>,
+  em: ({ children }) => <em style={{ color: "inherit" }}>{children}</em>,
+  h1: ({ children }) => <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, margin: "14px 0 8px", color: T.t1 }}>{children}</h1>,
+  h2: ({ children }) => <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, margin: "12px 0 7px", color: T.t1 }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: 14, fontWeight: 600, margin: "10px 0 6px", color: T.t1 }}>{children}</h3>,
+  ul: ({ children }) => <ul style={{ margin: "4px 0 10px", paddingLeft: 22 }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ margin: "4px 0 10px", paddingLeft: 22 }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.65 }}>{children}</li>,
+  a:  ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#FF7A90", textDecoration: "underline" }}>{children}</a>,
+  blockquote: ({ children }) => <blockquote style={{ margin: "8px 0", padding: "2px 14px", borderLeft: "2px solid rgba(232,0,42,0.4)", color: T.t3 }}>{children}</blockquote>,
+  hr: () => <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "14px 0" }} />,
+  img: ({ src, alt }) => <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 12, display: "block", margin: "8px 0", border: "0.5px solid rgba(255,255,255,0.10)" }} />,
+  table: ({ children }) => <div style={{ overflowX: "auto", margin: "8px 0" }}><table style={{ borderCollapse: "collapse", fontSize: 13 }}>{children}</table></div>,
+  th: ({ children }) => <th style={{ border: "0.5px solid rgba(255,255,255,0.12)", padding: "6px 10px", textAlign: "left", color: T.t2, background: "rgba(255,255,255,0.04)" }}>{children}</th>,
+  td: ({ children }) => <td style={{ border: "0.5px solid rgba(255,255,255,0.10)", padding: "6px 10px", color: T.t2 }}>{children}</td>,
+  code: ({ children }: any) => (
+    <code style={{ background: "rgba(255,255,255,0.08)", padding: "1.5px 5px", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: "0.88em", color: "#FFB4C4" }}>
+      {children}
+    </code>
+  ),
+  pre: ({ children }: any) => {
+    const codeChild = Array.isArray(children) ? children[0] : children
+    const className = codeChild?.props?.className || ""
+    const match = /language-(\w+)/.exec(className)
+    const codeText = codeChild?.props?.children
+    return (
+      <div style={{ marginTop: 10, marginBottom: 10 }}>
+        {match && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#7DD3FC", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", opacity: 0.7 }}>
+            {match[1]}
+          </div>
+        )}
+        <pre style={{ background: "rgba(0,0,0,0.40)", border: "0.5px solid rgba(125,211,252,0.12)", borderRadius: 8, padding: "12px 14px", fontSize: 12.5, color: "#7DD3FC", overflow: "auto", margin: 0, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6 }}>
+          <code>{codeText}</code>
+        </pre>
+      </div>
+    )
+  },
+}
+
+function Markdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+      {content}
+    </ReactMarkdown>
+  )
 }
 
 // ─── Modal ────────────────────────────────────────────────────────
@@ -151,8 +227,8 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
             <BookOpen size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.vault.newEntryTitle}</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.vault.knowledgeVaultLabel}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.vault.newEntryTitle}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.t3, textTransform: "uppercase", letterSpacing: "0.06em" }}>{t.vault.knowledgeVaultLabel}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -344,6 +420,7 @@ function PreviewModal({ item, onClose, t, lang }: { item: VaultItem; onClose: ()
                 <FileText size={14} style={{ color: T.red }} />
               </div>
               <div style={{
+                fontFamily: "'Space Grotesk', sans-serif",
                 fontSize: 17, fontWeight: 700, color: T.t1,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
@@ -351,12 +428,13 @@ function PreviewModal({ item, onClose, t, lang }: { item: VaultItem; onClose: ()
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 9 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: T.t4 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: T.t4 }}>
                 <Clock size={11} /> {formatFullDate(item.created_at, lang)}
               </span>
               {item.source && (
                 <span style={{
-                  fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 10, padding: "2px 8px", borderRadius: 5,
                   background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)",
                   color: T.t3, textTransform: "capitalize",
                 }}>
@@ -390,15 +468,17 @@ function PreviewModal({ item, onClose, t, lang }: { item: VaultItem; onClose: ()
           </button>
         </div>
 
-        {/* Scrollable content */}
+        {/* Scrollable content — now real rendered markdown instead of
+            a raw pre-wrap text dump, so **bold**, lists, and headings
+            in saved content actually display as formatting. */}
         <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
           <div style={{
             fontSize: 13.5, color: T.t2, lineHeight: 1.75,
-            whiteSpace: "pre-wrap", wordBreak: "break-word",
+            wordBreak: "break-word",
             padding: "14px 16px", borderRadius: 10,
             background: "rgba(255,255,255,0.02)", border: `0.5px solid ${T.b1}`,
           }}>
-            {item.content}
+            <Markdown content={item.content} />
           </div>
         </div>
 
@@ -534,7 +614,7 @@ function VaultCard({ item, onDelete, onPreview, t, lang }: {
           }}>
             <FileText size={13} style={{ color: T.red, opacity: 0.8 }} />
           </div>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {item.title}
           </span>
         </div>
@@ -563,7 +643,9 @@ function VaultCard({ item, onDelete, onPreview, t, lang }: {
         </div>
       </div>
 
-      {/* Content preview */}
+      {/* Content preview — markdown syntax stripped, not rendered:
+          there's no room in a 4-line-clamped snippet for real headers
+          or lists, and literal "**text**" looked broken. */}
       <div style={{
         fontSize: 12, color: T.t3, lineHeight: 1.65,
         padding: "9px 11px", borderRadius: 8,
@@ -573,7 +655,7 @@ function VaultCard({ item, onDelete, onPreview, t, lang }: {
         WebkitLineClamp: 4,
         WebkitBoxOrient: "vertical",
       }}>
-        {item.content}
+        {stripMarkdownForPreview(item.content)}
       </div>
 
       {/* Footer */}
@@ -595,7 +677,7 @@ function VaultCard({ item, onDelete, onPreview, t, lang }: {
         </div>
 
         {/* Time */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, flexShrink: 0 }}>
           <Clock size={10} />
           {ago(item.created_at, t, lang)}
         </div>
@@ -620,7 +702,7 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       }}>
         <Database size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
         {t.vault.emptyTitle}
       </div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
@@ -637,9 +719,6 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       >
         <Plus size={14} /> {t.vault.addEntry}
       </button>
-      <div style={{ marginTop: 18, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.10em" }}>
-        {t.vault.knowledgeBase}
-      </div>
     </div>
   )
 }
@@ -653,12 +732,6 @@ export default function VaultPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [previewItem, setPreviewItem] = useState<VaultItem | null>(null)
-  const [pulse,     setPulse]     = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   async function load() {
     const sb = getSupabase()
@@ -699,6 +772,8 @@ export default function VaultPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%   { transform: translateX(-100%); opacity: 0; }
           10%  { opacity: 1; }
@@ -706,6 +781,16 @@ export default function VaultPage() {
           100% { transform: translateX(200%); opacity: 0; }
         }
         @keyframes spin { to { transform: rotate(360deg) } }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{
@@ -732,37 +817,41 @@ export default function VaultPage() {
           overflow: "hidden",
         }}>
           <div aria-hidden style={{
-            position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none",
-            background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)",
-          }} />
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{
             position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none",
             background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)",
-          }} />
-          <div aria-hidden style={{
-            position: "absolute", top: 0, left: "20%", right: "20%", height: 120, pointerEvents: "none",
-            background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.05) 0%,transparent 100%)",
           }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
               }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.red,
-                  display: "inline-block",
-                  opacity: pulse ? 1 : 0.3,
-                  transition: "opacity 900ms ease, box-shadow 900ms ease",
-                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-                }} />
-                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Knowledge Vault · {items.length} {t.vault.entriesSuffix}
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Knowledge Vault
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
                 {t.vault.title}
               </h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
@@ -803,7 +892,7 @@ export default function VaultPage() {
                   background: T.s1, border: `0.5px solid ${T.b1}`,
                 }}>
                   <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
                   <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
               ))}

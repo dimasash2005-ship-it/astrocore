@@ -258,6 +258,10 @@ function formatTime(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: L
   return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })
 }
 
+// Content register: normal-case Space Grotesk title, used for
+// Settings / Sessions / Danger Zone — these are named sections, not
+// system data readouts, so they lost the tracked-uppercase eyebrow
+// treatment they used to share with genuinely data-driven panels.
 function Card({ title, icon: Icon, children, action, accent }: {
   title: string; icon: React.ElementType; children: React.ReactNode
   action?: React.ReactNode; accent?: boolean
@@ -275,7 +279,7 @@ function Card({ title, icon: Icon, children, action, accent }: {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Icon size={13} style={{ color: accent ? T.red : T.t4 }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: T.t2 }}>
             {title}
           </span>
         </div>
@@ -290,11 +294,11 @@ function Divider() {
   return <div style={{ height: "0.5px", background: "rgba(255,255,255,0.06)", margin: "12px 0" }} />
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, color: T.t2 }}>{value || "—"}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit", fontSize: 13, color: T.t2 }}>{value || "—"}</div>
     </div>
   )
 }
@@ -460,10 +464,10 @@ function SessionList({ sessions, onOpen, onDelete, t, lang }: {
               <div style={{ fontSize: 11, color: T.t4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{preview}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: T.t4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
                 <Clock size={9} />{formatTime(time, t, lang)}
               </div>
-              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
                 {session.messages.length}
               </span>
               <button className="del-btn"
@@ -550,12 +554,6 @@ export default function AgentDetailPage() {
   const [sessions,     setSessions]     = useState<ChatSession[]>([])
   const [isEditing,    setIsEditing]    = useState(false)
   const [notFound,     setNotFound]     = useState(false)
-  const [pulse,        setPulse]        = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   const loadData = useCallback(async () => {
     const sb = getSupabase()
@@ -627,8 +625,20 @@ export default function AgentDetailPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(200%);opacity:0}
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
         }
       `}</style>
 
@@ -646,7 +656,16 @@ export default function AgentDetailPage() {
 
         {/* Hero */}
         <div style={{ position: "relative", padding: "32px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1 }}>
@@ -673,21 +692,24 @@ export default function AgentDetailPage() {
                 </div>
                 <div>
                   <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
+                    display: "inline-flex", alignItems: "center", gap: 6,
                     background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                    borderRadius: 20, padding: "2px 8px", marginBottom: 6,
+                    borderRadius: 20, padding: "3px 9px 3px 8px", marginBottom: 6,
                   }}>
-                    <span style={{
-                      width: 4, height: 4, borderRadius: "50%", background: T.red, display: "inline-block",
-                      opacity: pulse ? 1 : 0.3,
-                      transition: "opacity 900ms ease, box-shadow 900ms ease",
-                      boxShadow: pulse ? "0 0 5px rgba(232,0,42,1)" : "none",
-                    }} />
-                    <span style={{ fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                      AI Agent · Active
+                    <span aria-hidden style={{
+                      position: "relative", width: 14, height: 1.5, borderRadius: 1,
+                      background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                    }}>
+                      <span className="astrocore-badge-sweep" style={{
+                        position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                        background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                      }} />
+                    </span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.05em" }}>
+                      AI Agent
                     </span>
                   </div>
-                  <h1 style={{ fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{agent.name}</h1>
+                  <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{agent.name}</h1>
                   {agent.description && (
                     <p style={{ fontSize: 13, color: T.t3, margin: "4px 0 0" }}>{agent.description}</p>
                   )}
@@ -712,15 +734,20 @@ export default function AgentDetailPage() {
         <div style={{ padding: "24px 48px 56px", maxWidth: 900 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-            {/* Overview */}
+            {/* Overview — genuine data readout, keeps the mono/caps
+                treatment plus the same grid-texture background used
+                for Dashboard's system panels. */}
             <div style={{
-              background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-              border: `0.5px solid ${T.b1}`, borderRadius: 14, padding: "18px 20px",
+              position: "relative",
+              background: "#0A0A10",
+              backgroundImage: "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)",
+              backgroundSize: "14px 14px",
+              border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "18px 20px",
               display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20,
             }}>
               <InfoRow label={t.agentDetail.provider} value={provider ? provider.name : t.agentDetail.providerNotFound} />
-              <InfoRow label={t.agentDetail.modelLabel}    value={provider ? provider.model : "—"} />
-              <InfoRow label={t.agentDetail.sessionsLabel}     value={`${sessions.length} ${t.agentDetail.sessionsSuffix}`} />
+              <InfoRow label={t.agentDetail.modelLabel}    value={provider ? provider.model : "—"} mono />
+              <InfoRow label={t.agentDetail.sessionsLabel}     value={`${sessions.length} ${t.agentDetail.sessionsSuffix}`} mono />
             </div>
 
             {/* Settings */}
@@ -745,7 +772,7 @@ export default function AgentDetailPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ width: 20, height: 20, borderRadius: 5, background: agent.avatar_color ?? T.red, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: T.t3 }}>{agent.avatar_color ?? "—"}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: T.t3 }}>{agent.avatar_color ?? "—"}</span>
                   </div>
                   <Divider />
                   <InfoRow label={t.agentDetail.nameField} value={agent.name} />
@@ -757,7 +784,7 @@ export default function AgentDetailPage() {
                     <>
                       <Divider />
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{t.agentDetail.systemPrompt}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{t.agentDetail.systemPrompt}</div>
                         <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.65, padding: "10px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                           {agent.system_prompt}
                         </div>
@@ -768,20 +795,28 @@ export default function AgentDetailPage() {
               )}
             </Card>
 
-            {/* ── Agent Workspace ── */}
+            {/* ── Agent Workspace — the clearest system-register block
+                on this page: skills, tools, knowledge, and workflow are
+                genuine functional data about the agent, not a named
+                section, so the grid-texture + mono-caps treatment
+                (same as Dashboard's Providers/Activity panels) belongs
+                here rather than being applied by default everywhere. ── */}
             <div style={{
-              background: "linear-gradient(160deg,#0F0F1E 0%,#0A0A14 100%)",
-              border: "0.5px solid rgba(232,0,42,0.18)", borderRadius: 16, overflow: "hidden",
+              position: "relative",
+              background: "#0A0A10",
+              backgroundImage: "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)",
+              backgroundSize: "14px 14px",
+              border: "0.5px solid rgba(232,0,42,0.16)", borderRadius: 10, overflow: "hidden",
             }}>
               {/* Workspace header */}
               <div style={{
-                padding: "14px 18px 12px",
-                borderBottom: "0.5px solid rgba(255,255,255,0.07)",
-                background: "rgba(232,0,42,0.04)",
+                padding: "11px 16px 10px",
+                borderBottom: "0.5px solid rgba(255,255,255,0.09)",
+                background: "rgba(10,10,16,0.55)",
                 display: "flex", alignItems: "center", gap: 8,
               }}>
-                <Zap size={13} style={{ color: T.red }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.red, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+                <Zap size={12} style={{ color: T.red }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, color: T.red, textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   Agent Workspace
                 </span>
               </div>
@@ -790,7 +825,7 @@ export default function AgentDetailPage() {
 
                 {/* Skills */}
                 <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
                     {t.agentDetail.skills}
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
@@ -834,7 +869,7 @@ export default function AgentDetailPage() {
 
                 {/* Tools */}
                 <div style={{ padding: "16px 18px", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
                     {t.agentDetail.tools}
                   </div>
                   <AgentTools />
@@ -842,7 +877,7 @@ export default function AgentDetailPage() {
 
                 {/* Knowledge */}
                 <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
                     {t.agentDetail.knowledge}
                   </div>
                   <AgentKnowledge systemPrompt={agent.system_prompt} />
@@ -850,7 +885,7 @@ export default function AgentDetailPage() {
 
                 {/* Workflow */}
                 <div style={{ padding: "16px 18px" }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
                     Workflow
                   </div>
                   <AgentWorkflow agentName={agent.name} />

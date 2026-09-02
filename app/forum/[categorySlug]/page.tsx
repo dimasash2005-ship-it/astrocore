@@ -142,8 +142,8 @@ function NewTopicModal({ category, onClose, onCreated, t }: {
             <MessageSquare size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.forum.newTopicTitle}</div>
-            <div style={{ fontSize: 11, color: T.t4 }}>{category.name}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.forum.newTopicTitle}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>{category.name}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -286,6 +286,8 @@ export default function ForumCategoryPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
@@ -327,7 +329,7 @@ export default function ForumCategoryPage() {
                   <Icon size={20} style={{ color: accent }} />
                 </div>
                 <div>
-                  <h1 style={{ fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+                  <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
                     {category?.name}
                   </h1>
                   {category?.description && (
@@ -364,7 +366,7 @@ export default function ForumCategoryPage() {
           {!loaded ? null : topics.length === 0 ? (
             <div style={{ padding: "64px 24px", textAlign: "center" }}>
               <MessageSquare size={26} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 14px" }} />
-              <div style={{ fontSize: 15, fontWeight: 500, color: T.t1, marginBottom: 6 }}>{t.forum.noTopicsYet}</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1, marginBottom: 6 }}>{t.forum.noTopicsYet}</div>
               <div style={{ fontSize: 12.5, color: T.t4, marginBottom: 22 }}>{t.forum.noTopicsHint}</div>
               {isAuthed && (
                 <button onClick={() => setShowModal(true)} style={{
@@ -399,7 +401,7 @@ export default function ForumCategoryPage() {
                       width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                       background: `${accent}22`, border: `0.5px solid ${accent}44`,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 14, fontWeight: 700, color: accent,
+                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, color: accent,
                     }}>
                       {initials(topic.author_name)}
                     </div>
@@ -417,7 +419,7 @@ export default function ForumCategoryPage() {
                           {t.forum.startedBy} {topic.author_name ?? t.forum.anonymousUser}
                         </span>
                         <span style={{ fontSize: 11, color: "#252540" }}>·</span>
-                        <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, display: "flex", alignItems: "center", gap: 3 }}>
                           <Clock size={9} />{ago(topic.last_reply_at, t, language)}
                         </span>
                       </div>
@@ -425,7 +427,8 @@ export default function ForumCategoryPage() {
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                       <span style={{
-                        fontSize: 11, padding: "2px 9px", borderRadius: 5,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 10.5, padding: "2px 9px", borderRadius: 5,
                         background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`,
                         color: T.t3, display: "flex", alignItems: "center", gap: 4,
                       }}>

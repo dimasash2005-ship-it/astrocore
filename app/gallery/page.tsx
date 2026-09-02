@@ -143,7 +143,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
             <Sparkles size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.gallery.saveOutputTitle}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.gallery.saveOutputTitle}</div>
             <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.gallery.layerLabel}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
@@ -325,10 +325,10 @@ function GenerateModal({ onClose, onAdded, t, language }: {
             <Wand2 size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>
               {isUk ? "Згенерувати за допомогою AI" : "Generate with AI"}
             </div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.t3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Leonardo AI
             </div>
           </div>
@@ -595,10 +595,10 @@ function GalleryCard({ item, onDelete, t, lang }: {
 
         {/* footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 2 }}>
-          <span style={{ fontSize: 10, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.06em" }}>
             {t.gallery.aiOutputLabel}
           </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: T.t4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
             <Clock size={10} />
             {ago(item.created_at, t, lang)}
           </div>
@@ -625,7 +625,7 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       }}>
         <Sparkles size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.gallery.emptyTitle}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.gallery.emptyTitle}</div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
         {t.gallery.emptyDesc}
       </div>
@@ -656,15 +656,9 @@ export default function GalleryPage() {
   const [typeFilter, setTypeFilter] = useState<FilterType>("all")
   const [showModal, setShowModal] = useState(false)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
-  const [pulse,     setPulse]     = useState(false)
 
   const isUk = language === "uk"
   const TYPE_META = getTypeMeta(t, language)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   async function load() {
     const sb = getSupabase()
@@ -700,6 +694,8 @@ export default function GalleryPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%   { transform: translateX(-100%); opacity: 0; }
           10%  { opacity: 1; }
@@ -709,6 +705,16 @@ export default function GalleryPage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
         }
       `}</style>
 
@@ -735,29 +741,40 @@ export default function GalleryPage() {
           borderBottom: `0.5px solid ${T.b1}`,
           overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: -1, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
           <div aria-hidden style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: 120, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.05) 0%,transparent 100%)" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
               }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.red,
-                  display: "inline-block",
-                  opacity: pulse ? 1 : 0.3,
-                  transition: "opacity 900ms ease, box-shadow 900ms ease",
-                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-                }} />
-                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Output Gallery · {items.length} {t.gallery.outputsSuffix}
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Output Gallery
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.gallery.title}</h1>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.gallery.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
                 {t.gallery.subtitle}
               </p>
@@ -797,6 +814,19 @@ export default function GalleryPage() {
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
 
+            {/* divider above stats */}
+            <div aria-hidden style={{
+              position: "relative", height: 1.5, marginBottom: 22,
+              background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+            }}>
+              <div className="astrocore-hero-sweep" style={{
+                position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+                animationDelay: "0.4s",
+              }} />
+            </div>
+
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
               {[
@@ -812,10 +842,23 @@ export default function GalleryPage() {
                   background: T.s1, border: `0.5px solid ${T.b1}`,
                 }}>
                   <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
                   <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
               ))}
+            </div>
+
+            {/* divider below stats */}
+            <div aria-hidden style={{
+              position: "relative", height: 1.5, marginBottom: 22,
+              background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+            }}>
+              <div className="astrocore-hero-sweep" style={{
+                position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+                animationDelay: "1.6s",
+              }} />
             </div>
 
             {/* Search + type filter */}

@@ -107,7 +107,7 @@ function PostBubble({ post, accent, isOwn, isOriginal, onDelete, t, lang }: {
         width: 34, height: 34, borderRadius: 10, flexShrink: 0,
         background: `${accent}22`, border: `0.5px solid ${accent}44`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 13, fontWeight: 700, color: accent,
+        fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: accent,
       }}>
         {initials(post.author_name)}
       </div>
@@ -117,7 +117,7 @@ function PostBubble({ post, accent, isOwn, isOriginal, onDelete, t, lang }: {
           <span style={{ fontSize: 13, fontWeight: 600, color: T.t1 }}>
             {post.author_name ?? t.forum.anonymousUser}
           </span>
-          <span style={{ fontSize: 10.5, color: T.t4, display: "flex", alignItems: "center", gap: 3 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, display: "flex", alignItems: "center", gap: 3 }}>
             <Clock size={9} />{ago(post.created_at, t, lang)}
           </span>
         </div>
@@ -298,6 +298,8 @@ export default function ForumTopicPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
@@ -352,7 +354,7 @@ export default function ForumTopicPage() {
               }}><Radio size={9} />{t.forum.liveIndicator}</span>
             </div>
 
-            <h1 style={{ fontSize: 22, fontWeight: 600, color: T.t1, margin: "10px 0 0", letterSpacing: "-0.02em", lineHeight: 1.35 }}>
+            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 600, color: T.t1, margin: "10px 0 0", letterSpacing: "-0.02em", lineHeight: 1.35 }}>
               {topic?.title}
             </h1>
           </div>
@@ -381,7 +383,7 @@ export default function ForumTopicPage() {
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 11, color: T.t4, margin: "10px 0 2px" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, margin: "10px 0 2px" }}>
                     {posts.length} {t.forum.repliesLabel}
                   </div>
                   {posts.map(post => (

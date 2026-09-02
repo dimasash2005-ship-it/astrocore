@@ -6,7 +6,7 @@ import Link from "next/link"
 import {
   MessageSquare, Bot, Zap, Sparkles, HelpCircle,
   Plus, Clock, X, AlertCircle, ChevronRight,
-  Users, Radio, Lock, Pin,
+  Radio, Lock, Pin,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
@@ -57,6 +57,14 @@ const ICON_MAP: Record<string, React.ElementType> = {
   MessageSquare, Bot, Zap, Sparkles, HelpCircle,
 }
 
+// A topic counts as "recently active" if its last reply landed within
+// this window — that's the only thing that earns the animated signal
+// line instead of a plain static dot. Otherwise every topic would get
+// the same "live" treatment regardless of whether anything is actually
+// happening, which is exactly the kind of decoration-with-no-meaning
+// this app has been steadily removing everywhere else.
+const RECENT_WINDOW_MS = 10 * 60 * 1000
+
 function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language): string {
   if (!iso) return ""
   const d = Date.now() - new Date(iso).getTime()
@@ -77,11 +85,16 @@ function initials(name: string | null): string {
   return name.trim().charAt(0).toUpperCase()
 }
 
+function excerpt(text: string, n: number): string {
+  const clean = (text ?? "").replace(/\s+/g, " ").trim()
+  return clean.length > n ? clean.slice(0, n) + "…" : clean
+}
+
 // ─── New topic modal ──────────────────────────────────────────────
 
 function NewTopicModal({ categories, defaultCategoryId, onClose, onCreated, t }: {
   categories: Category[]
-  defaultCategoryId?: string
+  defaultCategoryId?: string | null
   onClose: () => void
   onCreated: (topicId: string) => void
   t: ReturnType<typeof useLanguage>["t"]
@@ -150,7 +163,7 @@ function NewTopicModal({ categories, defaultCategoryId, onClose, onCreated, t }:
           }}>
             <MessageSquare size={15} style={{ color: T.red }} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.forum.newTopicTitle}</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.forum.newTopicTitle}</div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
           </button>
@@ -218,67 +231,102 @@ function NewTopicModal({ categories, defaultCategoryId, onClose, onCreated, t }:
   )
 }
 
+// ─── Recency indicator ──────────────────────────────────────────────
+// A thin signal line for topics active in the last 10 minutes (the
+// same motif as Sidebar's rail and Dashboard's status panels); a quiet
+// static dot for everything else. The animation is reserved for
+// something that's actually true right now, not decoration.
+
+function RecencyDot({ recent, color }: { recent: boolean; color: string }) {
+  if (!recent) {
+    return <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: T.t4, flexShrink: 0, opacity: 0.6 }} />
+  }
+  return (
+    <span aria-hidden style={{
+      position: "relative", width: 16, height: 1.5, borderRadius: 1, flexShrink: 0,
+      background: `${color}30`, overflow: "hidden", display: "inline-block",
+    }}>
+      <span className="astrocore-badge-sweep" style={{
+        position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+        background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+      }} />
+    </span>
+  )
+}
+
 // ─── Topic row ────────────────────────────────────────────────────
 
-function TopicRow({ topic, category, t, lang }: {
-  topic: Topic; category?: Category
+function TopicRow({ topic, category, isNew, t, lang }: {
+  topic: Topic; category?: Category; isNew?: boolean
   t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   const accent = category?.color ?? T.red
+  const isRecent = Date.now() - new Date(topic.last_reply_at).getTime() < RECENT_WINDOW_MS
 
   return (
     <Link href={`/forum/topic/${topic.id}`} style={{ textDecoration: "none" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 13,
-        padding: "12px 15px", borderRadius: 11,
-        background: "rgba(255,255,255,0.02)", border: "0.5px solid rgba(255,255,255,0.06)",
-        transition: "background 130ms ease, border-color 130ms ease",
-        cursor: "pointer",
-      }}
+      <div
+        className={isNew ? "astrocore-topic-new" : undefined}
+        style={{
+          display: "flex", alignItems: "flex-start", gap: 13,
+          padding: "14px 16px 14px 18px", borderRadius: 11, position: "relative",
+          background: "rgba(255,255,255,0.02)", border: "0.5px solid rgba(255,255,255,0.06)",
+          transition: "background 130ms ease, border-color 130ms ease",
+          cursor: "pointer", overflow: "hidden",
+        }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.05)"
-          ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.20)"
+          (e.currentTarget as HTMLElement).style.background = `${accent}0D`
+          ;(e.currentTarget as HTMLElement).style.borderColor = `${accent}33`
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"
           ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.06)"
         }}
       >
+        <span aria-hidden style={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 2.5, borderRadius: "0 3px 3px 0", background: accent }} />
+
         <div style={{
-          width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+          width: 34, height: 34, borderRadius: 9, flexShrink: 0, marginTop: 1,
           background: `${accent}22`, border: `0.5px solid ${accent}44`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 700, color: accent,
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: accent,
         }}>
           {initials(topic.author_name)}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4, flexWrap: "wrap" }}>
             {topic.is_pinned && <Pin size={11} style={{ color: T.red, flexShrink: 0 }} />}
             {topic.is_locked && <Lock size={11} style={{ color: T.t4, flexShrink: 0 }} />}
-            <span style={{ fontSize: 13.5, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: T.t1 }}>
               {topic.title}
             </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
             {category && (
               <span style={{
-                fontSize: 10, padding: "1px 7px", borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9.5, padding: "1.5px 7px", borderRadius: 5, fontWeight: 600, letterSpacing: "0.02em",
                 background: `${accent}18`, color: accent,
               }}>{category.name}</span>
             )}
+          </div>
+
+          {topic.content && (
+            <div style={{ fontSize: 12.5, color: T.t3, lineHeight: 1.5, marginBottom: 7, maxWidth: 620 }}>
+              {excerpt(topic.content, 120)}
+            </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <RecencyDot recent={isRecent} color={accent} />
             <span style={{ fontSize: 11, color: T.t4 }}>{topic.author_name ?? t.forum.anonymousUser}</span>
-            <span style={{ fontSize: 11, color: "#252540" }}>·</span>
-            <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 3 }}>
-              <Clock size={9} />{ago(topic.last_reply_at, t, lang)}
-            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>{ago(topic.last_reply_at, t, lang)}</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, marginTop: 2 }}>
           <span style={{
-            fontSize: 11, padding: "2px 8px", borderRadius: 5,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
             background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`,
             color: T.t3, display: "flex", alignItems: "center", gap: 4,
           }}>
@@ -297,24 +345,25 @@ export default function ForumPage() {
   const router = useRouter()
   const { t, language } = useLanguage()
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [topics,     setTopics]     = useState<Topic[]>([])
-  const [loaded,     setLoaded]     = useState(false)
-  const [showModal,  setShowModal]  = useState(false)
-  const [isAuthed,   setIsAuthed]   = useState(false)
-  const [pulse,      setPulse]      = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
+  const [categories, setCategories]   = useState<Category[]>([])
+  const [topics,     setTopics]       = useState<Topic[]>([])
+  const [loaded,     setLoaded]       = useState(false)
+  const [showModal,  setShowModal]    = useState(false)
+  const [isAuthed,   setIsAuthed]     = useState(false)
+  const [activeCat,  setActiveCat]    = useState<string | null>(null)
+  const [justAddedId, setJustAddedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       const sb = getSupabase()
       const [{ data: cats }, { data: tops }, { data: userData }] = await Promise.all([
         sb.from("forum_categories").select("*").order("position", { ascending: true }),
-        sb.from("forum_topics").select("*").order("last_reply_at", { ascending: false }).limit(20),
+        // Capped at 100 rather than paginated — comfortably covers a
+        // young forum's whole recent history in one request. If this
+        // ever fills up regularly, category filtering below should
+        // switch to a direct server-side query instead of filtering
+        // this capped list client-side.
+        sb.from("forum_topics").select("*").order("last_reply_at", { ascending: false }).limit(100),
         sb.auth.getUser(),
       ])
       if (cats) setCategories(cats as Category[])
@@ -328,16 +377,19 @@ export default function ForumPage() {
   useEffect(() => { load() }, [load])
 
   // Live updates: any new topic anywhere shows up at the top of the
-  // recent list without a refresh. Updates (reply_count / last_reply_at
-  // bumps from the DB trigger) are merged in place so activity ordering
-  // stays correct.
+  // feed without a refresh, with a brief entrance animation so it's
+  // visible that something just happened rather than silently
+  // appearing. Updates (reply_count / last_reply_at bumps from the DB
+  // trigger) are merged in place so activity ordering stays correct.
   useEffect(() => {
     const sb = getSupabase()
     const channel = sb
       .channel("forum-home")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "forum_topics" },
         payload => {
-          setTopics(prev => [payload.new as Topic, ...prev].slice(0, 20))
+          const incoming = payload.new as Topic
+          setTopics(prev => [incoming, ...prev].slice(0, 100))
+          setJustAddedId(incoming.id)
         })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "forum_topics" },
         payload => {
@@ -355,11 +407,28 @@ export default function ForumPage() {
 
   function getCategory(id: string) { return categories.find(c => c.id === id) }
 
+  const visible = activeCat ? topics.filter(x => x.category_id === activeCat) : topics
+  const pinned  = visible.filter(x => x.is_pinned)
+  const regular = visible.filter(x => !x.is_pinned)
+  const activeCategory = activeCat ? getCategory(activeCat) : undefined
+
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-topic-new { animation: astrocoreTopicIn 420ms ease-out; }
+        @keyframes astrocoreTopicIn {
+          from { opacity: 0; transform: translateY(-8px); background: rgba(232,0,42,0.10); }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
@@ -382,22 +451,25 @@ export default function ForumPage() {
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.25)",
-                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+                borderRadius: 20, padding: "4px 11px 4px 9px", marginBottom: 14,
               }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.green, display: "inline-block",
-                  opacity: pulse ? 1 : 0.3,
-                  transition: "opacity 900ms ease, box-shadow 900ms ease",
-                  boxShadow: pulse ? "0 0 6px rgba(34,197,94,1)" : "none",
-                }} />
-                <span style={{ fontSize: 10, color: T.green, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  <Radio size={9} style={{ display: "inline", verticalAlign: "-1px", marginRight: 4 }} />
+                <span aria-hidden style={{
+                  position: "relative", width: 16, height: 1.5, borderRadius: 1,
+                  background: "rgba(34,197,94,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #22C55E, transparent)",
+                    animation: "astrocoreBadgeSweep 1.8s linear infinite",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.green, fontWeight: 600, letterSpacing: "0.06em" }}>
                   {t.forum.liveIndicator}
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.forum.title}</h1>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.forum.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.forum.subtitle}</p>
             </div>
 
@@ -429,70 +501,84 @@ export default function ForumPage() {
         {/* Body */}
         <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
 
-          {/* Categories */}
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-            {t.forum.categoriesTitle}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, marginBottom: 32 }}>
+          {/* Category filter chips */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+            <button onClick={() => setActiveCat(null)} style={{
+              fontSize: 12.5, fontWeight: 500, padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+              background: activeCat === null ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.045)",
+              color: activeCat === null ? "#fff" : T.t3,
+              border: `0.5px solid ${activeCat === null ? "rgba(232,0,42,0.35)" : "rgba(255,255,255,0.08)"}`,
+            }}>
+              {language === "uk" ? "Усі" : "All"}
+            </button>
             {categories.map(cat => {
-              const Icon = ICON_MAP[cat.icon ?? "MessageSquare"] ?? MessageSquare
               const accent = cat.color ?? T.red
+              const active = activeCat === cat.id
               const count = topics.filter(x => x.category_id === cat.id).length
               return (
-                <Link key={cat.id} href={`/forum/${cat.slug}`} style={{ textDecoration: "none" }}>
-                  <div style={{
-                    background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-                    border: `0.5px solid ${T.b1}`, borderRadius: 14,
-                    padding: "16px 18px", cursor: "pointer",
-                    display: "flex", flexDirection: "column", gap: 10,
-                    transition: "border-color 150ms ease, box-shadow 150ms ease",
-                  }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = `${accent}55`
-                      ;(e.currentTarget as HTMLElement).style.boxShadow = `0 0 24px ${accent}14`
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = T.b1
-                      ;(e.currentTarget as HTMLElement).style.boxShadow = "none"
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                        background: `${accent}18`, border: `0.5px solid ${accent}33`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        <Icon size={15} style={{ color: accent }} />
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: T.t1 }}>{cat.name}</div>
-                    </div>
-                    {cat.description && (
-                      <div style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.5 }}>{cat.description}</div>
-                    )}
-                    <div style={{ fontSize: 10.5, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
-                      <Users size={9} />{count} {t.forum.topicsCount}
-                    </div>
-                  </div>
-                </Link>
+                <button key={cat.id} onClick={() => setActiveCat(active ? null : cat.id)} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  fontSize: 12.5, fontWeight: 500, padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+                  background: active ? `${accent}22` : "rgba(255,255,255,0.045)",
+                  color: active ? accent : T.t3,
+                  border: `0.5px solid ${active ? `${accent}55` : "rgba(255,255,255,0.08)"}`,
+                }}>
+                  <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+                  {cat.name}
+                  <span style={{ opacity: 0.6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5 }}>{count}</span>
+                </button>
               )
             })}
           </div>
 
-          {/* Recent topics */}
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>
-            {t.forum.lastActivity}
-          </div>
-
-          {!loaded ? null : topics.length === 0 ? (
-            <div style={{ padding: "48px 0", textAlign: "center" }}>
-              <MessageSquare size={24} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 12px" }} />
-              <div style={{ fontSize: 13, color: T.t4, marginBottom: 6 }}>{t.forum.noTopicsYet}</div>
-              <div style={{ fontSize: 12, color: T.t4, opacity: 0.7 }}>{t.forum.noTopicsHint}</div>
+          {/* Pinned */}
+          {pinned.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                <Pin size={11} style={{ color: T.red }} /> {t.forum.pinnedLabel}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pinned.map(topic => (
+                  <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} t={t} lang={language} />
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* Feed */}
+          {!loaded ? null : visible.length === 0 ? (
+            activeCategory ? (
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap",
+                padding: "16px 18px", borderRadius: 11,
+                background: `${activeCategory.color ?? T.red}0D`,
+                border: `0.5px dashed ${activeCategory.color ?? T.red}44`,
+              }}>
+                <span style={{ fontSize: 13, color: T.t2 }}>
+                  {t.forum.noTopicsHint}
+                </span>
+                {isAuthed && (
+                  <button onClick={() => setShowModal(true)} style={{
+                    display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+                    background: `${activeCategory.color ?? T.red}22`, color: activeCategory.color ?? T.red,
+                    border: `0.5px solid ${activeCategory.color ?? T.red}44`,
+                    borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 500, cursor: "pointer",
+                  }}>
+                    <Plus size={13} /> {t.forum.newTopic}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{ padding: "48px 0", textAlign: "center" }}>
+                <MessageSquare size={24} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 12px" }} />
+                <div style={{ fontSize: 13, color: T.t4, marginBottom: 6 }}>{t.forum.noTopicsYet}</div>
+                <div style={{ fontSize: 12, color: T.t4, opacity: 0.7 }}>{t.forum.noTopicsHint}</div>
+              </div>
+            )
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {topics.map(topic => (
-                <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} t={t} lang={language} />
+              {regular.map(topic => (
+                <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} t={t} lang={language} />
               ))}
             </div>
           )}
@@ -502,6 +588,7 @@ export default function ForumPage() {
       {showModal && (
         <NewTopicModal
           categories={categories}
+          defaultCategoryId={activeCat}
           onClose={() => setShowModal(false)}
           onCreated={id => { setShowModal(false); router.push(`/forum/topic/${id}`) }}
           t={t}

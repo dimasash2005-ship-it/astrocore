@@ -670,7 +670,7 @@ export default function ChatPage() {
             </button>
           </div>
         ) : (
-          <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
+          <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
 
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>

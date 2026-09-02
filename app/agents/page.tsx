@@ -508,8 +508,8 @@ function CreateAgentModal({ providers, onClose, onCreated, t, language }: {
             <Bot size={16} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.agents.newAgentModalTitle}</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>AI Agent Layer</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.agents.newAgentModalTitle}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.t3, textTransform: "uppercase", letterSpacing: "0.06em" }}>AI Agent Layer</div>
           </div>
           {!showTemplates && (
             <button onClick={() => setShowTemplates(true)} style={{
@@ -802,7 +802,7 @@ function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t 
             {agent.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 2 }}>{agent.name}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 2 }}>{agent.name}</div>
             {agent.description && (
               <div style={{ fontSize: 11.5, color: T.t3, lineHeight: 1.4 }}>{agent.description}</div>
             )}
@@ -831,7 +831,7 @@ function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t 
             <span style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)", color: T.t2 }}>
               {provider.name}
             </span>
-            <span style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3 }}>
               {provider.model}
             </span>
           </>
@@ -841,7 +841,7 @@ function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t 
           </span>
         )}
         {sessionCount > 0 && (
-          <span style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3, display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3, display: "flex", alignItems: "center", gap: 4 }}>
             <MessageSquare size={9} />{sessionCount} {t.agents.sessionsSuffix}
           </span>
         )}
@@ -898,14 +898,11 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       }}>
         <Bot size={30} style={{ color: T.red, opacity: 0.7 }} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.agents.noAgentsYet}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.agents.noAgentsYet}</div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, maxWidth: 320, marginBottom: 24 }}>
         {t.agents.noAgentsHint}
       </div>
       <RBtn icon={Plus} label={t.agents.createAgent} onClick={onAdd} />
-      <div style={{ marginTop: 16, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-        AI Agent Layer · Workspace Agents
-      </div>
     </div>
   )
 }
@@ -917,12 +914,6 @@ export default function AgentsPage() {
   const [providers, setProviders] = useState<Provider[]>([])
   const [sessions,  setSessions]  = useState<{ agentId: string }[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [pulse,     setPulse]     = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   async function refresh() {
     const sb = getSupabase()
@@ -965,11 +956,23 @@ export default function AgentsPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%   { transform: translateX(-100%); opacity: 0; }
           10%  { opacity: 1; }
           90%  { opacity: 1; }
           100% { transform: translateX(100vw); opacity: 0; }
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
         }
       `}</style>
 
@@ -992,27 +995,39 @@ export default function AgentsPage() {
           position: "relative", padding: "36px 48px 30px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)", pointerEvents: "none" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)", pointerEvents: "none" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
               }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
-                  opacity: pulse ? 1 : 0.3,
-                  transition: "box-shadow 900ms ease, opacity 900ms ease",
-                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-                }} />
-                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Agent Control · {agents.length} {t.agents.activeCountSuffix}
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Agent Control
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.2 }}>{t.agents.title}</h1>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.2 }}>{t.agents.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
                 {t.agents.subtitle}
               </p>
@@ -1035,23 +1050,25 @@ export default function AgentsPage() {
         {/* Body */}
         <div style={{ padding: "28px 48px 56px", maxWidth: 1560 }}>
           {agents.length > 0 && (
-            <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
-              {[
-                { label: t.agents.totalAgents,  value: agents.length,    icon: Bot           },
-                { label: t.agents.activeSessions,   value: sessions.length,  icon: MessageSquare },
-                { label: t.agents.providers,       value: providers.length, icon: Activity      },
-              ].map(({ label, value, icon: Icon }) => (
-                <div key={label} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 16px", borderRadius: 10,
-                  background: T.s1, border: `0.5px solid ${T.b1}`,
-                }}>
-                  <Icon size={14} style={{ color: T.red, opacity: 0.7 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
-                  <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
+                {[
+                  { label: t.agents.totalAgents,  value: agents.length,    icon: Bot           },
+                  { label: t.agents.activeSessions,   value: sessions.length,  icon: MessageSquare },
+                  { label: t.agents.providers,       value: providers.length, icon: Activity      },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 16px", borderRadius: 10,
+                    background: T.s1, border: `0.5px solid ${T.b1}`,
+                  }}>
+                    <Icon size={14} style={{ color: T.red, opacity: 0.7 }} />
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
+                    <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {agents.length === 0 ? (
