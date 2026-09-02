@@ -15,6 +15,8 @@ import { QuickActions } from "@/components/agents/QuickActions"
 import { getAgentSkills } from "@/components/agents/skillRegistry"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 const T = {
   bg:    "#08080F",
@@ -349,97 +351,184 @@ function SaveMemoryBtn({ content, t }: { content: string; t: ReturnType<typeof u
   )
 }
 
-// ─── Message bubble ───────────────────────────────────────────────
+// ─── Markdown rendering ────────────────────────────────────────────
+//
+// react-markdown changed its API across major versions — newer ones
+// (v9/v10) dropped the `inline` prop on the `code` component that
+// older tutorials rely on. This overrides `pre` instead (block code
+// always arrives as <pre><code>) and pulls the language + text back
+// out of its child, so it works regardless of exact installed version.
+// Run: npm install react-markdown remark-gfm
 
-function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language }) {
+const mdComponents: Record<string, (props: any) => React.ReactElement> = {
+  p:  ({ children }) => <p style={{ margin: "0 0 10px" }}>{children}</p>,
+  strong: ({ children }) => <strong style={{ color: "#fff", fontWeight: 600 }}>{children}</strong>,
+  em: ({ children }) => <em style={{ color: "inherit" }}>{children}</em>,
+  h1: ({ children }) => <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 600, margin: "16px 0 8px", color: T.t1 }}>{children}</h1>,
+  h2: ({ children }) => <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, margin: "14px 0 8px", color: T.t1 }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: 15, fontWeight: 600, margin: "12px 0 6px", color: T.t1 }}>{children}</h3>,
+  ul: ({ children }) => <ul style={{ margin: "4px 0 10px", paddingLeft: 22 }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ margin: "4px 0 10px", paddingLeft: 22 }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.65 }}>{children}</li>,
+  a:  ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#FF7A90", textDecoration: "underline" }}>{children}</a>,
+  blockquote: ({ children }) => <blockquote style={{ margin: "8px 0", padding: "2px 14px", borderLeft: "2px solid rgba(232,0,42,0.4)", color: T.t3 }}>{children}</blockquote>,
+  hr: () => <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "14px 0" }} />,
+  img: ({ src, alt }) => <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 12, display: "block", margin: "8px 0", border: "0.5px solid rgba(255,255,255,0.10)" }} />,
+  table: ({ children }) => <div style={{ overflowX: "auto", margin: "8px 0" }}><table style={{ borderCollapse: "collapse", fontSize: 13 }}>{children}</table></div>,
+  th: ({ children }) => <th style={{ border: "0.5px solid rgba(255,255,255,0.12)", padding: "6px 10px", textAlign: "left", color: T.t2, background: "rgba(255,255,255,0.04)" }}>{children}</th>,
+  td: ({ children }) => <td style={{ border: "0.5px solid rgba(255,255,255,0.10)", padding: "6px 10px", color: T.t2 }}>{children}</td>,
+  // Inline code only — block code is fully handled by the `pre`
+  // override below, which intercepts before this ever gets called
+  // for fenced code.
+  code: ({ children }: any) => (
+    <code style={{ background: "rgba(255,255,255,0.08)", padding: "1.5px 5px", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: "0.88em", color: "#FFB4C4" }}>
+      {children}
+    </code>
+  ),
+  pre: ({ children }: any) => {
+    const codeChild = Array.isArray(children) ? children[0] : children
+    const className = codeChild?.props?.className || ""
+    const match = /language-(\w+)/.exec(className)
+    const codeText = codeChild?.props?.children
+    return (
+      <div style={{ marginTop: 10, marginBottom: 10 }}>
+        {match && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#7DD3FC", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", opacity: 0.7 }}>
+            {match[1]}
+          </div>
+        )}
+        <pre style={{ background: "rgba(0,0,0,0.40)", border: "0.5px solid rgba(125,211,252,0.12)", borderRadius: 8, padding: "12px 14px", fontSize: 12.5, color: "#7DD3FC", overflow: "auto", margin: 0, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6 }}>
+          <code>{codeText}</code>
+        </pre>
+      </div>
+    )
+  },
+}
+
+function Markdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+      {content}
+    </ReactMarkdown>
+  )
+}
+
+// Reveals `fullText` progressively over a short, length-scaled duration
+// instead of dumping the whole reply in at once — makes a reply that
+// arrived as a single fetch response still feel alive coming in. Only
+// used for `active` (freshly-arrived) messages; historical messages on
+// load render instantly (active=false), so opening a chat never
+// replays a "typing" effect for the whole conversation.
+function useTypewriter(fullText: string, active: boolean): string {
+  const [revealed, setRevealed] = useState(active ? "" : fullText)
+
+  useEffect(() => {
+    if (!active) { setRevealed(fullText); return }
+    setRevealed("")
+    const total = Math.min(1800, Math.max(250, fullText.length * 7))
+    const start = Date.now()
+    const id = setInterval(() => {
+      const progress = Math.min(1, (Date.now() - start) / total)
+      setRevealed(fullText.slice(0, Math.floor(fullText.length * progress)))
+      if (progress >= 1) clearInterval(id)
+    }, 35)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullText, active])
+
+  return revealed
+}
+
+
+
+function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
   const isStreamingEmpty = !!msg.streaming && !msg.content
-  const parts   = msg.content.split(/(```[\s\S]*?```|!\[[^\]]*\]\(data:image\/[^)]+\))/g)
 
-  return (
-    <div style={{
-      display: "flex", flexDirection: isUser ? "row-reverse" : "row",
-      gap: 12, alignItems: "flex-start", marginBottom: 20,
-    }}>
-      {!isUser && (
-        <div style={{
-          width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-          background: agentColor ?? "rgba(232,0,42,0.15)",
-          border: agentColor ? "none" : "0.5px solid rgba(232,0,42,0.25)",
-          display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2,
-        }}>
-          <Bot size={15} style={{ color: agentColor ? "#fff" : T.red, opacity: 0.9 }} />
-        </div>
-      )}
-      <div style={{
-        maxWidth: isUser ? "68%" : "82%",
-        display: "flex", flexDirection: "column",
-        alignItems: isUser ? "flex-end" : "flex-start", gap: 6,
+  // Only animate the reveal for a genuinely new assistant reply — not
+  // for the user's own message (that should show instantly, they just
+  // typed it) and not for anything loaded from history.
+  const revealed = useTypewriter(msg.content, !!isNew && !isUser && !isError)
+  const displayContent = (!isUser && !isError) ? revealed : msg.content
+
+  const actionsRow = !isStreamingEmpty && !isUser && (
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
+      <div className="astrocore-msg-actions" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+        <CopyBtn text={msg.content} t={t} />
+        <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
+        <SaveVaultBtn content={msg.content} t={t} lang={lang} />
+        <SaveGalleryBtn content={msg.content} t={t} lang={lang} />
+        <SaveMemoryBtn content={msg.content} t={t} />
+      </div>
+    </div>
+  )
+
+  // ── User message: still a compact bubble, right-aligned. Short
+  // messages read fine boxed, and it's the visual anchor that says
+  // "this is you" against the flowing assistant text below. ──
+  if (isUser) {
+    return (
+      <div className="astrocore-msg" style={{
+        display: "flex", flexDirection: "row-reverse",
+        marginBottom: 20,
+        animation: isNew ? "msgIn 240ms ease-out" : undefined,
       }}>
-        <div style={{
-          padding: isUser ? "10px 15px" : "12px 16px",
-          borderRadius: isUser ? "16px 16px 4px 16px" : "4px 16px 16px 16px",
-          background: isUser
-            ? "linear-gradient(135deg,rgba(232,0,42,0.22) 0%,rgba(232,0,42,0.12) 100%)"
-            : isError ? "rgba(232,0,42,0.07)"
-            : "linear-gradient(160deg,#15151F 0%,#111118 100%)",
-          border: isUser ? "0.5px solid rgba(232,0,42,0.32)"
-            : isError ? "0.5px solid rgba(232,0,42,0.22)"
-            : "0.5px solid rgba(255,255,255,0.08)",
-          fontSize: 14, lineHeight: 1.7,
-          color: isUser ? T.t1 : isError ? "#FF4D6A" : T.t1,
-          wordBreak: "break-word",
-        }}>
-          {isStreamingEmpty ? (
-            <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "3px 1px" }}>
-              {[0,1,2].map(i => (
-                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
-              ))}
-            </div>
-          ) : parts.map((part, i) => {
-            if (part.startsWith("```") && part.endsWith("```")) {
-              const lines = part.slice(3, -3).split("\n")
-              const lang  = lines[0].trim()
-              const code  = lines.slice(1).join("\n")
-              return (
-                <div key={i} style={{ marginTop: 10, marginBottom: 4 }}>
-                  {lang && <div style={{ fontSize: 10, color: "#7DD3FC", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em", opacity: 0.7 }}>{lang}</div>}
-                  <pre style={{ background: "rgba(0,0,0,0.40)", border: "0.5px solid rgba(125,211,252,0.12)", borderRadius: 8, padding: "12px 14px", fontSize: 12.5, color: "#7DD3FC", overflow: "auto", margin: 0, fontFamily: "monospace", lineHeight: 1.6 }}>
-                    {code}
-                  </pre>
-                </div>
-              )
-            }
-            const imgMatch = part.match(/^!\[([^\]]*)\]\((data:image\/[^)]+)\)$/)
-            if (imgMatch) {
-              const [, alt, src] = imgMatch
-              return (
-                <div key={i} style={{ marginTop: 8, marginBottom: 4 }}>
-                  <img src={src} alt={alt}
-                    style={{ maxWidth: "100%", maxHeight: 340, borderRadius: 12, display: "block", border: "0.5px solid rgba(255,255,255,0.10)" }}
-                  />
-                </div>
-              )
-            }
-            return <span key={i} style={{ whiteSpace: "pre-wrap" }}>{part}</span>
-          })}
+        <div style={{ maxWidth: "68%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div style={{
+            padding: "10px 15px",
+            borderRadius: "16px 16px 4px 16px",
+            background: "linear-gradient(135deg,rgba(232,0,42,0.22) 0%,rgba(232,0,42,0.12) 100%)",
+            border: "0.5px solid rgba(232,0,42,0.32)",
+            boxShadow: "0 4px 16px rgba(232,0,42,0.10), inset 0 1px 0 rgba(255,255,255,0.05)",
+            fontSize: 14, lineHeight: 1.7, color: T.t1, wordBreak: "break-word",
+          }}>
+            <Markdown content={msg.content} />
+          </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
         </div>
-        {!isStreamingEmpty && (
-        <div style={{ display: "flex", alignItems: "center", gap: 2, flexDirection: isUser ? "row-reverse" : "row" }}>
-          <span style={{ fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
-          {!isUser && (
-            <>
-              <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
-              <CopyBtn text={msg.content} t={t} />
-              <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
-              <SaveVaultBtn content={msg.content} t={t} lang={lang} />
-              <SaveGalleryBtn content={msg.content} t={t} lang={lang} />
-              <SaveMemoryBtn content={msg.content} t={t} />
-            </>
-          )}
-        </div>
+      </div>
+    )
+  }
+
+  // ── Assistant reply: no box. Just the avatar and free-flowing,
+  // properly rendered markdown at a comfortable reading width — this
+  // is what actually made replies look "boxed in" before; the shape
+  // of the bubble was never really the issue, the raw unrendered
+  // **markdown** text inside it was. ──
+  return (
+    <div className="astrocore-msg" style={{
+      display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 24,
+      animation: isNew ? "msgIn 240ms ease-out" : undefined,
+    }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+        background: agentColor ?? "rgba(232,0,42,0.15)",
+        border: agentColor ? "none" : "0.5px solid rgba(232,0,42,0.25)",
+        display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2,
+      }}>
+        <Bot size={15} style={{ color: agentColor ? "#fff" : T.red, opacity: 0.9 }} />
+      </div>
+
+      <div style={{ maxWidth: 960, minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+        {isStreamingEmpty ? (
+          <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "6px 1px" }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            fontSize: 15, lineHeight: 1.75,
+            color: isError ? "#FF4D6A" : T.t1,
+            wordBreak: "break-word",
+          }}>
+            <Markdown content={isError ? msg.content : displayContent} />
+          </div>
         )}
+        {actionsRow}
       </div>
     </div>
   )
@@ -447,11 +536,11 @@ function MessageBubble({ msg, agentColor, t, lang }: { msg: Message; agentColor?
 
 function TypingDots() {
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 20 }}>
+    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
       <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Bot size={15} style={{ color: T.red, opacity: 0.8 }} />
       </div>
-      <div style={{ padding: "12px 18px", borderRadius: "4px 16px 16px 16px", background: "linear-gradient(160deg,#15151F 0%,#111118 100%)", border: "0.5px solid rgba(255,255,255,0.08)", display: "flex", gap: 5, alignItems: "center", marginTop: 2 }}>
+      <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
         {[0,1,2].map(i => (
           <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
         ))}
@@ -528,6 +617,7 @@ export default function SessionPage() {
   const [notFound,    setNotFound]    = useState(false)
   const [showScroll,  setShowScroll]  = useState(false)
   const [focused,     setFocused]     = useState(false)
+  const [justAddedId, setJustAddedId] = useState<string | null>(null)
 
   // Attachments: name + optional text content
   const [attachments, setAttachments] = useState<{ name: string; content?: string; imageDataUrl?: string }[]>([])
@@ -741,6 +831,7 @@ export default function SessionPage() {
 
     const updatedWithUser = [...messages, userMsg]
     setMessages(updatedWithUser)
+    setJustAddedId(userMsg.id)
     setInput("")
     setAttachments([])
     setLoading(true)
@@ -762,7 +853,9 @@ export default function SessionPage() {
         const { data: errMsgData } = await sb.from("chat_messages").insert({
           user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
         }).select().single()
-        setMessages(prev => [...prev, { id: errMsgData?.id ?? crypto.randomUUID(), role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
+        const errId = errMsgData?.id ?? crypto.randomUUID()
+        setMessages(prev => [...prev, { id: errId, role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
+        setJustAddedId(errId)
         setLoading(false)
         sendingRef.current = false
         return
@@ -810,12 +903,14 @@ export default function SessionPage() {
           user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
         }).select().single()
 
+        const errId = errMsgData?.id ?? crypto.randomUUID()
         setMessages(prev => [...prev, {
-          id: errMsgData?.id ?? crypto.randomUUID(),
+          id: errId,
           role: "assistant",
           content: errContent,
           createdAt: errMsgData?.created_at ?? new Date().toISOString(),
         }])
+        setJustAddedId(errId)
       } else {
         const data = await res.json()
         const replyContent = data.content ?? data.error ?? t.chatSession.noReply
@@ -833,11 +928,14 @@ export default function SessionPage() {
           createdAt: replyMsgData?.created_at ?? new Date().toISOString(),
         }
         setMessages(prev => [...prev, reply])
+        setJustAddedId(reply.id)
       }
     } catch {
       const errContent = t.chatSession.sendError
       await sb.from("chat_messages").insert({ user_id: user.id, session_id: sessionId, role: "assistant", content: errContent })
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: errContent, createdAt: new Date().toISOString() }])
+      const errId = crypto.randomUUID()
+      setMessages(prev => [...prev, { id: errId, role: "assistant", content: errContent, createdAt: new Date().toISOString() }])
+      setJustAddedId(errId)
     } finally {
       setLoading(false)
       sendingRef.current = false
@@ -925,8 +1023,8 @@ export default function SessionPage() {
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.title || t.chatSession.newChatFallback}</div>
-            {agent && <div style={{ fontSize: 11, color: T.t4, marginTop: 1 }}>{agent.name}{provider ? ` · ${provider.model}` : ""}</div>}
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.title || t.chatSession.newChatFallback}</div>
+            {agent && <div style={{ fontSize: 11, color: T.t4, marginTop: 1 }}>{agent.name}{provider ? <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{` · ${provider.model}`}</span> : ""}</div>}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Badge icon={Activity} label={t.chatSession.aiCoreOnline} color={T.red} bg="rgba(232,0,42,0.09)" border="rgba(232,0,42,0.25)" />
@@ -938,13 +1036,13 @@ export default function SessionPage() {
 
         {/* Messages */}
         <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "28px 24px 12px" }}>
-          <div style={{ maxWidth: 900, margin: "0 auto", width: "100%" }}>
+          <div style={{ maxWidth: 1240, margin: "0 auto", width: "100%" }}>
             {messages.length === 0 && !loading && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 24px", textAlign: "center" }}>
                 <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.07)" }}>
                   {agent ? <span style={{ fontSize: 26, fontWeight: 700, color: "#fff" }}>{agent.name.charAt(0).toUpperCase()}</span> : <Bot size={28} style={{ color: T.red, opacity: 0.7 }} />}
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agent ? `${t.chatSession.chatWithPrefix}${agent.name}` : t.chatSession.newChatFallback}</div>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agent ? `${t.chatSession.chatWithPrefix}${agent.name}` : t.chatSession.newChatFallback}</div>
                 <div style={{ fontSize: 13.5, color: T.t3, lineHeight: 1.65, maxWidth: 380, marginBottom: 24 }}>
                   {agent?.system_prompt ? agent.system_prompt.slice(0, 120) + (agent.system_prompt.length > 120 ? "..." : "") : t.chatSession.startConversationHint}
                 </div>
@@ -956,10 +1054,9 @@ export default function SessionPage() {
                     >{q}</button>
                   ))}
                 </div>
-                <div style={{ marginTop: 24, fontSize: 10.5, color: "#2E2E4A", textTransform: "uppercase", letterSpacing: "0.10em" }}>Agent Conversation Layer · AI Command Chat</div>
               </div>
             )}
-            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} t={t} lang={language} />)}
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} t={t} lang={language} isNew={msg.id === justAddedId} />)}
             {loading && <TypingDots />}
             <div ref={bottomRef} />
           </div>
@@ -990,7 +1087,7 @@ export default function SessionPage() {
 
         {/* Composer */}
         <div style={{ flexShrink: 0, padding: "10px 24px 18px", background: "rgba(8,8,15,0.97)", backdropFilter: "blur(16px)" }}>
-          <div ref={composerRef} style={{ maxWidth: 900, margin: "0 auto", width: "100%", position: "relative" }}>
+          <div ref={composerRef} style={{ maxWidth: 1240, margin: "0 auto", width: "100%", position: "relative" }}>
 
             {/* Provider warning */}
             {!provider && (

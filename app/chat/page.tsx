@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   MessageSquare, Plus, Bot, Clock, Search,
-  Trash2, X, AlertCircle, ArrowRight,
+  Trash2, X, AlertCircle,
   Edit3, ChevronDown, Zap,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
@@ -69,6 +69,24 @@ function cut(s: string, n: number) {
   return s && s.length > n ? s.slice(0, n) + "…" : (s || "")
 }
 
+// Thin impulse-line divider — same motif used on Sidebar/Dashboard/
+// Account, so section breaks look the same everywhere in the app.
+function SectionDivider({ delay = "0s" }: { delay?: string }) {
+  return (
+    <div aria-hidden style={{
+      position: "relative", height: 1.5,
+      background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+    }}>
+      <div className="astrocore-hero-sweep" style={{
+        position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+        background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+        boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+        animationDelay: delay,
+      }} />
+    </div>
+  )
+}
+
 // ─── Rename modal ─────────────────────────────────────────────────
 
 function RenameModal({ session, onClose, onRenamed, t }: {
@@ -107,7 +125,7 @@ function RenameModal({ session, onClose, onRenamed, t }: {
         boxShadow: "0 24px 64px rgba(0,0,0,0.85)",
         padding: "20px",
       }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 14 }}>{t.chat.renameChat}</div>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 14 }}>{t.chat.renameChat}</div>
         <input value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") onClose() }}
           autoFocus
@@ -190,7 +208,7 @@ function NewChatModal({ onClose, onCreated, t }: {
         overflow: "hidden", maxHeight: "88vh", display: "flex", flexDirection: "column",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 13px", borderBottom: "0.5px solid rgba(255,255,255,0.07)" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.chat.newChat}</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.chat.newChat}</div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={13} />
           </button>
@@ -245,7 +263,7 @@ function NewChatModal({ onClose, onCreated, t }: {
                         {prov ? (
                           <>
                             <span style={{ fontSize: 10.5, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.05)", color: T.t4 }}>{prov.name}</span>
-                            <span style={{ fontSize: 10.5, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", color: T.t4 }}>{prov.model}</span>
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", color: T.t4 }}>{prov.model}</span>
                           </>
                         ) : (
                           <span style={{ fontSize: 10.5, color: "#FF4D6A" }}>{t.chat.providerNotFound}</span>
@@ -346,18 +364,18 @@ function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onR
           {agent && <span style={{ fontSize: 11, color: T.t4 }}>{agent.name}</span>}
           {provider && <>
             <span style={{ fontSize: 11, color: "#252540" }}>·</span>
-            <span style={{ fontSize: 11, color: T.t4 }}>{provider.model}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>{provider.model}</span>
           </>}
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, color: T.t4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
           <Clock size={10} />
           {ago(session.updated_at ?? session.created_at, t, lang)}
         </div>
         {msgCount > 0 && (
-          <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
             {msgCount}
           </span>
         )}
@@ -401,12 +419,6 @@ export default function ChatPage() {
 
   const [showModal,    setShowModal]    = useState(false)
   const [renameTarget, setRenameTarget] = useState<Session | null>(null)
-  const [pulse,        setPulse]        = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   async function load() {
     try {
@@ -559,10 +571,23 @@ export default function ChatPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
         select option { background: #111118; }
+
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{ marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg, backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)", backgroundSize: "24px 24px" }}>
@@ -570,35 +595,43 @@ export default function ChatPage() {
 
         {/* ── Hero ── */}
         <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+          {/* One soft ambient glow instead of the old two-layer "rising
+              sun" (it had drifted back in here from an earlier version
+              of the Dashboard hero, before that got simplified). */}
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 180, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
 
-          {/* subtle warm horizon glow, consistent with the dashboard hero */}
           <div aria-hidden style={{
-            position: "absolute", left: "50%", bottom: -220, transform: "translateX(-50%)",
-            width: 780, height: 340, borderRadius: "50%", pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 100%, rgba(220,10,45,0.32) 0%, rgba(160,0,35,0.16) 40%, transparent 72%)",
-            filter: "blur(20px)",
-          }} />
-          <div aria-hidden style={{
-            position: "absolute", left: "50%", bottom: -130, transform: "translateX(-50%)",
-            width: 420, height: 190, borderRadius: "50%", pointerEvents: "none",
-            background: "radial-gradient(circle at 50% 100%, rgba(255,80,90,0.30) 0%, rgba(232,0,42,0.18) 40%, transparent 75%)",
-            filter: "blur(10px)",
-          }} />
-
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: "22%", right: "22%", height: 1.5, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.5) 35%,rgba(255,180,170,0.7) 50%,rgba(232,0,42,0.5) 65%,transparent 100%)", boxShadow: "0 0 14px rgba(232,0,42,0.4)" }} />
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
-          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "3px 10px", marginBottom: 14 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block", opacity: pulse ? 1 : 0.3, transition: "opacity 900ms ease, box-shadow 900ms ease", boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none" }} />
-                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Chat Layer · {sessions.length} {t.chat.sessionsSuffix}
+              {/* Badge — impulse line instead of a setInterval-driven
+                  dot, and a single clean phrase instead of a dot-joined
+                  "Chat Layer · N sessions" (the count already shows up
+                  in the stats row right below, no need to say it twice). */}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14 }}>
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Chat Layer
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.chat.title}</h1>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.chat.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.chat.subtitle}</p>
             </div>
             <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 16px rgba(232,0,42,0.25)", transition: "background 140ms ease" }}
@@ -640,7 +673,7 @@ export default function ChatPage() {
           <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
 
             {/* Stats */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
               {[
                 { label: t.chat.totalSessions,  value: sessions.length,                                   icon: MessageSquare },
                 { label: t.chat.agentsLabel,        value: agentsWithSessions.length,                         icon: Bot           },
@@ -654,11 +687,14 @@ export default function ChatPage() {
                   }}>
                     <Icon size={12} style={{ color: T.red, opacity: 0.9 }} />
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
                   <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
               ))}
             </div>
+
+            <SectionDivider delay="0.3s" />
+            <div style={{ height: 18 }} />
 
             {/* ── Filters bar ── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: T.s1, border: `0.5px solid ${T.b1}` }}>
@@ -785,6 +821,9 @@ export default function ChatPage() {
               )}
             </div>
 
+            <SectionDivider delay="1.2s" />
+            <div style={{ height: 18 }} />
+
             {/* Results */}
             {filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
@@ -797,7 +836,7 @@ export default function ChatPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ fontSize: 11, color: T.t4, marginBottom: 8 }}>
                   {filtered.length} {sessionCountLabel(filtered.length)}
-                  {hasFilters && ` · ${t.chat.filtered}`}
+                  {hasFilters && ` (${t.chat.filtered})`}
                 </div>
                 {filtered.map(session => {
                   const agent    = getAgent(session.agent_id)
