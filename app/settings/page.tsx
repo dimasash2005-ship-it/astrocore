@@ -365,6 +365,15 @@ export default function SettingsPage() {
           0%   { left: -20%; }
           100% { left: 100%; }
         }
+        .astrocore-settings-grid {
+          display: grid;
+          grid-template-columns: 1fr 360px;
+          gap: 14px;
+          align-items: start;
+        }
+        @media (max-width: 980px) {
+          .astrocore-settings-grid { grid-template-columns: 1fr; }
+        }
       `}</style>
 
       <div style={{
@@ -429,7 +438,7 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Body ── */}
-        <div style={{ padding: "24px 48px 56px", maxWidth: 960 }}>
+        <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
 
           {/* System status */}
           <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
@@ -457,239 +466,207 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="astrocore-settings-grid">
 
-            {/* ── Navigation ── */}
-            <SectionCard title={t.settings.sectionsTitle} icon={Settings}>
-              <SettingRow
-                icon={User}
-                label={t.sidebar.account}
-                desc={t.settings.accountDesc}
-                href="/account"
-              />
-              <Divider />
-              <SettingRow
-                icon={Key}
-                label={t.sidebar.providers}
-                desc={t.settings.providersDesc}
-                href="/providers"
-              />
-              <Divider />
-              <SettingRow
-                icon={Brain}
-                label={t.sidebar.memory}
-                desc={t.settings.memoryDesc}
-                href="/memory"
-              />
-              <Divider />
-              <SettingRow
-                icon={BookOpen}
-                label={t.sidebar.vault}
-                desc={t.settings.vaultDesc}
-                href="/vault"
-              />
-              <Divider />
-              <SettingRow
-                icon={ImageIcon}
-                label={t.sidebar.gallery}
-                desc={t.settings.galleryDesc}
-                href="/gallery"
-              />
-              <Divider />
-              <SettingRow
-                icon={Key}
-                label={t.settings.devCenterLabel}
-                desc={t.settings.devCenterDesc}
-                href="/settings/developer"
-              />
-            </SectionCard>
+            {/* ── Main column: navigation + the heavy data-management block ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-            {/* ── Language ── */}
-            <SectionCard title={t.settings.language} icon={Globe}>
-              <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{t.settings.languageDesc}</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {LANGUAGES.map(l => {
-                    const active = language === l.code
-                    return (
-                      <button
-                        key={l.code}
-                        onClick={() => setLanguage(l.code)}
-                        style={{
-                          flex: "1 1 140px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                          padding: "10px 14px", borderRadius: 10, cursor: "pointer",
-                          background: active ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.04)",
-                          border: active ? "1px solid rgba(232,0,42,0.35)" : `0.5px solid ${T.b1}`,
-                          color: active ? T.t1 : T.t3,
-                          fontSize: 13, fontWeight: active ? 600 : 400,
-                          transition: "background 130ms ease, border-color 130ms ease, color 130ms ease",
-                        }}
-                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
-                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
-                      >
-                        <span style={{ fontSize: 16 }}>{l.flag}</span>
-                        {l.label}
-                        {active && <Check size={13} style={{ color: T.red, marginLeft: 2 }} />}
-                      </button>
-                    )
-                  })}
+              <SectionCard title={t.settings.sectionsTitle} icon={Settings}>
+                <SettingRow icon={User} label={t.sidebar.account} desc={t.settings.accountDesc} href="/account" />
+                <Divider />
+                <SettingRow icon={Key} label={t.sidebar.providers} desc={t.settings.providersDesc} href="/providers" />
+                <Divider />
+                <SettingRow icon={Brain} label={t.sidebar.memory} desc={t.settings.memoryDesc} href="/memory" />
+                <Divider />
+                <SettingRow icon={BookOpen} label={t.sidebar.vault} desc={t.settings.vaultDesc} href="/vault" />
+                <Divider />
+                <SettingRow icon={ImageIcon} label={t.sidebar.gallery} desc={t.settings.galleryDesc} href="/gallery" />
+                <Divider />
+                <SettingRow icon={Key} label={t.settings.devCenterLabel} desc={t.settings.devCenterDesc} href="/settings/developer" />
+              </SectionCard>
+
+              <SectionCard title={t.settings.dataManagementTitle} icon={Database} accent>
+                <SettingRow
+                  icon={Bot}
+                  label={t.settings.clearAgentsLabel}
+                  desc={`${t.settings.clearAgentsDescPrefix}${stats.agents}${t.settings.clearAgentsDescSuffix}`}
+                  action={() => showConfirm(
+                    t.settings.clearAgentsConfirmTitle,
+                    t.settings.clearAgentsConfirmDesc,
+                    () => handleClear("agents", t.settings.agentsName)
+                  )}
+                  actionLabel={t.settings.clearBtn}
+                  actionVariant="danger"
+                  danger
+                />
+                <Divider />
+                <SettingRow
+                  icon={MessageSquare}
+                  label={t.settings.clearChatsLabel}
+                  desc={`${t.settings.clearChatsDescPrefix}${stats.sessions}${t.settings.clearChatsDescSuffix}`}
+                  action={() => showConfirm(
+                    t.settings.clearChatsConfirmTitle,
+                    t.settings.clearChatsConfirmDesc,
+                    () => handleClear("sessions", t.settings.chatsName)
+                  )}
+                  actionLabel={t.settings.clearBtn}
+                  actionVariant="danger"
+                  danger
+                />
+                <Divider />
+                <SettingRow
+                  icon={Brain}
+                  label={t.settings.clearMemoryLabel}
+                  desc={t.settings.clearMemoryDesc}
+                  action={() => showConfirm(
+                    t.settings.clearMemoryConfirmTitle,
+                    t.settings.clearMemoryConfirmDesc,
+                    async () => { await handleClear("memory", t.settings.memoryName); await handleClearMemoryLocal() }
+                  )}
+                  actionLabel={t.settings.clearBtn}
+                  actionVariant="danger"
+                  danger
+                />
+                <Divider />
+                <SettingRow
+                  icon={BookOpen}
+                  label={t.settings.clearVaultLabel}
+                  desc={`${t.settings.clearVaultDescPrefix}${stats.vault}${t.settings.clearVaultDescSuffix}`}
+                  action={() => showConfirm(
+                    t.settings.clearVaultConfirmTitle,
+                    t.settings.clearVaultConfirmDesc,
+                    () => handleClear("vault", t.settings.vaultName)
+                  )}
+                  actionLabel={t.settings.clearBtn}
+                  actionVariant="danger"
+                  danger
+                />
+                <Divider />
+                <SettingRow
+                  icon={ImageIcon}
+                  label={t.settings.clearGalleryLabel}
+                  desc={`${t.settings.clearGalleryDescPrefix}${stats.gallery}${t.settings.clearGalleryDescSuffix}`}
+                  action={() => showConfirm(
+                    t.settings.clearGalleryConfirmTitle,
+                    t.settings.clearGalleryConfirmDesc,
+                    () => handleClear("gallery", t.settings.galleryName)
+                  )}
+                  actionLabel={t.settings.clearBtn}
+                  actionVariant="danger"
+                  danger
+                />
+                <Divider />
+                <SettingRow
+                  icon={Trash2}
+                  label={t.settings.resetAllLabel}
+                  desc={t.settings.resetAllDesc}
+                  action={() => showConfirm(
+                    t.settings.resetAllConfirmTitle,
+                    t.settings.resetAllConfirmDesc,
+                    handleResetAll
+                  )}
+                  actionLabel={t.settings.resetAllBtn}
+                  actionVariant="danger"
+                  danger
+                />
+              </SectionCard>
+            </div>
+
+            {/* ── Side column: quick settings + read-only info, narrower
+                and fixed-width like a utility rail — same pattern as
+                the Account page. ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              <SectionCard title={t.settings.language} icon={Globe}>
+                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ fontSize: 12, color: T.t4, lineHeight: 1.5 }}>{t.settings.languageDesc}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {LANGUAGES.map(l => {
+                      const active = language === l.code
+                      return (
+                        <button
+                          key={l.code}
+                          onClick={() => setLanguage(l.code)}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                            padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                            background: active ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.04)",
+                            border: active ? "1px solid rgba(232,0,42,0.35)" : `0.5px solid ${T.b1}`,
+                            color: active ? T.t1 : T.t3,
+                            fontSize: 13, fontWeight: active ? 600 : 400,
+                            transition: "background 130ms ease, border-color 130ms ease, color 130ms ease",
+                          }}
+                          onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
+                          onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)" }}
+                        >
+                          <span style={{ fontSize: 16 }}>{l.flag}</span>
+                          {l.label}
+                          {active && <Check size={13} style={{ color: T.red, marginLeft: 2 }} />}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            </SectionCard>
+              </SectionCard>
 
-            {/* ── System status — real telemetry, so this one keeps the
-                system-register treatment (grid texture + mono caps). ── */}
-            <SectionCard title={t.settings.systemStatusTitle} icon={Activity} variant="system">
-              <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {[
-                  { label: t.settings.aiCoreLabel,       value: t.settings.onlineLabel,         ok: true  },
-                  { label: t.settings.localStorageLabel, value: t.settings.availableLabel,       ok: true  },
-                  { label: t.settings.providersStatusLabel, value: stats.providers > 0 ? `${stats.providers} ${t.settings.connectedSuffix}` : t.settings.noneLabel,  ok: stats.providers > 0 },
-                  { label: t.settings.activeAgentsLabel, value: stats.agents > 0  ? `${stats.agents} ${t.settings.agentsCountSuffix}`  : t.settings.noneLabel,         ok: stats.agents > 0  },
-                ].map(({ label, value, ok }) => (
-                  <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 13, color: T.t2 }}>{label}</span>
-                    <span style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5, padding: "2px 9px", borderRadius: 5, fontWeight: 600,
-                      background: ok ? "rgba(34,197,94,0.09)" : "rgba(255,255,255,0.04)",
-                      border: `0.5px solid ${ok ? "rgba(34,197,94,0.24)" : "rgba(255,255,255,0.08)"}`,
-                      color: ok ? T.green : T.t4,
-                    }}>
-                      {value}
+              <SectionCard title={t.settings.systemStatusTitle} icon={Activity} variant="system">
+                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[
+                    { label: t.settings.aiCoreLabel,       value: t.settings.onlineLabel,         ok: true  },
+                    { label: t.settings.localStorageLabel, value: t.settings.availableLabel,       ok: true  },
+                    { label: t.settings.providersStatusLabel, value: stats.providers > 0 ? `${stats.providers} ${t.settings.connectedSuffix}` : t.settings.noneLabel,  ok: stats.providers > 0 },
+                    { label: t.settings.activeAgentsLabel, value: stats.agents > 0  ? `${stats.agents} ${t.settings.agentsCountSuffix}`  : t.settings.noneLabel,         ok: stats.agents > 0  },
+                  ].map(({ label, value, ok }) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, color: T.t2 }}>{label}</span>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 10.5, padding: "2px 9px", borderRadius: 5, fontWeight: 600,
+                        background: ok ? "rgba(34,197,94,0.09)" : "rgba(255,255,255,0.04)",
+                        border: `0.5px solid ${ok ? "rgba(34,197,94,0.24)" : "rgba(255,255,255,0.08)"}`,
+                        color: ok ? T.green : T.t4,
+                      }}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard title={t.settings.securityTitle} icon={Shield}>
+                <div style={{ padding: "12px 16px 6px" }}>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 9,
+                    padding: "10px 12px", borderRadius: 9,
+                    background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
+                    marginBottom: 8,
+                  }}>
+                    <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
+                      {t.settings.securityDesc}
                     </span>
                   </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            {/* ── Security ── */}
-            <SectionCard title={t.settings.securityTitle} icon={Shield}>
-              <div style={{ padding: "12px 16px 6px" }}>
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: 9,
-                  padding: "10px 12px", borderRadius: 9,
-                  background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-                  marginBottom: 8,
-                }}>
-                  <Shield size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 11.5, color: T.t4, lineHeight: 1.55 }}>
-                    {t.settings.securityDesc}
-                  </span>
                 </div>
-              </div>
-              <Divider />
-              <SettingRow
-                icon={Key}
-                label={t.settings.apiKeysLabel}
-                desc={t.settings.apiKeysDesc}
-                href="/providers"
-              />
-            </SectionCard>
+                <Divider />
+                <SettingRow icon={Key} label={t.settings.apiKeysLabel} desc={t.settings.apiKeysDesc} href="/providers" />
+              </SectionCard>
 
-            {/* ── Data management ── */}
-            <SectionCard title={t.settings.dataManagementTitle} icon={Database} accent>
-              <SettingRow
-                icon={Bot}
-                label={t.settings.clearAgentsLabel}
-                desc={`${t.settings.clearAgentsDescPrefix}${stats.agents}${t.settings.clearAgentsDescSuffix}`}
-                action={() => showConfirm(
-                  t.settings.clearAgentsConfirmTitle,
-                  t.settings.clearAgentsConfirmDesc,
-                  () => handleClear("agents", t.settings.agentsName)
-                )}
-                actionLabel={t.settings.clearBtn}
-                actionVariant="danger"
-                danger
-              />
-              <Divider />
-              <SettingRow
-                icon={MessageSquare}
-                label={t.settings.clearChatsLabel}
-                desc={`${t.settings.clearChatsDescPrefix}${stats.sessions}${t.settings.clearChatsDescSuffix}`}
-                action={() => showConfirm(
-                  t.settings.clearChatsConfirmTitle,
-                  t.settings.clearChatsConfirmDesc,
-                  () => handleClear("sessions", t.settings.chatsName)
-                )}
-                actionLabel={t.settings.clearBtn}
-                actionVariant="danger"
-                danger
-              />
-              <Divider />
-              <SettingRow
-                icon={Brain}
-                label={t.settings.clearMemoryLabel}
-                desc={t.settings.clearMemoryDesc}
-                action={() => showConfirm(
-                  t.settings.clearMemoryConfirmTitle,
-                  t.settings.clearMemoryConfirmDesc,
-                  async () => { await handleClear("memory", t.settings.memoryName); await handleClearMemoryLocal() }
-                )}
-                actionLabel={t.settings.clearBtn}
-                actionVariant="danger"
-                danger
-              />
-              <Divider />
-              <SettingRow
-                icon={BookOpen}
-                label={t.settings.clearVaultLabel}
-                desc={`${t.settings.clearVaultDescPrefix}${stats.vault}${t.settings.clearVaultDescSuffix}`}
-                action={() => showConfirm(
-                  t.settings.clearVaultConfirmTitle,
-                  t.settings.clearVaultConfirmDesc,
-                  () => handleClear("vault", t.settings.vaultName)
-                )}
-                actionLabel={t.settings.clearBtn}
-                actionVariant="danger"
-                danger
-              />
-              <Divider />
-              <SettingRow
-                icon={ImageIcon}
-                label={t.settings.clearGalleryLabel}
-                desc={`${t.settings.clearGalleryDescPrefix}${stats.gallery}${t.settings.clearGalleryDescSuffix}`}
-                action={() => showConfirm(
-                  t.settings.clearGalleryConfirmTitle,
-                  t.settings.clearGalleryConfirmDesc,
-                  () => handleClear("gallery", t.settings.galleryName)
-                )}
-                actionLabel={t.settings.clearBtn}
-                actionVariant="danger"
-                danger
-              />
-              <Divider />
-              <SettingRow
-                icon={Trash2}
-                label={t.settings.resetAllLabel}
-                desc={t.settings.resetAllDesc}
-                action={() => showConfirm(
-                  t.settings.resetAllConfirmTitle,
-                  t.settings.resetAllConfirmDesc,
-                  handleResetAll
-                )}
-                actionLabel={t.settings.resetAllBtn}
-                actionVariant="danger"
-                danger
-              />
-            </SectionCard>
-
-            {/* ── About ── */}
-            <SectionCard title={t.settings.aboutTitle} icon={Settings}>
-              <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-                {[
-                  { label: t.settings.versionLabel,   value: t.settings.versionValue   },
-                  { label: t.settings.frameworkLabel, value: "Next.js 16"              },
-                  { label: t.settings.storageLabel,   value: t.settings.storageValue   },
-                  { label: t.settings.aiLayerLabel,   value: t.settings.aiLayerValue   },
-                ].map(({ label, value }) => (
-                  <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 13, color: T.t3 }}>{label}</span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: T.t2 }}>{value}</span>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
+              <SectionCard title={t.settings.aboutTitle} icon={Settings}>
+                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[
+                    { label: t.settings.versionLabel,   value: t.settings.versionValue   },
+                    { label: t.settings.frameworkLabel, value: "Next.js 16"              },
+                    { label: t.settings.storageLabel,   value: t.settings.storageValue   },
+                    { label: t.settings.aiLayerLabel,   value: t.settings.aiLayerValue   },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, color: T.t3 }}>{label}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: T.t2 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
 
           </div>
         </div>
