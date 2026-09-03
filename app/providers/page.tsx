@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import {
   Key, Plus, Trash2, Eye, EyeOff, Check,
   Zap, Activity, Shield, ChevronDown, ChevronUp, X,
-  Loader2, AlertCircle, Globe,
+  Loader2, AlertCircle, Globe, Sparkles, Bot, Webhook,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
@@ -25,10 +25,6 @@ const T = {
   amber:"#F59E0B",
 }
 
-// ─── Provider shape as returned by /api/providers ──────────────────
-// No secret material — api_key/encrypted_api_key/auth_header/
-// custom_headers never leave the server after being saved.
-
 type ProviderSlug = "openai" | "anthropic" | "google" | "custom"
 
 type Provider = {
@@ -43,6 +39,16 @@ type Provider = {
   created_at:  string
 }
 
+// Brand-ish icon + color per provider — used for the card's identity
+// chip and its ambient corner glow, so cards read as distinct
+// providers at a glance instead of identical grey boxes with a name.
+const BRAND: Record<ProviderSlug, { icon: React.ElementType; color: string }> = {
+  openai:    { icon: Sparkles, color: "#10A37F" },
+  anthropic: { icon: Bot,      color: "#D97757" },
+  google:    { icon: Globe,    color: "#4285F4" },
+  custom:    { icon: Webhook,  color: "#8B5CF6" },
+}
+
 const inp: React.CSSProperties = {
   background: "#09090F",
   border: "0.5px solid rgba(255,255,255,0.10)",
@@ -55,6 +61,27 @@ function focusBorder(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement 
 }
 function blurBorder(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
   e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"
+}
+
+// Thin signal line for a genuinely live/verified connection — same
+// motif as everywhere else in the app. Static neutral or red dot for
+// anything that isn't actually confirmed working right now.
+function StatusIndicator({ status, isActive, color }: { status: Provider["status"]; isActive: boolean; color: string }) {
+  if (status === "connected" && isActive) {
+    return (
+      <span aria-hidden style={{
+        position: "relative", width: 18, height: 1.5, borderRadius: 1,
+        background: `${color}30`, overflow: "hidden", display: "inline-block",
+      }}>
+        <span className="astrocore-badge-sweep" style={{
+          position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+          background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+        }} />
+      </span>
+    )
+  }
+  const dotColor = status === "failed" ? "#FF4D6A" : T.t4
+  return <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, opacity: 0.7, flexShrink: 0 }} />
 }
 
 // ─── Add provider modal ───────────────────────────────────────────
@@ -190,8 +217,8 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
             <Key size={15} style={{ color: T.red }} />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.providers.connectProviderTitle}</div>
-            <div style={{ fontSize: 10, color: T.t3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.providers.apiControlLayer}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.providers.connectProviderTitle}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.t3, textTransform: "uppercase", letterSpacing: "0.06em" }}>{t.providers.apiControlLayer}</div>
           </div>
           <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
             <X size={16} />
@@ -281,7 +308,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
                 onChange={e => { setApiKey(e.target.value); setTestState("idle") }}
                 type={showKey ? "text" : "password"}
                 placeholder={preset.placeholder}
-                style={{ ...inp, paddingRight: 40 }}
+                style={{ ...inp, paddingRight: 40, fontFamily: "'JetBrains Mono', monospace" }}
                 onFocus={focusBorder} onBlur={blurBorder}
               />
               <button onClick={() => setShowKey(v => !v)} style={{
@@ -301,7 +328,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
                 </label>
                 <input value={authHeader} onChange={e => setAuthHeader(e.target.value)}
                   placeholder="Bearer sk-..."
-                  style={inp} onFocus={focusBorder} onBlur={blurBorder}
+                  style={{ ...inp, fontFamily: "'JetBrains Mono', monospace" }} onFocus={focusBorder} onBlur={blurBorder}
                 />
                 <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.authHeaderHint}</div>
               </div>
@@ -313,7 +340,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
                 <textarea value={customHeaders} onChange={e => setCustomHeaders(e.target.value)}
                   placeholder={`{\n  "X-Org-Id": "12345"\n}`}
                   rows={3}
-                  style={{ ...inp, resize: "vertical", fontFamily: "monospace", lineHeight: 1.5 }}
+                  style={{ ...inp, resize: "vertical", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}
                   onFocus={focusBorder} onBlur={blurBorder}
                 />
                 <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.customHeadersHint}</div>
@@ -373,9 +400,10 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
               flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500,
               background: loading ? "rgba(232,0,42,0.3)" : T.red,
               border: "none", color: "#fff", cursor: loading ? "not-allowed" : "pointer",
+              transition: "background 140ms ease, box-shadow 140ms ease",
             }}
-              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = T.red }}
+              onMouseEnter={e => { if (!loading) { (e.currentTarget as HTMLElement).style.background = "#FF1A3E"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px rgba(232,0,42,0.35)" } }}
+              onMouseLeave={e => { if (!loading) { (e.currentTarget as HTMLElement).style.background = T.red; (e.currentTarget as HTMLElement).style.boxShadow = "none" } }}
             >{loading ? t.providers.saving : t.providers.connect}</button>
           </div>
         </div>
@@ -394,8 +422,9 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  const colorMap: Record<string, string> = { openai: "#10A37F", anthropic: "#D97757", google: "#4285F4", custom: "#8B5CF6" }
-  const color = colorMap[provider.slug] ?? T.t4
+  const brand = BRAND[provider.slug] ?? BRAND.custom
+  const color = brand.color
+  const Icon = brand.icon
 
   const statusColor = provider.status === "connected" ? T.green : provider.status === "failed" ? "#FF4D6A" : T.amber
   const statusLabel = provider.status === "connected" ? t.providers.statusConnected
@@ -404,12 +433,19 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
 
   return (
     <div style={{
+      position: "relative",
       background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
       border: `0.5px solid ${provider.is_active ? `${color}33` : T.b1}`,
       borderRadius: 14, overflow: "hidden",
       transition: "border-color 200ms ease",
-      position: "relative",
     }}>
+      <div aria-hidden style={{
+        position: "absolute", top: -30, right: -30, width: 110, height: 110,
+        borderRadius: "50%", pointerEvents: "none",
+        background: `radial-gradient(circle, ${color}22 0%, transparent 70%)`,
+        opacity: provider.is_active ? 1 : 0.4,
+      }} />
+
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, height: 2,
         background: provider.is_active
@@ -418,36 +454,40 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
         transition: "background 300ms ease",
       }} />
 
-      <div style={{ padding: "16px 18px" }}>
+      <div style={{ padding: "16px 18px", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{
-              width: 9, height: 9, borderRadius: "50%", flexShrink: 0,
-              background: provider.is_active ? T.green : "#2E2E4A",
-              boxShadow: provider.is_active ? `0 0 8px ${T.green}80` : "none",
-              transition: "background 200ms ease, box-shadow 200ms ease",
-            }} />
+              width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+              background: `${color}1C`, border: `0.5px solid ${color}40`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Icon size={17} style={{ color }} />
+            </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: T.t1 }}>{provider.name}</div>
-              <div style={{ fontSize: 11, color: T.t4, marginTop: 1 }}>{provider.model}</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1 }}>{provider.name}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, marginTop: 1 }}>{provider.model}</div>
             </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              fontSize: 10, padding: "2px 8px", borderRadius: 5, fontWeight: 500,
+            <div style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 10, padding: "3px 9px", borderRadius: 5, fontWeight: 500,
               background: provider.is_active ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
               color: provider.is_active ? T.green : T.t4,
               border: `0.5px solid ${provider.is_active ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}`,
             }}>
+              <StatusIndicator status={provider.status} isActive={provider.is_active} color={T.green} />
               {provider.is_active ? t.providers.active : t.providers.disabled}
-            </span>
+            </div>
             <button onClick={() => setExpanded(v => !v)} style={{
               padding: 5, borderRadius: 6, border: "none",
               background: "rgba(255,255,255,0.05)", cursor: "pointer", lineHeight: 0, color: T.t4,
+              transition: "color 130ms ease, background 130ms ease",
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.09)" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)" }}
             >
               {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
@@ -462,13 +502,14 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
               background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
             }}>
               <div>
-                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{t.providers.apiKeyLabel}</div>
-                <div style={{ fontSize: 12, color: T.t2, fontFamily: "monospace", letterSpacing: "0.05em" }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{t.providers.apiKeyLabel}</div>
+                <div style={{ fontSize: 12, color: T.t2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>
                   {provider.key_preview ?? "••••••••"}
                 </div>
               </div>
               <span style={{
-                fontSize: 10, padding: "2px 8px", borderRadius: 5, fontWeight: 500,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9.5, padding: "2px 8px", borderRadius: 5, fontWeight: 600,
                 color: statusColor, background: `${statusColor}18`, border: `0.5px solid ${statusColor}40`,
               }}>
                 {statusLabel}
@@ -480,8 +521,8 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
                 padding: "8px 12px", borderRadius: 8,
                 background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
               }}>
-                <div style={{ fontSize: 9.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{t.providers.webhookUrlField}</div>
-                <div style={{ fontSize: 11.5, color: T.t2, wordBreak: "break-all" }}>{provider.webhook_url}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{t.providers.webhookUrlField}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: T.t2, wordBreak: "break-all" }}>{provider.webhook_url}</div>
               </div>
             )}
 
@@ -492,7 +533,11 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
                 background: provider.is_active ? "rgba(255,255,255,0.05)" : "rgba(34,197,94,0.10)",
                 border: `0.5px solid ${provider.is_active ? "rgba(255,255,255,0.09)" : "rgba(34,197,94,0.25)"}`,
                 color: provider.is_active ? T.t2 : T.green,
-              }}>
+                transition: "background 130ms ease, transform 130ms ease",
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)" }}
+              >
                 {provider.is_active ? t.providers.disable : <><Check size={12} /> {t.providers.enable}</>}
               </button>
               <button onClick={() => { if (window.confirm(`${t.providers.deleteConfirmPrefix}${provider.name}${t.providers.deleteConfirmSuffix}`)) onDelete() }}
@@ -500,6 +545,7 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
                   padding: "8px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer",
                   background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.08)",
                   color: T.t4, display: "flex", alignItems: "center", gap: 6,
+                  transition: "color 130ms ease, border-color 130ms ease",
                 }}
                 onMouseEnter={e => {
                   (e.currentTarget as HTMLElement).style.color = "#FF4D6A"
@@ -536,14 +582,15 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       }}>
         <Key size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>
         {t.providers.emptyTitle}
       </div>
       <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 8 }}>
         {t.providers.emptyDesc}
       </div>
       <div style={{
-        fontSize: 11, color: T.t4, marginBottom: 28,
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 10, color: T.t4, marginBottom: 28,
         padding: "5px 12px", borderRadius: 8,
         background: "rgba(232,0,42,0.06)", border: "0.5px solid rgba(232,0,42,0.14)",
       }}>
@@ -554,9 +601,10 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
         background: T.red, color: "#fff", border: "none",
         borderRadius: 10, padding: "10px 22px",
         fontSize: 13, fontWeight: 500, cursor: "pointer",
+        transition: "background 140ms ease, box-shadow 140ms ease, transform 140ms ease",
       }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 24px rgba(232,0,42,0.35)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)" }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red; (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.transform = "translateY(0)" }}
       >
         <Plus size={14} /> {t.providers.connectProvider}
       </button>
@@ -570,13 +618,7 @@ export default function ProvidersPage() {
   const { t } = useLanguage()
   const [providers, setProviders] = useState<Provider[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [pulse,     setPulse]     = useState(false)
   const [loaded,    setLoaded]    = useState(false)
-
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
 
   async function load() {
     try {
@@ -611,6 +653,8 @@ export default function ProvidersPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%   { transform: translateX(-100%); opacity: 0; }
           10%  { opacity: 1; }
@@ -618,6 +662,16 @@ export default function ProvidersPage() {
           100% { transform: translateX(200%); opacity: 0; }
         }
         @keyframes spin { to { transform: rotate(360deg) } }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{
@@ -639,28 +693,40 @@ export default function ProvidersPage() {
           position: "relative", padding: "36px 48px 28px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
           <div aria-hidden style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: 120, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.055) 0%,transparent 100%)" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
+                display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
               }}>
-                <span style={{
-                  width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
-                  opacity: pulse ? 1 : 0.3,
-                  transition: "opacity 900ms ease, box-shadow 900ms ease",
-                  boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-                }} />
-                <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  {active.length > 0 ? t.providers.providerGatewayActive : t.providers.noActiveProviders} · {providers.length} {t.providers.connectedSuffix}
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Provider Gateway
                 </span>
               </div>
-              <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.providers.title}</h1>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.providers.title}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
                 {t.providers.subtitle}
               </p>
@@ -674,7 +740,7 @@ export default function ProvidersPage() {
                   background: "rgba(34,197,94,0.07)", border: "0.5px solid rgba(34,197,94,0.18)",
                   color: T.green,
                 }}>
-                  <Activity size={12} /> {active.length} {t.providers.activeSuffix}
+                  <Activity size={12} /> <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{active.length}</span> {t.providers.activeSuffix}
                 </div>
               )}
               <button onClick={() => setShowModal(true)} style={{
@@ -682,9 +748,10 @@ export default function ProvidersPage() {
                 background: T.red, color: "#fff", border: "none",
                 borderRadius: 9, padding: "9px 18px",
                 fontSize: 13, fontWeight: 500, cursor: "pointer",
+                transition: "background 140ms ease, box-shadow 140ms ease, transform 140ms ease",
               }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px rgba(232,0,42,0.35)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)" }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red; (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.transform = "translateY(0)" }}
               >
                 <Plus size={14} /> {t.providers.connectBtn}
               </button>
@@ -696,8 +763,13 @@ export default function ProvidersPage() {
         {!loaded ? null : providers.length === 0 ? (
           <EmptyState onAdd={() => setShowModal(true)} t={t} />
         ) : (
-          <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
-            <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
+          <div style={{ padding: "24px 48px 56px", maxWidth: 1200, position: "relative" }}>
+            <div aria-hidden style={{
+              position: "absolute", top: 80, left: "10%", right: "10%", height: 260, pointerEvents: "none",
+              background: "radial-gradient(ellipse 60% 100% at 50% 0%, rgba(232,0,42,0.05) 0%, transparent 75%)",
+            }} />
+
+            <div style={{ position: "relative", display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
               {[
                 { label: t.providers.totalProviders, value: providers.length, icon: Key      },
                 { label: t.providers.activeLabel,            value: active.length,   icon: Zap      },
@@ -709,13 +781,26 @@ export default function ProvidersPage() {
                   background: T.s1, border: `0.5px solid ${T.b1}`,
                 }}>
                   <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
                   <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
               ))}
             </div>
 
+            <div aria-hidden style={{
+              position: "relative", height: 1.5, marginBottom: 20,
+              background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+            }}>
+              <div className="astrocore-hero-sweep" style={{
+                position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+                animationDelay: "0.5s",
+              }} />
+            </div>
+
             <div style={{
+              position: "relative",
               display: "flex", alignItems: "flex-start", gap: 10,
               padding: "11px 14px", borderRadius: 10, marginBottom: 20,
               background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
@@ -726,7 +811,7 @@ export default function ProvidersPage() {
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
+            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
               {providers.map(p => (
                 <ProviderCard
                   key={p.id}
@@ -739,11 +824,13 @@ export default function ProvidersPage() {
             </div>
 
             <div onClick={() => setShowModal(true)} style={{
+              position: "relative",
               marginTop: 14, borderRadius: 14, padding: "18px",
               border: "0.5px dashed rgba(232,0,42,0.22)",
               background: "rgba(232,0,42,0.03)",
               cursor: "pointer", display: "flex",
               alignItems: "center", justifyContent: "center", gap: 8,
+              transition: "background 150ms ease, border-color 150ms ease",
             }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)"

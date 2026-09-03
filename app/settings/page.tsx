@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Settings, User, Key, Brain, Shield,
@@ -8,10 +8,7 @@ import {
   Trash2, BookOpen, Image as ImageIcon,
   Bot, MessageSquare, AlertCircle, Check, Globe,
 } from "lucide-react"
-import {
-  agentStore, chatStore, providerStore,
-  vaultStore, galleryStore,
-} from "@/lib/store"
+import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import { LANGUAGES } from "@/lib/language"
@@ -29,6 +26,33 @@ const T = {
   t4:   "#585878",
   red:  "#E8002A",
   green: "#22C55E",
+}
+
+// Real Supabase tables (matching every other page in the app) — this
+// used to read/clear a stale localStorage-based `lib/store` that had
+// nothing to do with the actual data shown on Agents/Chat/Vault/
+// Gallery/Memory, so the counts here were wrong and "Clear" didn't
+// touch what you actually see elsewhere.
+const TABLES = {
+  agents:   "agents",
+  sessions: "chat_sessions",
+  providers:"providers",
+  vault:    "vault_items",
+  gallery:  "gallery_items",
+  memory:   "memory_items",
+} as const
+
+type StatsKey = keyof typeof TABLES
+
+async function countTable(table: string, userId: string): Promise<number> {
+  const sb = getSupabase()
+  const { count } = await sb.from(table).select("id", { count: "exact", head: true }).eq("user_id", userId)
+  return count ?? 0
+}
+
+async function clearTable(table: string, userId: string): Promise<void> {
+  const sb = getSupabase()
+  await sb.from(table).delete().eq("user_id", userId)
 }
 
 // ─── Setting row ──────────────────────────────────────────────────
@@ -97,7 +121,7 @@ function SettingRow({
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: danger ? T.t1 : T.t1 }}>{label}</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{label}</div>
         {desc && <div style={{ fontSize: 11.5, color: T.t4, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>}
       </div>
 
@@ -126,28 +150,47 @@ function SettingRow({
 }
 
 // ─── Settings section card ────────────────────────────────────────
+// `variant="system"` gets the same grid-textured, mono-caps treatment
+// as Dashboard's live-data panels — reserved for "System status" here,
+// since that's the one section showing genuine live telemetry. Every
+// other section is content/navigation, so it keeps a normal-case
+// Space Grotesk title instead of the tracked-uppercase eyebrow every
+// section used to share regardless of what it actually contained.
 
-function SectionCard({ title, icon: Icon, children, accent }: {
+function SectionCard({ title, icon: Icon, children, accent, variant = "content" }: {
   title: string
   icon: React.ElementType
   children: React.ReactNode
   accent?: boolean
+  variant?: "content" | "system"
 }) {
+  const isSystem = variant === "system"
   return (
     <div style={{
-      background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
+      position: "relative",
+      background: isSystem ? "#0A0A10" : "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
+      backgroundImage: isSystem
+        ? "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)"
+        : undefined,
+      backgroundSize: isSystem ? "14px 14px" : undefined,
       border: `0.5px solid ${accent ? "rgba(232,0,42,0.20)" : T.b1}`,
-      borderRadius: 14, overflow: "hidden",
+      borderRadius: isSystem ? 10 : 14, overflow: "hidden",
     }}>
-      {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        padding: "13px 16px 11px",
+        padding: isSystem ? "11px 16px 10px" : "13px 16px 11px",
         borderBottom: `0.5px solid ${T.b1}`,
-        background: accent ? "rgba(232,0,42,0.04)" : "transparent",
+        background: accent ? "rgba(232,0,42,0.04)" : isSystem ? "rgba(10,10,16,0.55)" : "transparent",
       }}>
-        <Icon size={13} style={{ color: accent ? T.red : T.t4, opacity: 0.85 }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+        <Icon size={isSystem ? 12 : 13} style={{ color: accent ? T.red : T.t4, opacity: 0.85 }} />
+        <span style={{
+          fontFamily: isSystem ? "'JetBrains Mono', monospace" : "'Space Grotesk', sans-serif",
+          fontSize: isSystem ? 10 : 13,
+          fontWeight: 600,
+          color: isSystem ? T.t4 : T.t2,
+          textTransform: isSystem ? "uppercase" : "none",
+          letterSpacing: isSystem ? "0.07em" : "-0.005em",
+        }}>
           {title}
         </span>
       </div>
@@ -162,6 +205,22 @@ function Divider() {
   return <div style={{ height: "0.5px", background: T.b1, margin: "0 16px" }} />
 }
 
+function SectionDivider({ delay = "0s" }: { delay?: string }) {
+  return (
+    <div aria-hidden style={{
+      position: "relative", height: 1.5,
+      background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+    }}>
+      <div className="astrocore-hero-sweep" style={{
+        position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+        background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+        boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+        animationDelay: delay,
+      }} />
+    </div>
+  )
+}
+
 // ─── Stat chip ────────────────────────────────────────────────────
 
 function Chip({ icon: Icon, label, value, color }: {
@@ -174,7 +233,7 @@ function Chip({ icon: Icon, label, value, color }: {
       background: T.s1, border: `0.5px solid ${T.b1}`,
     }}>
       <Icon size={13} style={{ color: color ?? T.red, opacity: 0.75 }} />
-      <span style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{value}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
       <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
     </div>
   )
@@ -204,7 +263,7 @@ function ConfirmModal({
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
           <AlertCircle size={18} style={{ color: T.red, flexShrink: 0 }} />
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{title}</span>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{title}</span>
         </div>
         <p style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, marginBottom: 18 }}>{desc}</p>
         <div style={{ display: "flex", gap: 8 }}>
@@ -231,41 +290,80 @@ function ConfirmModal({
 export default function SettingsPage() {
   const router = useRouter()
   const { t, language, setLanguage } = useLanguage()
-  const [pulse,   setPulse]   = useState(false)
   const [confirm, setConfirm] = useState<null | { title: string; desc: string; action: () => void }>(null)
   const [cleared, setCleared] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  const [stats, setStats] = useState({ agents: 0, sessions: 0, providers: 0, vault: 0, gallery: 0 })
+  const [stats, setStats] = useState<Record<StatsKey, number>>({
+    agents: 0, sessions: 0, providers: 0, vault: 0, gallery: 0, memory: 0,
+  })
 
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
+  const loadStats = useCallback(async (uid: string) => {
+    const entries = await Promise.all(
+      (Object.entries(TABLES) as [StatsKey, string][]).map(
+        async ([key, table]) => [key, await countTable(table, uid)] as const
+      )
+    )
+    setStats(Object.fromEntries(entries) as Record<StatsKey, number>)
   }, [])
 
-  function loadStats() {
-    setStats({
-      agents:    agentStore.getAll().length,
-      sessions:  chatStore.getAll().length,
-      providers: providerStore.getAll().length,
-      vault:     vaultStore.getAll().length,
-      gallery:   galleryStore.getAll().length,
+  useEffect(() => {
+    const sb = getSupabase()
+    sb.auth.getUser().then(({ data }) => {
+      const uid = data?.user?.id
+      if (!uid) return
+      setUserId(uid)
+      loadStats(uid)
     })
-  }
-
-  useEffect(() => { loadStats() }, [])
+  }, [loadStats])
 
   function showConfirm(title: string, desc: string, action: () => void) {
     setConfirm({ title, desc, action })
   }
 
+  async function handleClear(key: StatsKey, label: string) {
+    if (!userId) return
+    await clearTable(TABLES[key], userId)
+    await loadStats(userId)
+    setCleared(label)
+    setTimeout(() => setCleared(null), 2500)
+  }
+
+  async function handleClearMemoryLocal() {
+    // Memory notes made before the migration to memory_items may still
+    // live in this localStorage key on some browsers — clearing it
+    // alongside the real table keeps both in sync either way.
+    localStorage.removeItem("astrocore_memory")
+  }
+
+  async function handleResetAll() {
+    if (!userId) return
+    await Promise.all((Object.values(TABLES) as string[]).map(table => clearTable(table, userId)))
+    await handleClearMemoryLocal()
+    await loadStats(userId)
+    setCleared(t.settings.wholeWorkspaceName)
+  }
+
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%   { transform: translateX(-100%); opacity: 0; }
           10%  { opacity: 1; }
           90%  { opacity: 1; }
           100% { transform: translateX(200%); opacity: 0; }
+        }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
         }
       `}</style>
 
@@ -290,27 +388,38 @@ export default function SettingsPage() {
           position: "relative", padding: "36px 48px 28px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
+              display: "inline-flex", alignItems: "center", gap: 8,
               background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-              borderRadius: 20, padding: "3px 10px", marginBottom: 14,
+              borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
             }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%", background: T.red,
-                display: "inline-block",
-                opacity: pulse ? 1 : 0.3,
-                transition: "opacity 900ms ease, box-shadow 900ms ease",
-                boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-              }} />
-              <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Workspace Online · System Control
+              <span aria-hidden style={{
+                position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+              }}>
+                <span className="astrocore-badge-sweep" style={{
+                  position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                  background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                }} />
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                System Control
               </span>
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
               {t.sidebar.settings}
             </h1>
             <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
@@ -323,12 +432,17 @@ export default function SettingsPage() {
         <div style={{ padding: "24px 48px 56px", maxWidth: 960 }}>
 
           {/* System status */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
             <Chip icon={Bot}           label={t.settings.statAgents}   value={stats.agents}    />
             <Chip icon={MessageSquare} label={t.settings.statChats}     value={stats.sessions}  />
             <Chip icon={Key}           label={t.settings.statProviders} value={stats.providers} />
             <Chip icon={BookOpen}      label={t.settings.statVault}     value={stats.vault}     />
             <Chip icon={ImageIcon}     label={t.settings.statGallery}   value={stats.gallery}   />
+            <Chip icon={Brain}         label={t.sidebar.memory}         value={stats.memory}    />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <SectionDivider />
           </div>
 
           {/* Success cleared */}
@@ -423,8 +537,9 @@ export default function SettingsPage() {
               </div>
             </SectionCard>
 
-            {/* ── System status ── */}
-            <SectionCard title={t.settings.systemStatusTitle} icon={Activity}>
+            {/* ── System status — real telemetry, so this one keeps the
+                system-register treatment (grid texture + mono caps). ── */}
+            <SectionCard title={t.settings.systemStatusTitle} icon={Activity} variant="system">
               <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
                   { label: t.settings.aiCoreLabel,       value: t.settings.onlineLabel,         ok: true  },
@@ -435,7 +550,8 @@ export default function SettingsPage() {
                   <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, color: T.t2 }}>{label}</span>
                     <span style={{
-                      fontSize: 11.5, padding: "2px 9px", borderRadius: 5, fontWeight: 500,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 10.5, padding: "2px 9px", borderRadius: 5, fontWeight: 600,
                       background: ok ? "rgba(34,197,94,0.09)" : "rgba(255,255,255,0.04)",
                       border: `0.5px solid ${ok ? "rgba(34,197,94,0.24)" : "rgba(255,255,255,0.08)"}`,
                       color: ok ? T.green : T.t4,
@@ -480,10 +596,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.clearAgentsConfirmTitle,
                   t.settings.clearAgentsConfirmDesc,
-                  () => {
-                    agentStore.getAll().forEach(a => agentStore.remove(a.id))
-                    loadStats(); setCleared(t.settings.agentsName); setTimeout(() => setCleared(null), 2500)
-                  }
+                  () => handleClear("agents", t.settings.agentsName)
                 )}
                 actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
@@ -497,10 +610,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.clearChatsConfirmTitle,
                   t.settings.clearChatsConfirmDesc,
-                  () => {
-                    chatStore.getAll().forEach(s => chatStore.remove(s.id))
-                    loadStats(); setCleared(t.settings.chatsName); setTimeout(() => setCleared(null), 2500)
-                  }
+                  () => handleClear("sessions", t.settings.chatsName)
                 )}
                 actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
@@ -514,10 +624,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.clearMemoryConfirmTitle,
                   t.settings.clearMemoryConfirmDesc,
-                  () => {
-                    localStorage.removeItem("astrocore_memory")
-                    loadStats(); setCleared(t.settings.memoryName); setTimeout(() => setCleared(null), 2500)
-                  }
+                  async () => { await handleClear("memory", t.settings.memoryName); await handleClearMemoryLocal() }
                 )}
                 actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
@@ -531,10 +638,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.clearVaultConfirmTitle,
                   t.settings.clearVaultConfirmDesc,
-                  () => {
-                    vaultStore.getAll().forEach(i => vaultStore.remove(i.id))
-                    loadStats(); setCleared(t.settings.vaultName); setTimeout(() => setCleared(null), 2500)
-                  }
+                  () => handleClear("vault", t.settings.vaultName)
                 )}
                 actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
@@ -548,10 +652,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.clearGalleryConfirmTitle,
                   t.settings.clearGalleryConfirmDesc,
-                  () => {
-                    galleryStore.getAll().forEach(i => galleryStore.remove(i.id))
-                    loadStats(); setCleared(t.settings.galleryName); setTimeout(() => setCleared(null), 2500)
-                  }
+                  () => handleClear("gallery", t.settings.galleryName)
                 )}
                 actionLabel={t.settings.clearBtn}
                 actionVariant="danger"
@@ -565,16 +666,7 @@ export default function SettingsPage() {
                 action={() => showConfirm(
                   t.settings.resetAllConfirmTitle,
                   t.settings.resetAllConfirmDesc,
-                  () => {
-                    agentStore.getAll().forEach(a => agentStore.remove(a.id))
-                    chatStore.getAll().forEach(s => chatStore.remove(s.id))
-                    providerStore.getAll().forEach(p => providerStore.remove(p.id))
-                    vaultStore.getAll().forEach(i => vaultStore.remove(i.id))
-                    galleryStore.getAll().forEach(i => galleryStore.remove(i.id))
-                    localStorage.removeItem("astrocore_memory")
-                    loadStats()
-                    setCleared(t.settings.wholeWorkspaceName)
-                  }
+                  handleResetAll
                 )}
                 actionLabel={t.settings.resetAllBtn}
                 actionVariant="danger"
@@ -593,7 +685,7 @@ export default function SettingsPage() {
                 ].map(({ label, value }) => (
                   <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 13, color: T.t3 }}>{label}</span>
-                    <span style={{ fontSize: 13, color: T.t2, fontFamily: "monospace" }}>{value}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: T.t2 }}>{value}</span>
                   </div>
                 ))}
               </div>

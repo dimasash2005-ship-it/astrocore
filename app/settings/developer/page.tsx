@@ -35,7 +35,6 @@ const PERMISSIONS: Permission[] = [
   { id: "integrations", icon: Puzzle,   label: "Integrations" },
 ]
 
-// Matches lib/api-keys.ts ApiKeyRecord (no key_hash, ever).
 type ApiKeyRecord = {
   id: string
   name: string
@@ -108,10 +107,14 @@ function Toast({ msg, tone = "amber", onHide }: { msg: string; tone?: "amber" | 
   )
 }
 
+// This whole page is inherently technical (keys, permissions, usage
+// telemetry), so unlike Settings — which splits by section — Developer
+// Center keeps the mono-caps "system register" treatment throughout,
+// just formalized with the real font instead of a generic sans fallback.
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
         {title}
       </div>
       {children}
@@ -155,7 +158,6 @@ function ModalShell({ children, onClose }: { children: React.ReactNode; onClose:
   )
 }
 
-// ── Generate key modal (asks for name, then creates via API) ──
 function GenerateKeyModal({
   onClose, onCreated, t,
 }: { onClose: () => void; onCreated: (fullKey: string, record: ApiKeyRecord) => void; t: ReturnType<typeof useLanguage>["t"] }) {
@@ -196,7 +198,7 @@ function GenerateKeyModal({
   return (
     <ModalShell onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
-        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalNewKeyTitle}</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalNewKeyTitle}</span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
           <X size={16} />
         </button>
@@ -234,12 +236,11 @@ function GenerateKeyModal({
   )
 }
 
-// ── Reveal-once modal, shown immediately after creation ──
 function RevealKeyModal({ fullKey, onClose, t }: { fullKey: string; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `0.5px solid ${T.b1}` }}>
-        <span style={{ fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalKeyCreatedTitle}</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5, fontWeight: 600, color: T.t1 }}>{t.developer.modalKeyCreatedTitle}</span>
         <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
           <X size={16} />
         </button>
@@ -260,7 +261,7 @@ function RevealKeyModal({ fullKey, onClose, t }: { fullKey: string; onClose: () 
           padding: "10px 12px", borderRadius: 9,
           background: "rgba(0,0,0,0.35)", border: "0.5px solid rgba(125,211,252,0.18)",
         }}>
-          <code style={{ fontSize: 12, color: "#7DD3FC", fontFamily: "monospace", wordBreak: "break-all", flex: 1 }}>
+          <code style={{ fontSize: 12, color: "#7DD3FC", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-all", flex: 1 }}>
             {fullKey}
           </code>
           <CopyBtn text={fullKey} />
@@ -281,7 +282,6 @@ function RevealKeyModal({ fullKey, onClose, t }: { fullKey: string; onClose: () 
 
 export default function DeveloperPage() {
   const { t, language } = useLanguage()
-  const [pulse, setPulse] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone?: "amber" | "red" | "green" } | null>(null)
 
   const [keys, setKeys] = useState<ApiKeyRecord[]>([])
@@ -290,19 +290,12 @@ export default function DeveloperPage() {
   const [showGenerate, setShowGenerate] = useState(false)
   const [revealKey, setRevealKey] = useState<string | null>(null)
 
-  useEffect(() => {
-    const id = setInterval(() => setPulse(p => !p), 2000)
-    return () => clearInterval(id)
-  }, [])
-
   const loadKeys = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch("/api/developer/api-keys")
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || t.developer.loadKeysError)
-      // Revoked keys stay in the database for audit/history — just hide
-      // them from this default view.
       setKeys((data.keys ?? []).filter((k: ApiKeyRecord) => !k.revoked_at))
     } catch (e) {
       setToast({ msg: e instanceof Error ? e.message : t.developer.loadKeysErrorGeneric, tone: "red" })
@@ -325,9 +318,6 @@ export default function DeveloperPage() {
       const res = await fetch(`/api/developer/api-keys/${id}`, { method: "DELETE" })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || t.developer.revokeError)
-      // Backend only sets revoked_at — the row still exists for audit
-      // purposes. We just drop it from the local list immediately so it
-      // never reappears in the default view.
       setKeys(prev => prev.filter(k => k.id !== id))
       setToast({ msg: t.developer.revokeSuccessToast, tone: "green" })
     } catch (e) {
@@ -338,11 +328,23 @@ export default function DeveloperPage() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
         @keyframes spin { to { transform: rotate(360deg) } }
         .animate-spin { animation: spin 0.8s linear infinite; }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep {
+          0%   { left: -40%; }
+          100% { left: 100%; }
+        }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{
@@ -361,25 +363,45 @@ export default function DeveloperPage() {
           position: "relative", padding: "36px 48px 28px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-              borderRadius: 20, padding: "3px 10px", marginBottom: 14,
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
+                borderRadius: 20, padding: "4px 12px 4px 10px",
+              }}>
+                <span aria-hidden style={{
+                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
+                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
+                }}>
+                  <span className="astrocore-badge-sweep" style={{
+                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
+                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+                  }} />
+                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
+                  Developer Center
+                </span>
+              </div>
               <span style={{
-                width: 5, height: 5, borderRadius: "50%", background: T.red, display: "inline-block",
-                opacity: pulse ? 1 : 0.3, transition: "opacity 900ms ease, box-shadow 900ms ease",
-                boxShadow: pulse ? "0 0 6px rgba(232,0,42,1)" : "none",
-              }} />
-              <span style={{ fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Developer Center · Beta
-              </span>
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9.5, padding: "2px 8px", borderRadius: 5, fontWeight: 700,
+                background: "rgba(245,158,11,0.12)", color: T.amber, border: "0.5px solid rgba(245,158,11,0.28)",
+              }}>BETA</span>
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
               API Keys
             </h1>
             <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
@@ -391,17 +413,15 @@ export default function DeveloperPage() {
         {/* Body */}
         <div style={{ padding: "28px 48px 56px", maxWidth: 860, display: "flex", flexDirection: "column", gap: 28 }}>
 
-          {/* ── API Keys ── */}
           <Section title={t.developer.sectionApiKeys}>
             <Card>
-              {/* Card header */}
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "14px 18px 12px", borderBottom: `0.5px solid ${T.b1}`,
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Key size={13} style={{ color: T.red, opacity: 0.75 }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.09em" }}>
                     {loading ? t.developer.loadingKeys : `${keys.length} ${keys.length === 1 ? t.developer.keySingular : t.developer.keyPlural}`}
                   </span>
                 </div>
@@ -415,14 +435,9 @@ export default function DeveloperPage() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
                 >
                   <Plus size={13} /> Generate API Key
-                  <span style={{
-                    marginLeft: 4, fontSize: 9, padding: "1px 5px", borderRadius: 4,
-                    background: "rgba(232,0,42,0.14)", color: "#FF6B6B",
-                  }}>Beta</span>
                 </button>
               </div>
 
-              {/* Key list */}
               <div style={{ padding: "8px 0" }}>
                 {!loading && keys.length === 0 ? (
                   <div style={{ padding: "36px 18px", textAlign: "center" }}>
@@ -441,7 +456,6 @@ export default function DeveloperPage() {
                       borderBottom: `0.5px solid ${T.b1}`,
                       opacity: isActive ? 1 : 0.45,
                     }}>
-                      {/* Icon */}
                       <div style={{
                         width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                         background: isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
@@ -451,12 +465,12 @@ export default function DeveloperPage() {
                         <Key size={15} style={{ color: isActive ? T.green : T.t4 }} />
                       </div>
 
-                      {/* Info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 500, color: T.t1 }}>{k.name}</span>
+                          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5, fontWeight: 600, color: T.t1 }}>{k.name}</span>
                           <span style={{
-                            fontSize: 9.5, padding: "2px 7px", borderRadius: 5, fontWeight: 600,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: 9, padding: "2px 7px", borderRadius: 5, fontWeight: 600,
                             background: isActive ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.04)",
                             color: isActive ? T.green : T.t4,
                             border: `0.5px solid ${isActive ? "rgba(34,197,94,0.22)" : "rgba(255,255,255,0.08)"}`,
@@ -466,36 +480,32 @@ export default function DeveloperPage() {
                           </span>
                         </div>
 
-                        {/* Masked key (full key is never retrievable after creation) */}
                         <div style={{
                           display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
                           padding: "6px 10px", borderRadius: 7,
                           background: "rgba(0,0,0,0.3)", border: "0.5px solid rgba(125,211,252,0.12)",
                           width: "fit-content",
                         }}>
-                          <code style={{ fontSize: 12, color: T.t3, fontFamily: "monospace" }}>
+                          <code style={{ fontSize: 12, color: T.t3, fontFamily: "'JetBrains Mono', monospace" }}>
                             {maskedFromPrefix(k.key_prefix)}
                           </code>
                           <CopyBtn text={k.key_prefix} />
                         </div>
 
-                        {/* Meta */}
                         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-                          <span style={{ fontSize: 11, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, display: "flex", alignItems: "center", gap: 4 }}>
                             <Clock size={10} /> {t.developer.createdPrefix}{formatDate(k.created_at, t, language)}
                           </span>
-                          <span style={{ fontSize: 11, color: T.t4 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>
                             {t.developer.lastUsedLabel}{formatDate(k.last_used_at, t, language)}
                           </span>
                         </div>
 
-                        {/* Permissions */}
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                           {k.permissions.map(p => <PermBadge key={p} id={p} />)}
                         </div>
                       </div>
 
-                      {/* Actions */}
                       {isActive && (
                         <button onClick={() => handleRevoke(k.id)} style={{
                           padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer",
@@ -522,7 +532,6 @@ export default function DeveloperPage() {
             </Card>
           </Section>
 
-          {/* ── Permissions ── */}
           <Section title={t.developer.sectionPermissions}>
             <Card>
               <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -551,7 +560,6 @@ export default function DeveloperPage() {
             </Card>
           </Section>
 
-          {/* ── Usage ── */}
           <Section title={t.developer.sectionUsage}>
             <Card>
               <div style={{ padding: "16px 18px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 14 }}>
@@ -566,14 +574,13 @@ export default function DeveloperPage() {
                       <Icon size={12} style={{ color: T.t4 }} />
                       <span style={{ fontSize: 10.5, color: T.t4 }}>{label}</span>
                     </div>
-                    <span style={{ fontSize: 20, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em" }}>{value}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, fontWeight: 700, color: T.t1, letterSpacing: "-0.02em" }}>{value}</span>
                   </div>
                 ))}
               </div>
             </Card>
           </Section>
 
-          {/* ── Security ── */}
           <Section title={t.developer.sectionSecurity}>
             <div style={{
               display: "flex", alignItems: "flex-start", gap: 11,
