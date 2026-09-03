@@ -6,12 +6,13 @@ import Link from "next/link"
 import {
   MessageSquare, Bot, Zap, Sparkles, HelpCircle,
   Plus, Clock, X, AlertCircle, ChevronRight,
-  Radio, Lock, Pin,
+  Radio, Lock, Pin, Trash2,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import { useIsAdmin } from "@/lib/useIsAdmin"
 
 const T = {
   bg:   "#08080F",
@@ -256,8 +257,9 @@ function RecencyDot({ recent, color }: { recent: boolean; color: string }) {
 
 // ─── Topic row ────────────────────────────────────────────────────
 
-function TopicRow({ topic, category, isNew, t, lang }: {
+function TopicRow({ topic, category, isNew, canDelete, onDelete, t, lang }: {
   topic: Topic; category?: Category; isNew?: boolean
+  canDelete?: boolean; onDelete?: (id: string) => void
   t: ReturnType<typeof useLanguage>["t"]; lang: Language
 }) {
   const accent = category?.color ?? T.red
@@ -277,10 +279,14 @@ function TopicRow({ topic, category, isNew, t, lang }: {
         onMouseEnter={e => {
           (e.currentTarget as HTMLElement).style.background = `${accent}0D`
           ;(e.currentTarget as HTMLElement).style.borderColor = `${accent}33`
+          const del = (e.currentTarget as HTMLElement).querySelector(".topic-del") as HTMLElement | null
+          if (del) del.style.opacity = "1"
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"
           ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.06)"
+          const del = (e.currentTarget as HTMLElement).querySelector(".topic-del") as HTMLElement | null
+          if (del) del.style.opacity = "0"
         }}
       >
         <span aria-hidden style={{ position: "absolute", left: 0, top: 10, bottom: 10, width: 2.5, borderRadius: "0 3px 3px 0", background: accent }} />
@@ -324,6 +330,21 @@ function TopicRow({ topic, category, isNew, t, lang }: {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, marginTop: 2 }}>
+          {canDelete && onDelete && (
+            <button
+              className="topic-del"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete(topic.id) }}
+              style={{
+                opacity: 0, transition: "opacity 130ms ease",
+                padding: 5, borderRadius: 6, border: "none", background: "rgba(255,255,255,0.06)",
+                cursor: "pointer", color: T.t4, lineHeight: 0,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10.5, padding: "2px 8px", borderRadius: 5,
@@ -344,12 +365,14 @@ function TopicRow({ topic, category, isNew, t, lang }: {
 export default function ForumPage() {
   const router = useRouter()
   const { t, language } = useLanguage()
+  const { isAdmin } = useIsAdmin()
 
   const [categories, setCategories]   = useState<Category[]>([])
   const [topics,     setTopics]       = useState<Topic[]>([])
   const [loaded,     setLoaded]       = useState(false)
   const [showModal,  setShowModal]    = useState(false)
   const [isAuthed,   setIsAuthed]     = useState(false)
+  const [userId,     setUserId]       = useState<string | null>(null)
   const [activeCat,  setActiveCat]    = useState<string | null>(null)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
 
@@ -369,10 +392,22 @@ export default function ForumPage() {
       if (cats) setCategories(cats as Category[])
       if (tops) setTopics(tops as Topic[])
       setIsAuthed(!!userData?.user)
+      setUserId(userData?.user?.id ?? null)
     } finally {
       setLoaded(true)
     }
   }, [])
+
+  async function handleDeleteTopic(id: string) {
+    if (!window.confirm(t.forum.deleteConfirm)) return
+    const sb = getSupabase()
+    // Remove replies first (RLS lets you do this either as the topic's
+    // owner or as an admin — see forum_admin_and_delete.sql) so the
+    // topic delete that follows never leaves orphaned posts behind.
+    await sb.from("forum_posts").delete().eq("topic_id", id)
+    await sb.from("forum_topics").delete().eq("id", id)
+    setTopics(prev => prev.filter(x => x.id !== id))
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -430,6 +465,19 @@ export default function ForumPage() {
           from { opacity: 0; transform: translateY(-8px); background: rgba(232,0,42,0.10); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
+        .astrocore-live-dot {
+          width: 7px; height: 7px; border-radius: 50%; background: #22C55E;
+          animation: astrocoreLivePulse 1.8s ease-in-out infinite;
+        }
+        @keyframes astrocoreLivePulse {
+          0%, 100% { opacity: 1; box-shadow: 0 0 7px rgba(34,197,94,0.9), 0 0 14px rgba(34,197,94,0.4); }
+          50%      { opacity: 0.35; box-shadow: none; }
+        }
       `}</style>
 
       <div style={{
@@ -445,7 +493,16 @@ export default function ForumPage() {
 
         {/* Hero */}
         <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: "linear-gradient(90deg,transparent 0%,rgba(232,0,42,0.50) 40%,rgba(232,0,42,0.50) 60%,transparent 100%)" }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
+            }} />
+          </div>
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
@@ -453,18 +510,9 @@ export default function ForumPage() {
               <div style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 background: "rgba(34,197,94,0.08)", border: "0.5px solid rgba(34,197,94,0.25)",
-                borderRadius: 20, padding: "4px 11px 4px 9px", marginBottom: 14,
+                borderRadius: 20, padding: "5px 11px 5px 9px", marginBottom: 14,
               }}>
-                <span aria-hidden style={{
-                  position: "relative", width: 16, height: 1.5, borderRadius: 1,
-                  background: "rgba(34,197,94,0.25)", overflow: "hidden", display: "inline-block",
-                }}>
-                  <span style={{
-                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
-                    background: "linear-gradient(90deg, transparent, #22C55E, transparent)",
-                    animation: "astrocoreBadgeSweep 1.8s linear infinite",
-                  }} />
-                </span>
+                <span aria-hidden className="astrocore-live-dot" />
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.green, fontWeight: 600, letterSpacing: "0.06em" }}>
                   {t.forum.liveIndicator}
                 </span>
@@ -501,6 +549,38 @@ export default function ForumPage() {
         {/* Body */}
         <div style={{ padding: "24px 48px 56px", maxWidth: 1100 }}>
 
+          {/* Stats — every other page in the app has this row; the
+              forum page was the one place missing it, which is part
+              of why it read as sparser than everything around it. */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+            {[
+              { label: language === "uk" ? "Тем" : "Topics",       value: topics.length },
+              { label: language === "uk" ? "Відповідей" : "Replies", value: topics.reduce((s, x) => s + x.reply_count, 0) },
+              { label: language === "uk" ? "Категорій" : "Categories", value: categories.length },
+            ].map(({ label, value }) => (
+              <div key={label} style={{
+                display: "flex", alignItems: "center", gap: 9,
+                padding: "8px 14px", borderRadius: 9,
+                background: T.s1, border: `0.5px solid ${T.b1}`,
+              }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
+                <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div aria-hidden style={{
+            position: "relative", height: 1.5, marginBottom: 20,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+              animationDelay: "0.5s",
+            }} />
+          </div>
+
           {/* Category filter chips */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
             <button onClick={() => setActiveCat(null)} style={{
@@ -531,6 +611,18 @@ export default function ForumPage() {
             })}
           </div>
 
+          <div aria-hidden style={{
+            position: "relative", height: 1.5, marginBottom: 20,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
+              boxShadow: "0 0 8px rgba(232,0,42,0.75)",
+              animationDelay: "1.6s",
+            }} />
+          </div>
+
           {/* Pinned */}
           {pinned.length > 0 && (
             <div style={{ marginBottom: 18 }}>
@@ -539,7 +631,7 @@ export default function ForumPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {pinned.map(topic => (
-                  <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} t={t} lang={language} />
+                  <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} canDelete={isAdmin || topic.user_id === userId} onDelete={handleDeleteTopic} t={t} lang={language} />
                 ))}
               </div>
             </div>
@@ -578,7 +670,7 @@ export default function ForumPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {regular.map(topic => (
-                <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} t={t} lang={language} />
+                <TopicRow key={topic.id} topic={topic} category={getCategory(topic.category_id)} isNew={topic.id === justAddedId} canDelete={isAdmin || topic.user_id === userId} onDelete={handleDeleteTopic} t={t} lang={language} />
               ))}
             </div>
           )}

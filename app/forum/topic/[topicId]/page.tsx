@@ -10,6 +10,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import { useIsAdmin } from "@/lib/useIsAdmin"
 
 const T = {
   bg:   "#08080F",
@@ -74,10 +75,11 @@ function initials(name: string | null): string {
 
 // ─── Message bubble ───────────────────────────────────────────────
 
-function PostBubble({ post, accent, isOwn, isOriginal, onDelete, t, lang }: {
+function PostBubble({ post, accent, isOwn, isAdmin, isOriginal, onDelete, t, lang }: {
   post: { user_id: string; content: string; author_name: string | null; created_at: string }
   accent: string
   isOwn: boolean
+  isAdmin?: boolean
   isOriginal?: boolean
   onDelete?: () => void
   t: ReturnType<typeof useLanguage>["t"]
@@ -129,7 +131,7 @@ function PostBubble({ post, accent, isOwn, isOriginal, onDelete, t, lang }: {
         </div>
       </div>
 
-      {isOwn && onDelete && (
+      {(isOwn || isAdmin) && onDelete && (
         <button className="post-del" onClick={onDelete} style={{
           opacity: 0, transition: "opacity 130ms ease",
           padding: 5, borderRadius: 6, border: "none", background: "none",
@@ -152,6 +154,7 @@ export default function ForumTopicPage() {
   const router  = useRouter()
   const topicId = params.topicId as string
   const { t, language } = useLanguage()
+  const { isAdmin } = useIsAdmin()
 
   const [topic,    setTopic]    = useState<Topic | null>(null)
   const [category, setCategory] = useState<Category | null>(null)
@@ -271,6 +274,15 @@ export default function ForumTopicPage() {
     setPosts(prev => prev.filter(p => p.id !== id))
   }
 
+  async function handleDeleteTopic() {
+    if (!topic) return
+    if (!window.confirm(t.forum.deleteConfirm)) return
+    const sb = getSupabase()
+    await sb.from("forum_posts").delete().eq("topic_id", topic.id)
+    await sb.from("forum_topics").delete().eq("id", topic.id)
+    router.push(category ? `/forum/${category.slug}` : "/forum")
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
@@ -304,6 +316,11 @@ export default function ForumTopicPage() {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
         @keyframes spin { to { transform: rotate(360deg) } }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{
@@ -319,7 +336,16 @@ export default function ForumTopicPage() {
 
         {/* Header */}
         <div style={{ position: "relative", padding: "28px 48px 22px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: `linear-gradient(90deg,transparent 0%,${accent}80 40%,${accent}80 60%,transparent 100%)` }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
+              boxShadow: `0 0 10px ${accent}D9`,
+            }} />
+          </div>
 
           <div style={{ position: "relative", zIndex: 1 }}>
             <button onClick={() => router.push(category ? `/forum/${category.slug}` : "/forum")} style={{
@@ -361,15 +387,17 @@ export default function ForumTopicPage() {
         </div>
 
         {/* Thread */}
-        <div style={{ padding: "20px 48px 32px", maxWidth: 900 }}>
+        <div style={{ padding: "20px 48px 32px", maxWidth: 1240 }}>
           {!loaded ? null : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {topic && (
                 <PostBubble
                   post={topic}
                   accent={accent}
-                  isOwn={false}
+                  isOwn={topic.user_id === userId}
+                  isAdmin={isAdmin}
                   isOriginal
+                  onDelete={handleDeleteTopic}
                   t={t}
                   lang={language}
                 />
@@ -392,6 +420,7 @@ export default function ForumTopicPage() {
                       post={post}
                       accent={accent}
                       isOwn={post.user_id === userId}
+                      isAdmin={isAdmin}
                       onDelete={() => handleDeletePost(post.id)}
                       t={t}
                       lang={language}
@@ -411,7 +440,7 @@ export default function ForumTopicPage() {
           background: "rgba(8,8,15,0.97)", backdropFilter: "blur(16px)",
           borderTop: `0.5px solid ${T.b1}`,
         }}>
-          <div style={{ maxWidth: 900 }}>
+          <div style={{ maxWidth: 1240 }}>
             {topic?.is_locked ? (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,

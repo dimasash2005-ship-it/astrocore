@@ -6,12 +6,13 @@ import Link from "next/link"
 import {
   MessageSquare, Bot, Zap, Sparkles, HelpCircle,
   Plus, Clock, X, ArrowLeft, ChevronRight,
-  Radio, Lock, Pin,
+  Radio, Lock, Pin, Trash2,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import { useIsAdmin } from "@/lib/useIsAdmin"
 
 const T = {
   bg:   "#08080F",
@@ -204,12 +205,14 @@ export default function ForumCategoryPage() {
   const router = useRouter()
   const slug = params.categorySlug as string
   const { t, language } = useLanguage()
+  const { isAdmin } = useIsAdmin()
 
   const [category,  setCategory]  = useState<Category | null>(null)
   const [topics,    setTopics]    = useState<Topic[]>([])
   const [loaded,    setLoaded]    = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [isAuthed,  setIsAuthed]  = useState(false)
+  const [userId,    setUserId]    = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -229,6 +232,7 @@ export default function ForumCategoryPage() {
       ])
 
       if (tops) setTopics(tops as Topic[])
+      setUserId(userData?.user?.id ?? null)
       setIsAuthed(!!userData?.user)
     } finally {
       setLoaded(true)
@@ -236,6 +240,14 @@ export default function ForumCategoryPage() {
   }, [slug])
 
   useEffect(() => { load() }, [load])
+
+  async function handleDeleteTopic(id: string) {
+    if (!window.confirm(t.forum.deleteConfirm)) return
+    const sb = getSupabase()
+    await sb.from("forum_posts").delete().eq("topic_id", id)
+    await sb.from("forum_topics").delete().eq("id", id)
+    setTopics(prev => prev.filter(x => x.id !== id))
+  }
 
   // Live topic updates scoped to this category.
   useEffect(() => {
@@ -291,6 +303,11 @@ export default function ForumCategoryPage() {
         @keyframes scanline {
           0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
         }
+        .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
+        @keyframes astrocoreHeroSweep {
+          0%   { left: -20%; }
+          100% { left: 100%; }
+        }
       `}</style>
 
       <div style={{
@@ -306,7 +323,16 @@ export default function ForumCategoryPage() {
 
         {/* Hero */}
         <div style={{ position: "relative", padding: "32px 48px 26px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
-          <div aria-hidden style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 1, pointerEvents: "none", background: `linear-gradient(90deg,transparent 0%,${accent}80 40%,${accent}80 60%,transparent 100%)` }} />
+          <div aria-hidden style={{
+            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
+            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
+          }}>
+            <div className="astrocore-hero-sweep" style={{
+              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
+              background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
+              boxShadow: `0 0 10px ${accent}D9`,
+            }} />
+          </div>
 
           <div style={{ position: "relative", zIndex: 1 }}>
             <button onClick={() => router.push("/forum")} style={{
@@ -362,7 +388,7 @@ export default function ForumCategoryPage() {
         </div>
 
         {/* Body */}
-        <div style={{ padding: "22px 48px 56px", maxWidth: 1000 }}>
+        <div style={{ padding: "22px 48px 56px", maxWidth: 1240 }}>
           {!loaded ? null : topics.length === 0 ? (
             <div style={{ padding: "64px 24px", textAlign: "center" }}>
               <MessageSquare size={26} style={{ color: T.t4, opacity: 0.4, margin: "0 auto 14px" }} />
@@ -391,10 +417,14 @@ export default function ForumCategoryPage() {
                     onMouseEnter={e => {
                       (e.currentTarget as HTMLElement).style.background = `${accent}0D`
                       ;(e.currentTarget as HTMLElement).style.borderColor = `${accent}33`
+                      const del = (e.currentTarget as HTMLElement).querySelector(".topic-del") as HTMLElement | null
+                      if (del) del.style.opacity = "1"
                     }}
                     onMouseLeave={e => {
                       (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"
                       ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.06)"
+                      const del = (e.currentTarget as HTMLElement).querySelector(".topic-del") as HTMLElement | null
+                      if (del) del.style.opacity = "0"
                     }}
                   >
                     <div style={{
@@ -426,6 +456,21 @@ export default function ForumCategoryPage() {
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      {(isAdmin || topic.user_id === userId) && (
+                        <button
+                          className="topic-del"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); handleDeleteTopic(topic.id) }}
+                          style={{
+                            opacity: 0, transition: "opacity 130ms ease",
+                            padding: 5, borderRadius: 6, border: "none", background: "rgba(255,255,255,0.06)",
+                            cursor: "pointer", color: T.t4, lineHeight: 0,
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                       <span style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10.5, padding: "2px 9px", borderRadius: 5,
