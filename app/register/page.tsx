@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe, Check } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe, Check, Mail } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/useLanguage";
 import { LANGUAGES, type Language } from "@/lib/language";
@@ -204,7 +204,93 @@ function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   )
 }
 
-function RegisterForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
+// Shown after signUp() returns with no active session — meaning
+// Supabase is waiting on email confirmation before this account can
+// actually sign in. Without this screen the person just gets bounced
+// back to a login-ish state with no explanation of why.
+function ConfirmEmailPanel({ email, language, onBack }: { email: string; language: Language; onBack: () => void }) {
+  const [resending, setResending] = useState(false)
+  const [resent,    setResent]    = useState(false)
+  const [error,     setError]     = useState("")
+
+  async function handleResend() {
+    if (resending) return
+    setResending(true)
+    setError("")
+    const sb = getSupabase()
+    const { error: resendError } = await sb.auth.resend({ type: "signup", email })
+    setResending(false)
+    if (resendError) { setError(resendError.message); return }
+    setResent(true)
+    setTimeout(() => setResent(false), 4000)
+  }
+
+  return (
+    <div style={{ width: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: 16, marginBottom: 24,
+        background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.25)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <Mail size={24} style={{ color: T.red }} />
+      </div>
+
+      <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em", marginBottom: 10 }}>
+        {language === "uk" ? "Перевірте пошту" : "Check your email"}
+      </div>
+      <p style={{ fontSize: 14, color: T.t3, lineHeight: 1.6, margin: "0 0 4px" }}>
+        {language === "uk" ? "Ми надіслали лист із підтвердженням на" : "We sent a confirmation link to"}
+      </p>
+      <div style={{ fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 22, wordBreak: "break-all" }}>{email}</div>
+
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: 10,
+        padding: "13px 15px", borderRadius: 10, marginBottom: 20,
+        background: "rgba(255,255,255,0.03)", border: `0.5px solid ${T.b1}`,
+      }}>
+        <AlertCircle size={14} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
+        <span style={{ fontSize: 12.5, color: T.t3, lineHeight: 1.55 }}>
+          {language === "uk"
+            ? "Перейдіть за посиланням у листі, щоб підтвердити акаунт — без цього увійти не вийде. Не бачите листа? Перевірте папку Спам."
+            : "Click the link in the email to confirm your account — you won't be able to sign in without it. Don't see it? Check your Spam folder."}
+        </span>
+      </div>
+
+      {error && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#FF4D6A", padding: "9px 12px", borderRadius: 9, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)", marginBottom: 16 }}>
+          <AlertCircle size={13} /> {error}
+        </div>
+      )}
+
+      <button onClick={handleResend} disabled={resending} style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        padding: "12px", borderRadius: 11, fontSize: 13.5, fontWeight: 500,
+        background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`,
+        color: resent ? T.green : T.t2, cursor: resending ? "default" : "pointer",
+        transition: "background 130ms ease, color 130ms ease",
+      }}
+        onMouseEnter={e => { if (!resending) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)" }}
+      >
+        {resending ? <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />
+          : resent ? <Check size={14} /> : null}
+        {resending
+          ? (language === "uk" ? "Надсилаємо..." : "Sending...")
+          : resent
+          ? (language === "uk" ? "Лист надіслано ще раз" : "Email resent")
+          : (language === "uk" ? "Надіслати лист ще раз" : "Resend email")}
+      </button>
+
+      <div style={{ textAlign: "center", marginTop: 22, fontSize: 13, color: T.t4 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", color: T.red, fontWeight: 600, fontSize: 13, padding: 0 }}>
+          {language === "uk" ? "← Використати іншу пошту" : "← Use a different email"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RegisterForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; language: Language }) {
   const [name,    setName]    = useState("")
   const [email,   setEmail]   = useState("")
   const [password,setPassword]= useState("")
@@ -212,17 +298,35 @@ function RegisterForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState("")
 
+  // Set once signUp() succeeds but comes back with no session — i.e.
+  // Supabase is holding the account pending email confirmation.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
+
   async function register() {
     if (!email.trim() || !password.trim()) { setError(t.registerPage.fillFieldsError); return }
     if (password.length < 6) { setError(t.registerPage.passwordTooShortError); return }
     setLoading(true); setError("")
     const sb = getSupabase()
-    const { error: authError } = await sb.auth.signUp({
+    const { data, error: authError } = await sb.auth.signUp({
       email: email.trim(), password,
       options: { data: { full_name: name.trim() } },
     })
-    if (authError) { setError(authError.message); setLoading(false); return }
-    window.location.href = "/"
+    setLoading(false)
+    if (authError) { setError(authError.message); return }
+
+    if (data.session) {
+      // Email confirmation is off (or this address was pre-confirmed) —
+      // there's already a live session, so go straight in.
+      window.location.href = "/"
+      return
+    }
+    // No session back means the account exists but can't sign in until
+    // the confirmation link is clicked.
+    setPendingEmail(email.trim())
+  }
+
+  if (pendingEmail) {
+    return <ConfirmEmailPanel email={pendingEmail} language={language} onBack={() => setPendingEmail(null)} />
   }
 
   return (
@@ -332,7 +436,7 @@ export default function RegisterPage() {
           pointerEvents: "none",
         }} />
         <Suspense fallback={null}>
-          <RegisterForm t={t} />
+          <RegisterForm t={t} language={language} />
         </Suspense>
       </div>
     </div>
