@@ -8,7 +8,7 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut,
+  ChevronDown, LogOut, Menu,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -18,6 +18,9 @@ import { LANGUAGES, translations } from "@/lib/language"
 export const SIDEBAR_W = 76
 // Expanded width on hover, per the design reference (~270px).
 const EXP_W = 270
+// Height of the mobile bottom tab bar (used by the shared page-shell
+// class below to reserve space so content doesn't hide behind it).
+const MOBILE_BAR_H = 64
 
 const SPD = "200ms cubic-bezier(0.4,0,0.2,1)"
 
@@ -60,6 +63,13 @@ const NAV_GROUPS: { label?: { uk: string; en: string }; items: { href: string; i
     ],
   },
 ]
+
+// The mobile tab bar only has room for a handful of icons — these are
+// the first group's items (Home/Chat/Agents/Memory) plus a "More" tab
+// that opens everything else. This is the same items a first-time
+// visitor lands on most, not an arbitrary pick.
+const MOBILE_PRIMARY_ITEMS = NAV_GROUPS[0].items
+const MOBILE_MORE_GROUPS = NAV_GROUPS.slice(1)
 
 function ContactPanel({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage()
@@ -250,6 +260,181 @@ function LanguageSwitch({ open }: { open: boolean }) {
   )
 }
 
+// ─── Mobile bottom tab bar ──────────────────────────────────────────
+// Hover doesn't exist on touch, so the whole "expand on mouse-enter"
+// interaction the desktop rail is built around simply has no mobile
+// equivalent — this isn't a resized version of that rail, it's the
+// standard mobile-native pattern instead (fixed bottom bar + a "More"
+// sheet for everything that doesn't fit).
+
+function MobileTabBar({ isActive, onMoreClick, moreOpen, t, language }: {
+  isActive: (href: string) => boolean
+  onMoreClick: () => void
+  moreOpen: boolean
+  t: ReturnType<typeof useLanguage>["t"]
+  language: "uk" | "en"
+}) {
+  return (
+    <nav className="astrocore-mobile-tabbar" style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 200,
+      height: MOBILE_BAR_H,
+      paddingBottom: "env(safe-area-inset-bottom)",
+      display: "flex", alignItems: "stretch",
+      background: "linear-gradient(180deg,#0C0C16 0%,#08080F 100%)",
+      borderTop: "0.5px solid rgba(255,255,255,0.09)",
+      boxShadow: "0 -6px 24px rgba(0,0,0,0.4)",
+    }}>
+      {MOBILE_PRIMARY_ITEMS.map(item => {
+        const active = isActive(item.href) && !moreOpen
+        const Icon = item.icon
+        return (
+          <Link key={item.href} href={item.href} onClick={() => { if (moreOpen) onMoreClick() }} style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            gap: 3, textDecoration: "none", minWidth: 0,
+          }}>
+            <Icon size={20} style={{
+              color: active ? "#FF3355" : "#8A86A8",
+              filter: active ? "drop-shadow(0 0 6px rgba(232,0,42,0.75))" : "none",
+            }} />
+            <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, color: active ? "#FF3355" : "#8A86A8" }}>
+              {t.sidebar[item.labelKey]}
+            </span>
+          </Link>
+        )
+      })}
+      <button onClick={onMoreClick} style={{
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 3, background: "none", border: "none", cursor: "pointer", minWidth: 0,
+      }}>
+        <Menu size={20} style={{
+          color: moreOpen ? "#FF3355" : "#8A86A8",
+          filter: moreOpen ? "drop-shadow(0 0 6px rgba(232,0,42,0.75))" : "none",
+        }} />
+        <span style={{ fontSize: 10, fontWeight: moreOpen ? 600 : 400, color: moreOpen ? "#FF3355" : "#8A86A8" }}>
+          {language === "uk" ? "Більше" : "More"}
+        </span>
+      </button>
+    </nav>
+  )
+}
+
+// Everything that doesn't fit in the tab bar: the Content/System groups,
+// contact, plan, and account — same structure as the desktop rail's
+// footer, just laid out for a full-width sheet instead of a narrow
+// column.
+function MobileMoreSheet({ onClose, isActive, account, onSignOut, t, language }: {
+  onClose: () => void
+  isActive: (href: string) => boolean
+  account: { name: string; email: string; avatarUrl: string | null } | null
+  onSignOut: () => void
+  t: ReturnType<typeof useLanguage>["t"]
+  language: "uk" | "en"
+}) {
+  const avatarLetter = (account?.name?.charAt(0) || "U").toUpperCase()
+  return (
+    <div className="astrocore-mobile-sheet" role="dialog" aria-modal="true" style={{
+      position: "fixed", inset: 0, zIndex: 250,
+      background: "rgba(4,4,10,0.7)",
+      display: "flex", flexDirection: "column", justifyContent: "flex-end",
+    }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        maxHeight: "80vh", overflowY: "auto",
+        borderRadius: "20px 20px 0 0",
+        paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
+        background: "linear-gradient(180deg,#111118 0%,#0A0A10 100%)",
+        border: "0.5px solid rgba(255,255,255,0.09)",
+        borderBottom: "none",
+        boxShadow: "0 -12px 40px rgba(0,0,0,0.55)",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 18px 10px",
+        }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#EEE8FF" }}>
+            Astro<span style={{ color: "#E8002A" }}>Core</span>
+          </span>
+          <button onClick={onClose} style={{
+            width: 30, height: 30, borderRadius: 8, border: "none",
+            background: "rgba(255,255,255,0.06)", color: "#ABA7C6", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <X size={15} />
+          </button>
+        </div>
+
+        {MOBILE_MORE_GROUPS.map((group, gi) => (
+          <div key={gi} style={{ padding: "6px 10px" }}>
+            {group.label && (
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#4A4A6A",
+                letterSpacing: "0.06em", margin: "8px 8px 4px",
+              }}>
+                {language === "uk" ? group.label.uk : group.label.en}
+              </div>
+            )}
+            {group.items.map(item => {
+              const Icon = item.icon
+              const active = isActive(item.href)
+              return (
+                <Link key={item.href} href={item.href} onClick={onClose} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  height: 46, borderRadius: 12, padding: "0 12px",
+                  textDecoration: "none",
+                  background: active ? "rgba(232,0,42,0.14)" : "transparent",
+                }}>
+                  <Icon size={18} style={{ color: active ? "#FF3355" : "#ADA9C8" }} />
+                  <span style={{ fontSize: 14, fontWeight: active ? 600 : 400, color: active ? "#FFFFFF" : "#DAD6F0" }}>
+                    {t.sidebar[item.labelKey]}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        ))}
+
+        <div style={{ height: 0.5, background: "rgba(255,255,255,0.08)", margin: "6px 18px" }} />
+
+        <div style={{ padding: "6px 10px" }}>
+          <a href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener noreferrer" style={{
+            display: "flex", alignItems: "center", gap: 12,
+            height: 46, borderRadius: 12, padding: "0 12px", textDecoration: "none",
+          }}>
+            <Send size={18} style={{ color: "#0088CC" }} />
+            <span style={{ fontSize: 14, color: "#DAD6F0" }}>{t.sidebar.contact}</span>
+          </a>
+          <Link href="/account" onClick={onClose} style={{
+            display: "flex", alignItems: "center", gap: 12,
+            height: 54, borderRadius: 12, padding: "0 12px", textDecoration: "none",
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 9, flexShrink: 0, overflow: "hidden",
+              background: account?.avatarUrl ? "#000" : "linear-gradient(135deg,#3A3A5C,#222238)",
+              border: "0.5px solid rgba(255,255,255,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, color: "#D6D2F0",
+            }}>
+              {account?.avatarUrl ? <img src={account.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : avatarLetter}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: "#E8E4F8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account?.name ?? "…"}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#5C5A78", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account?.email ?? ""}</div>
+            </div>
+          </Link>
+          <button onClick={() => { onClose(); onSignOut() }} style={{
+            display: "flex", alignItems: "center", gap: 12, width: "100%",
+            height: 46, borderRadius: 12, padding: "0 12px", border: "none",
+            background: "none", cursor: "pointer", color: "#FF8A8A", fontSize: 14,
+          }}>
+            <LogOut size={18} /> {t.sidebar.signOut}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const router    = useRouter()
@@ -258,6 +443,7 @@ export function Sidebar() {
   const [contact,  setContact]  = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoErr,  setLogoErr]  = useState(false)
+  const [mobileMore, setMobileMore] = useState(false)
   const [account,  setAccount]  = useState<{ name: string; email: string; avatarUrl: string | null } | null>(null)
   const ref   = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -311,7 +497,8 @@ export function Sidebar() {
   const avatarLetter = (account?.name?.charAt(0) || "U").toUpperCase()
 
   return (
-    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} style={{
+    <>
+    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} className="astrocore-sidebar-desktop" style={{
       position: "fixed", top: 0, left: 0,
       height: "100vh", zIndex: 50,
       width: open ? EXP_W : SIDEBAR_W,
@@ -409,12 +596,6 @@ export function Sidebar() {
         <div style={{ marginBottom: 14, flexShrink: 0 }}>
           <LanguageSwitch open={open} />
         </div>
-
-        {/* Back button removed — the persistent nav below already
-            covers every section, so a browser-history "back" affordance
-            was redundant chrome that also caused a layout shift
-            (everything below jumped ~52px depending on whether the
-            button was present on the current route). */}
 
         {/* Navigation — the flexible/scrollable middle section: it
             takes whatever vertical space is left between the header
@@ -574,6 +755,23 @@ export function Sidebar() {
         </div>
 
       </div>
+    </div>
+
+    {/* ── Mobile ── rendered alongside the desktop rail; CSS media
+        queries decide which one is actually visible, so there's no
+        JS screen-width detection (which would cause a hydration
+        mismatch between server and client renders). */}
+    <MobileTabBar isActive={isActive} onMoreClick={() => setMobileMore(v => !v)} moreOpen={mobileMore} t={t} language={language} />
+    {mobileMore && (
+      <MobileMoreSheet
+        onClose={() => setMobileMore(false)}
+        isActive={isActive}
+        account={account}
+        onSignOut={handleSignOut}
+        t={t}
+        language={language}
+      />
+    )}
 
       {/* Fonts (Space Grotesk for the wordmark/headings, JetBrains Mono
           for small system-style text) + the sweep/glow keyframes +
@@ -602,7 +800,34 @@ export function Sidebar() {
           0%, 100% { opacity: 0.8; }
           50%      { opacity: 0.2; }
         }
+
+        /* ── Responsive: below 768px, swap the hover-driven desktop
+            rail for the fixed bottom tab bar. Above that width, the
+            mobile bar/sheet stay hidden. ── */
+        .astrocore-mobile-tabbar, .astrocore-mobile-sheet { display: none; }
+
+        @media (max-width: 768px) {
+          .astrocore-sidebar-desktop { display: none !important; }
+          .astrocore-mobile-tabbar { display: flex !important; }
+          .astrocore-mobile-sheet { display: flex !important; }
+        }
+
+        /* Shared page wrapper class — use this INSTEAD OF a hardcoded
+           inline marginLeft:SIDEBAR_W style on each page's root div.
+           Inline styles can't respond to @media queries, so pages that
+           still hardcode marginLeft won't collapse it on mobile; pages
+           using this class will, automatically, with no per-page
+           media query needed. */
+        .astrocore-page-shell {
+          margin-left: ${SIDEBAR_W}px;
+        }
+        @media (max-width: 768px) {
+          .astrocore-page-shell {
+            margin-left: 0 !important;
+            padding-bottom: ${MOBILE_BAR_H}px !important;
+          }
+        }
       `}</style>
-    </div>
+    </>
   )
 }
