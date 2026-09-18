@@ -366,10 +366,46 @@ export default function DashboardPage() {
           0%   { left: -40%; }
           100% { left: 100%; }
         }
+
+        /* ── Mobile layout ──
+           The 3-column main grid and the row of hero buttons are the
+           two things on this page that don't gracefully collapse on
+           their own (unlike the stat-card grid below, which already
+           uses auto-fill and reflows without help). Everything else
+           on the page — card internals, list rows — was already sized
+           in relative/flexible units and just needs the outer columns
+           to stop being 3-wide. */
+        @media (max-width: 768px) {
+          .astrocore-dashboard-hero {
+            padding: 24px 20px 22px !important;
+          }
+          .astrocore-dashboard-h1 {
+            font-size: 24px !important;
+          }
+          .astrocore-hero-header {
+            align-items: stretch !important;
+          }
+          .astrocore-hero-actions {
+            flex-direction: column !important;
+            width: 100%;
+          }
+          .astrocore-hero-actions button {
+            width: 100%;
+            justify-content: center;
+          }
+          .astrocore-dashboard-body {
+            padding: 20px 16px 40px !important;
+          }
+          .astrocore-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .astrocore-scanline {
+            left: 0 !important;
+          }
+        }
       `}</style>
 
-      <div style={{
-        marginLeft: SIDEBAR_W,
+      <div className="astrocore-page-shell" style={{
         minHeight: "100vh",
         background: T.bg,
         backgroundImage: "radial-gradient(rgba(255,255,255,0.035) 1px,transparent 1px)",
@@ -378,7 +414,7 @@ export default function DashboardPage() {
       }}>
 
         {/* scan line */}
-        <div aria-hidden style={{
+        <div aria-hidden className="astrocore-scanline" style={{
           position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
           background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
           animation: "scanline 6s linear infinite",
@@ -395,7 +431,7 @@ export default function DashboardPage() {
         }} />
 
         {/* ── Hero ── */}
-        <div style={{
+        <div className="astrocore-dashboard-hero" style={{
           position: "relative", padding: "42px 48px 34px",
           borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
         }}>
@@ -442,12 +478,12 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 34, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+          <div className="astrocore-hero-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <h1 className="astrocore-dashboard-h1" style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 34, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.15 }}>
               {greeting()}, <span style={{ color: T.red }}>{userName}</span>.
             </h1>
 
-            <div style={{ display: "flex", gap: 10 }}>
+            <div className="astrocore-hero-actions" style={{ display: "flex", gap: 10 }}>
               {activeProviders.length === 0 && (
                 <button onClick={() => router.push("/providers")} style={{
                   display: "flex", alignItems: "center", gap: 7,
@@ -487,7 +523,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Body ── */}
-        <div style={{ padding: "30px 48px 56px" }}>
+        <div className="astrocore-dashboard-body" style={{ padding: "30px 48px 56px" }}>
 
           {/* No provider warning */}
           {ready && activeProviders.length === 0 && (
@@ -517,14 +553,12 @@ export default function DashboardPage() {
             }} />
           </div>
 
-          {/* Stat cards — one accent color (Agents, the product's core
-              noun) instead of a different color per card. The rest
-              share a single neutral tone: red now means one specific
-              thing across the whole app instead of being spent six
-              times over just to tell cards apart. */}
+          {/* Stat cards — auto-fill already reflows this responsively
+              on its own (2 columns on a phone, more as width grows), so
+              unlike the main grid below it needs no mobile override. */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
             gap: 16, marginBottom: 22,
           }}>
             <StatCard icon={Bot}           value={agents.length}           label={t.dashboard.statAgents}    sub={t.dashboard.statAgentsSub}    href="/agents"    color="#E8002A" />
@@ -548,8 +582,10 @@ export default function DashboardPage() {
             }} />
           </div>
 
-          {/* Main grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
+          {/* Main grid — the one thing on this page that HAS to be told
+              explicitly to stop being 3-wide on a phone; see the media
+              query above. */}
+          <div className="astrocore-main-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
 
             {/* Agents */}
             <GlassCard>
