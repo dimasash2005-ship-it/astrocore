@@ -15,6 +15,14 @@
     --astro-red-bright: #ff1a3e;
     --astro-red-dim: rgba(232, 0, 42, 0.15);
     --astro-green: #22c55e;
+
+    /* Mobile app (Capacitor) safe-area insets — lets content sit
+       correctly around the iPhone notch/Dynamic Island and the home
+       indicator instead of being hidden behind them. */
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+    --safe-left: env(safe-area-inset-left);
+    --safe-right: env(safe-area-inset-right);
   }
 
   * {
@@ -32,6 +40,20 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
+    /* Mobile app: removes the default blue tap-highlight flash on
+       buttons/links (reads as "website", not "app"), and stops the
+       native rubber-band scroll bounce from revealing empty space. */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* Mobile app: iOS auto-zooms the whole page when a tapped input's
+     font-size is under 16px — this is what causes forms to feel
+     "broken" on iPhone the moment you tap a field. */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 
   ::-webkit-scrollbar {

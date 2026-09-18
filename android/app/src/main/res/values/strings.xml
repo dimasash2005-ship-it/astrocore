@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AstroCore</string>
+    <string name="title_activity_main">AstroCore</string>
+    <string name="package_name">ai.astrocore.app</string>
+    <string name="custom_url_scheme">ai.astrocore.app</string>
+</resources>
