@@ -203,7 +203,7 @@ export async function callCustom(
       method: "POST",
       headers,
       body: JSON.stringify({ model: provider.model, messages: msgs, max_tokens: 4096, user: `astrocore:${provider.model}` }),
-      timeoutMs: 30_000,
+      timeoutMs: 60_000,
     })
   } catch (e) {
     throw new Error(e instanceof SafeFetchError ? e.message : "Не вдалося з'єднатися з Custom провайдером.")
