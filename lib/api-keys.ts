@@ -217,3 +217,38 @@ export async function listApiKeys(userId: string): Promise<ApiKeyRecord[]> {
 
   return data ?? []
 }
+
+// ─────────────────────────────────────────────────────────────
+// Used by the public /api/v1/chat/completions endpoint: given the
+// userId resolved from a verified ac_live_ key, finds that user's
+// currently active AI provider (their own connected Anthropic/OpenAI/
+// Google/Custom key) so the external call is billed to THEM, not to
+// AstroCore's own key. Uses the service_role client since there is no
+// Supabase session on these external, Bearer-token-authenticated calls.
+// ─────────────────────────────────────────────────────────────
+export interface ActiveProviderRow {
+  id: string
+  slug: string
+  model: string
+  api_key: string | null
+  encrypted_api_key: string | null
+  webhook_url: string | null
+  auth_header: string | null
+  custom_headers: Record<string, string> | null
+}
+
+export async function getActiveProviderForUser(userId: string): Promise<ActiveProviderRow | null> {
+  const supabase = getServiceRoleClient()
+
+  const { data, error } = await supabase
+    .from("providers")
+    .select("id, slug, model, api_key, encrypted_api_key, webhook_url, auth_header, custom_headers")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return data as ActiveProviderRow
+}
