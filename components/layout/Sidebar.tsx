@@ -8,7 +8,7 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut,
+  ChevronDown, LogOut, BarChart3,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -37,10 +37,11 @@ type SidebarKey = keyof typeof translations.uk.sidebar
 const NAV_GROUPS: { label?: { uk: string; en: string }; items: { href: string; icon: React.ElementType; labelKey: SidebarKey }[] }[] = [
   {
     items: [
-      { href: "/",       icon: Home,          labelKey: "center" },
-      { href: "/chat",   icon: MessageSquare, labelKey: "chat"   },
-      { href: "/agents", icon: Bot,           labelKey: "agents" },
-      { href: "/memory", icon: Brain,         labelKey: "memory" },
+      { href: "/",        icon: Home,          labelKey: "center"  },
+      { href: "/chat",    icon: MessageSquare, labelKey: "chat"    },
+      { href: "/agents",  icon: Bot,           labelKey: "agents"  },
+      { href: "/memory",  icon: Brain,         labelKey: "memory"  },
+      { href: "/reports", icon: BarChart3,     labelKey: "reports" },
     ],
   },
   {
@@ -174,11 +175,6 @@ function NavLink({ href, icon: Icon, label, active, open }: {
           {label}
         </Label>
 
-        {/* Active indicator — same "thin line" language as the rail's
-            signal line, but steady/non-animated: this means "you are
-            here", not "something is live right now", so it deliberately
-            doesn't pulse. Clipped to a rounded edge by the link's own
-            overflow:hidden + border-radius. */}
         {active && (
           <span aria-hidden style={{
             position: "absolute", left: 0, top: "50%",
@@ -190,10 +186,6 @@ function NavLink({ href, icon: Icon, label, active, open }: {
         )}
       </Link>
 
-      {/* Instant tooltip while the rail is still collapsed — hovering
-          the sidebar starts expanding it immediately, but the label
-          fade-in takes a moment to catch up. This shows the name right
-          away instead of making people wait on the animation. */}
       {hov && !open && (
         <div aria-hidden style={{
           position: "fixed",
@@ -216,9 +208,6 @@ function NavLink({ href, icon: Icon, label, active, open }: {
   )
 }
 
-// Small language toggle — cycles through lib/language.ts's LANGUAGES
-// list on click. Collapsed rail shows just the flag; expanded shows
-// the language code too.
 function LanguageSwitch({ open }: { open: boolean }) {
   const { language, setLanguage } = useLanguage()
   const current = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
@@ -262,9 +251,6 @@ export function Sidebar() {
   const ref   = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Real account info for the bottom profile row. avatarUrl comes from
-  // the same user_metadata.avatar_url the Account page writes to when
-  // someone uploads a photo — so a photo set there shows up here too.
   useEffect(() => {
     const sb = getSupabase()
     sb.auth.getUser().then(({ data }) => {
@@ -325,24 +311,13 @@ export function Sidebar() {
       boxShadow: open ? "6px 0 32px rgba(0,0,0,0.55)" : "2px 0 12px rgba(0,0,0,0.35)",
     }}>
 
-      {/* top glow */}
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 140% 90% at 50% 0%,rgba(232,0,42,0.10) 0%,transparent 100%)" }} />
 
-      {/* bottom glow */}
       <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 160, pointerEvents: "none", background: "radial-gradient(ellipse 140% 90% at 50% 100%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
 
-      {/* right separator glow accents, layered on top of the hairline border */}
       <div aria-hidden style={{ position: "absolute", top: 60, right: 0, width: 1.5, height: 120, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.55),transparent)" }} />
       <div aria-hidden style={{ position: "absolute", top: "60%", right: 0, width: 1, height: 90, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.20),transparent)" }} />
 
-      {/* signal line — thin, tall, with a bright pulse travelling down
-          it. Replaces the old decorative dot: that one blinked on a
-          timer with no meaning behind it. This still doesn't wire up
-          to a real per-agent status yet (that needs actual data from
-          the chat/agents backend), but as a rail-wide "system is on"
-          heartbeat it's at least an honest, real, always-true signal
-          rather than a fake one — and the visual language is now in
-          place for when a real status feed is ready to drive it. */}
       <div aria-hidden style={{
         position: "absolute", top: "18%", bottom: "18%", left: 9,
         width: 1.5,
@@ -358,7 +333,6 @@ export function Sidebar() {
         }} />
       </div>
 
-      {/* inner column */}
       <div style={{
         position: "relative", zIndex: 2,
         display: "flex", flexDirection: "column",
@@ -367,7 +341,6 @@ export function Sidebar() {
         overflow: "hidden",
       }}>
 
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginBottom: 22, gap: 12, overflow: "hidden" }}>
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
@@ -385,10 +358,6 @@ export function Sidebar() {
                 <span style={{ color: "#fff", fontWeight: 800, fontSize: 16, letterSpacing: "-0.05em" }}>A</span>
               )}
             </div>
-            {/* Core glow ring — the logo *is* the "core", so a slow
-                breathing glow here is a deliberate, meaningful use of
-                motion (unlike the old blinking dot). Pure CSS now
-                instead of a JS setInterval driving re-renders. */}
             <div className="astrocore-core-glow" style={{
               position: "absolute", inset: -3, borderRadius: 15,
               border: "1px solid rgba(232,0,42,0.5)",
@@ -405,22 +374,10 @@ export function Sidebar() {
           </Label>
         </div>
 
-        {/* Language switch */}
         <div style={{ marginBottom: 14, flexShrink: 0 }}>
           <LanguageSwitch open={open} />
         </div>
 
-        {/* Back button removed — the persistent nav below already
-            covers every section, so a browser-history "back" affordance
-            was redundant chrome that also caused a layout shift
-            (everything below jumped ~52px depending on whether the
-            button was present on the current route). */}
-
-        {/* Navigation — the flexible/scrollable middle section: it
-            takes whatever vertical space is left between the header
-            (logo/language/back) and the footer (contact/subscription/
-            profile), and scrolls internally with the mouse wheel once
-            the item list doesn't fit. */}
         <nav
           className="astrocore-sidebar-nav"
           style={{
@@ -454,7 +411,6 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* Contact */}
         <div style={{ position: "relative", flexShrink: 0, marginTop: 12, marginBottom: 12 }}>
           <button onClick={() => setContact(v => !v)} style={{
             display: "flex", alignItems: "center", height: 40, width: "100%",
@@ -473,8 +429,6 @@ export function Sidebar() {
           {contact && open && <ContactPanel onClose={() => setContact(false)} />}
         </div>
 
-        {/* Plan — compact single-row bar (matches the height of the
-            other rail buttons) instead of a padded multi-line card. */}
         {open && (
           <Link href="/account" style={{
             display: "flex", alignItems: "center", gap: 9,
@@ -498,7 +452,6 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* User profile */}
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button onClick={() => open && setMenuOpen(v => !v)} style={{
             display: "flex", alignItems: "center", width: "100%",
@@ -575,14 +528,6 @@ export function Sidebar() {
 
       </div>
 
-      {/* Fonts (Space Grotesk for the wordmark/headings, JetBrains Mono
-          for small system-style text) + the sweep/glow keyframes +
-          thin themed scrollbar for the nav list. Loading fonts via
-          @import here is a quick way to test them on just this
-          component — once you're happy with the direction, moving
-          this to next/font/google in app/layout.tsx is better for
-          performance (no render-blocking @import) and makes the fonts
-          available to every page, not just the Sidebar. */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500&display=swap');
 
