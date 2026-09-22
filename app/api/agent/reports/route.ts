@@ -64,23 +64,23 @@ async function requireUser(supabase: SupabaseClient) {
 // Zod schemas
 // ---------------------------------------------------------------------------
 
-// Adjust field names/types to match your actual `reports` table.
+// Matches the actual `reports` table:
+//   id uuid, user_id uuid, company_name text, summary text,
+//   chart_data jsonb, created_at timestamptz
 // user_id is deliberately NOT part of any input schema — it must never be
-// settable from the request body.
+// settable from the request body. id/created_at are server/db-generated.
 const reportCreateSchema = z.object({
-  title: z.string().min(1).max(300),
-  content: z.string().min(1),
-  status: z.enum(['draft', 'published']).optional().default('draft'),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  company_name: z.string().min(1).max(300),
+  summary: z.string().min(1),
+  chart_data: z.record(z.string(), z.unknown()).optional(),
 })
 
 const reportUpdateSchema = z
   .object({
     id: z.string().uuid(),
-    title: z.string().min(1).max(300).optional(),
-    content: z.string().min(1).optional(),
-    status: z.enum(['draft', 'published']).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
+    company_name: z.string().min(1).max(300).optional(),
+    summary: z.string().min(1).optional(),
+    chart_data: z.record(z.string(), z.unknown()).optional(),
   })
   .refine(
     (body) => Object.keys(body).some((k) => k !== 'id'),
