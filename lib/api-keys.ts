@@ -17,6 +17,8 @@ export const DEFAULT_PERMISSIONS = [
   "memory",
   "agents",
   "integrations",
+  "reports",
+  "gallery",
 ] as const
 
 export interface ApiKeyRecord {

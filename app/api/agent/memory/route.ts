@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSupabaseForRequest, requireUser } from '../_lib/auth'
+import { authenticate, scoped } from '../_lib/auth'
 
 // ---------------------------------------------------------------------------
-// Same pattern as app/api/agent/reports/route.ts. This route is called by
-// the AI agent on behalf of a logged-in AstroCore user. It must NEVER use
-// SUPABASE_SERVICE_ROLE_KEY: that key bypasses RLS, which is the only thing
-// keeping one user's memory items from another's. Authentication (Bearer
-// token for an external agent, or cookie session for AstroCore's own
-// frontend) is handled by ../_lib/auth. Either way, the resulting client is
-// scoped to the caller's own identity, so Postgres RLS (auth.uid() =
-// user_id) does the actual isolation. user_id is therefore never read from
-// the request body — only ever derived from auth.uid() inside the database.
+// Same pattern as app/api/agent/reports/route.ts. Every query goes through
+// scoped(auth, 'memory_items') — see ../_lib/auth for why. Required scope
+// for an API key: "memory".
 // ---------------------------------------------------------------------------
 
 function jsonError(message: string, status: number) {
@@ -63,11 +57,8 @@ const listQuerySchema = z.object({
 // GET /api/agent/memory?id=... -> fetch one of caller's memory items
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
-  const supabase = await getSupabaseForRequest(req)
-  if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
-
-  const user = await requireUser(supabase)
-  if (!user) return jsonError('Invalid or expired token', 401)
+  const auth = await authenticate(req, 'memory')
+  if (!auth.ok) return jsonError(auth.message, auth.status)
 
   const { searchParams } = new URL(req.url)
   const parsed = listQuerySchema.safeParse({
@@ -80,17 +71,11 @@ export async function GET(req: NextRequest) {
   }
   const { id, limit, offset } = parsed.data
 
-  // No .eq('user_id', ...) on purpose: RLS already restricts every row to
-  // auth.uid() = user_id for this token — the database is the boundary,
-  // not a filter here.
-  let query = supabase
-    .from('memory_items')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+  const table = scoped(auth, 'memory_items')
 
+  let query = table.select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1)
   if (id) {
-    query = supabase.from('memory_items').select('*').eq('id', id)
+    query = table.select('*').eq('id', id)
   }
 
   const { data, error } = await query
@@ -107,11 +92,8 @@ export async function GET(req: NextRequest) {
 // POST /api/agent/memory -> create a memory item owned by the caller
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  const supabase = await getSupabaseForRequest(req)
-  if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
-
-  const user = await requireUser(supabase)
-  if (!user) return jsonError('Invalid or expired token', 401)
+  const auth = await authenticate(req, 'memory')
+  if (!auth.ok) return jsonError(auth.message, auth.status)
 
   let body: unknown
   try {
@@ -125,14 +107,7 @@ export async function POST(req: NextRequest) {
     return jsonError(parsed.error.issues.map((i) => i.message).join('; '), 400)
   }
 
-  // user_id is set here, server-side, from the authenticated user — never
-  // from the request body. The schema above doesn't even accept a user_id
-  // field, so one can't be smuggled in.
-  const { data, error } = await supabase
-    .from('memory_items')
-    .insert({ ...parsed.data, user_id: user.id })
-    .select()
-    .single()
+  const { data, error } = await scoped(auth, 'memory_items').insert(parsed.data).single()
 
   if (error) return jsonError(error.message, 400)
   return NextResponse.json({ data }, { status: 201 })
@@ -142,11 +117,8 @@ export async function POST(req: NextRequest) {
 // PATCH /api/agent/memory -> update one of the caller's memory items
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest) {
-  const supabase = await getSupabaseForRequest(req)
-  if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
-
-  const user = await requireUser(supabase)
-  if (!user) return jsonError('Invalid or expired token', 401)
+  const auth = await authenticate(req, 'memory')
+  if (!auth.ok) return jsonError(auth.message, auth.status)
 
   let body: unknown
   try {
@@ -161,19 +133,13 @@ export async function PATCH(req: NextRequest) {
   }
   const { id, ...updates } = parsed.data
 
-  // RLS's USING clause restricts which row this can even target
-  // (auth.uid() = user_id). We still scope by id for a precise, single-row
-  // update; ownership enforcement is the database's job, not this filter's.
-  const { data, error } = await supabase
-    .from('memory_items')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
+  const { data, error } = await scoped(auth, 'memory_items').update(
+    { ...updates, updated_at: new Date().toISOString() },
+    id
+  )
 
   if (error) return jsonError(error.message, 400)
   if (!data || data.length === 0) {
-    // Either it doesn't exist, or it belongs to someone else and RLS
-    // silently excluded it — both look identical from the outside.
     return jsonError('Memory item not found', 404)
   }
 
@@ -185,11 +151,8 @@ export async function PATCH(req: NextRequest) {
 // Body: { "id": "<uuid>" }
 // ---------------------------------------------------------------------------
 export async function DELETE(req: NextRequest) {
-  const supabase = await getSupabaseForRequest(req)
-  if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
-
-  const user = await requireUser(supabase)
-  if (!user) return jsonError('Invalid or expired token', 401)
+  const auth = await authenticate(req, 'memory')
+  if (!auth.ok) return jsonError(auth.message, auth.status)
 
   let body: unknown
   try {
@@ -203,11 +166,7 @@ export async function DELETE(req: NextRequest) {
     return jsonError(parsed.error.issues.map((i) => i.message).join('; '), 400)
   }
 
-  const { data, error } = await supabase
-    .from('memory_items')
-    .delete()
-    .eq('id', parsed.data.id)
-    .select()
+  const { data, error } = await scoped(auth, 'memory_items').delete(parsed.data.id)
 
   if (error) return jsonError(error.message, 400)
   if (!data || data.length === 0) {
