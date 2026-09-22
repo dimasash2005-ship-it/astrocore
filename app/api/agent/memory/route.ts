@@ -1,51 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { getSupabaseForRequest, requireUser } from '../_lib/auth'
 
 // ---------------------------------------------------------------------------
 // Same pattern as app/api/agent/reports/route.ts. This route is called by
 // the AI agent on behalf of a logged-in AstroCore user. It must NEVER use
 // SUPABASE_SERVICE_ROLE_KEY: that key bypasses RLS, which is the only thing
-// keeping one user's memory items from another's. Every request is
-// authenticated with the caller's own Supabase access token, forwarded as
-// `Authorization: Bearer <token>`, and a Supabase client is built with that
-// token so Postgres RLS (auth.uid() = user_id) does the actual isolation.
-// user_id is therefore never read from the request body — only ever
-// derived from the token via auth.uid() inside the database.
+// keeping one user's memory items from another's. Authentication (Bearer
+// token for an external agent, or cookie session for AstroCore's own
+// frontend) is handled by ../_lib/auth. Either way, the resulting client is
+// scoped to the caller's own identity, so Postgres RLS (auth.uid() =
+// user_id) does the actual isolation. user_id is therefore never read from
+// the request body — only ever derived from auth.uid() inside the database.
 // ---------------------------------------------------------------------------
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
-}
-
-function getSupabaseForRequest(req: NextRequest): SupabaseClient | null {
-  const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
-  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
-    return null
-  }
-  const accessToken = authHeader.slice(7).trim()
-  if (!accessToken) return null
-
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
-}
-
-async function requireUser(supabase: SupabaseClient) {
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data.user) return null
-  return data.user
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +63,7 @@ const listQuerySchema = z.object({
 // GET /api/agent/memory?id=... -> fetch one of caller's memory items
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -137,7 +107,7 @@ export async function GET(req: NextRequest) {
 // POST /api/agent/memory -> create a memory item owned by the caller
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -172,7 +142,7 @@ export async function POST(req: NextRequest) {
 // PATCH /api/agent/memory -> update one of the caller's memory items
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -215,7 +185,7 @@ export async function PATCH(req: NextRequest) {
 // Body: { "id": "<uuid>" }
 // ---------------------------------------------------------------------------
 export async function DELETE(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)

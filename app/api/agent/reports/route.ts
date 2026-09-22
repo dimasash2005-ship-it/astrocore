@@ -1,63 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { getSupabaseForRequest, requireUser } from '../_lib/auth'
 
 // ---------------------------------------------------------------------------
 // This route is called by the AI agent on behalf of a logged-in AstroCore
 // user. It must NEVER use SUPABASE_SERVICE_ROLE_KEY: that key bypasses RLS,
-// which is the only thing keeping one user's reports from another's. Instead
-// every request is authenticated with the caller's own Supabase access
-// token, forwarded as `Authorization: Bearer <token>`, and a Supabase client
-// is built with that token so Postgres RLS (auth.uid() = user_id) does the
-// actual isolation. user_id is therefore never read from the request body —
-// only ever derived from the token via auth.uid() inside the database.
+// which is the only thing keeping one user's reports from another's.
+// Authentication (Bearer token for an external agent, or cookie session for
+// AstroCore's own frontend) is handled by ../_lib/auth — see that file for
+// details. Either way, the resulting client is scoped to the caller's own
+// identity, so Postgres RLS (auth.uid() = user_id) does the actual
+// isolation. user_id is therefore never read from the request body — only
+// ever derived from auth.uid() inside the database.
 // ---------------------------------------------------------------------------
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
-}
-
-/**
- * Builds a Supabase client scoped to the caller's own access token.
- * Returns null if there is no (or a malformed) Authorization header.
- *
- * Using the anon key + the user's bearer token (rather than the service
- * role key) means every query this client runs is subject to RLS as that
- * user — exactly the same as if the user's own browser had made the call.
- */
-function getSupabaseForRequest(req: NextRequest): SupabaseClient | null {
-  const authHeader = req.headers.get('authorization') ?? req.headers.get('Authorization')
-  if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
-    return null
-  }
-  const accessToken = authHeader.slice(7).trim()
-  if (!accessToken) return null
-
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
-}
-
-/**
- * Confirms the token is actually valid and returns the authenticated user.
- * A syntactically-present but expired/garbage token must still 401, not
- * fall through to a query that RLS happens to return zero rows for.
- */
-async function requireUser(supabase: SupabaseClient) {
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data.user) return null
-  return data.user
 }
 
 // ---------------------------------------------------------------------------
@@ -102,7 +60,7 @@ const listQuerySchema = z.object({
 // GET /api/agent/reports?id=... -> fetch one of caller's reports
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -146,7 +104,7 @@ export async function GET(req: NextRequest) {
 // POST /api/agent/reports -> create a report owned by the caller
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -182,7 +140,7 @@ export async function POST(req: NextRequest) {
 // PATCH /api/agent/reports -> update one of the caller's reports
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
@@ -229,7 +187,7 @@ export async function PATCH(req: NextRequest) {
 // Body: { "id": "<uuid>" }
 // ---------------------------------------------------------------------------
 export async function DELETE(req: NextRequest) {
-  const supabase = getSupabaseForRequest(req)
+  const supabase = await getSupabaseForRequest(req)
   if (!supabase) return jsonError('Missing or invalid Authorization header', 401)
 
   const user = await requireUser(supabase)
