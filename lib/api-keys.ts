@@ -158,7 +158,19 @@ export async function verifyApiKey(rawKey: string | null | undefined): Promise<V
     .is("revoked_at", null)
     .single()
 
-  if (error || !data) return null
+  if (error || !data) {
+    // TEMPORARY DIAGNOSTIC — remove once the 401 mismatch is root-caused.
+    // Logs the real Supabase error (auth failure, PGRST code, etc.) instead
+    // of silently collapsing everything to "not found".
+    console.error("verifyApiKey lookup failed", {
+      hasError: !!error,
+      errorMessage: error?.message,
+      errorCode: (error as { code?: string } | null)?.code,
+      hasData: !!data,
+      keyPrefix: rawKey.slice(0, API_KEY_PREFIX.length + 8),
+    })
+    return null
+  }
 
   // Best-effort last_used_at update — never let this block verification.
   supabase

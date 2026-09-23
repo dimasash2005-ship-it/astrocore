@@ -1,0 +1,21 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'ai.astrocore.app',
+  appName: 'AstroCore',
+  webDir: 'public',
+  server: {
+    url: 'https://astrocore-eight.vercel.app',
+    cleartext: false,
+  },
+  ios: {
+    contentInset: 'automatic',
+    path: '../astrocore-ios',
+  },
+  android: {
+    allowMixedContent: false,
+    path: '../astrocore-android',
+  },
+};
+
+export default config;

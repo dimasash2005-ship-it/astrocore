@@ -888,6 +888,7 @@ export default function SessionPage() {
             messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
             systemPrompt,
             providerId: currentProvider.id,
+            sessionId,
           }),
           signal: abortController.signal,
         })

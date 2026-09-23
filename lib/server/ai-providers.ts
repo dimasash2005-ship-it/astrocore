@@ -170,7 +170,8 @@ export async function callGoogle(
 export async function callCustom(
   provider: { apiKey: string; model: string; webhookUrl: string | null; authHeader?: string | null; customHeaders?: Record<string, string> },
   messages: { role: string; content: string }[],
-  systemPrompt: string
+  systemPrompt: string,
+  conversationId?: string
 ): Promise<string> {
   if (!provider.webhookUrl) throw new Error("У цього провайдера не вказано Endpoint URL.")
 
@@ -202,7 +203,12 @@ export async function callCustom(
     res = await safeFetch(endpoint, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model: provider.model, messages: msgs, max_tokens: 4096, user: `astrocore:${provider.model}` }),
+      body: JSON.stringify({
+        model: provider.model,
+        messages: msgs,
+        max_tokens: 4096,
+        user: conversationId ? `astrocore-${conversationId}` : `astrocore-${provider.model}`,
+      }),
       timeoutMs: 60_000,
     })
   } catch (e) {
@@ -230,7 +236,8 @@ export async function callProvider(
   row: ProviderRow,
   apiKey: string,
   messages: { role: string; content: string }[],
-  systemPrompt: string
+  systemPrompt: string,
+  conversationId?: string
 ): Promise<string> {
   const model = row.model || getDefaultModel(row.slug)
   switch (row.slug) {
@@ -240,7 +247,7 @@ export async function callProvider(
     case "custom":
       return callCustom(
         { apiKey, model, webhookUrl: row.webhook_url, authHeader: row.auth_header, customHeaders: row.custom_headers ?? undefined },
-        messages, systemPrompt
+        messages, systemPrompt, conversationId
       )
     default:
       throw new Error(`Невідомий провайдер: ${row.slug}`)

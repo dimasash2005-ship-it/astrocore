@@ -36,7 +36,7 @@ type MediaGenContext = { providerId: string; userId: string }
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { messages, systemPrompt, providerId } = body
+    const { messages, systemPrompt, providerId, sessionId } = body
 
     if (!providerId || typeof providerId !== "string") {
       return NextResponse.json({ error: "Провайдер не вказано." }, { status: 400 })
@@ -110,7 +110,8 @@ export async function POST(req: NextRequest) {
       case "custom":
         content = await callCustom(
           { apiKey, model: finalModel, webhookUrl: row.webhook_url, authHeader: row.auth_header, customHeaders: row.custom_headers ?? undefined },
-          messages, finalSystemPrompt
+          messages, finalSystemPrompt,
+          typeof sessionId === "string" ? sessionId : undefined
         )
         break
       default:
@@ -459,7 +460,8 @@ async function callGoogle(
 async function callCustom(
   provider: { apiKey: string; model: string; webhookUrl: string | null; authHeader?: string | null; customHeaders?: Record<string, string> },
   messages: { role: string; content: string }[],
-  systemPrompt: string
+  systemPrompt: string,
+  sessionId?: string
 ): Promise<string> {
   if (!provider.webhookUrl) {
     throw new Error("У цього провайдера не вказано Endpoint URL.")
@@ -508,9 +510,18 @@ async function callCustom(
         model: provider.model,
         messages: msgs,
         max_tokens: 4096,
-        user: `astrocore:${provider.model}`,
+        // Was a fixed `astrocore:${model}` string — every chat session using
+        // the same custom provider looked like one "user" to it, so if the
+        // provider (e.g. OpenClaw) keys its own context/memory off this
+        // field, different chats bled into each other. Scoping it per
+        // session gives each chat an isolated context on the provider side.
+        user: sessionId ? `astrocore-${sessionId}` : `astrocore:${provider.model}`,
       }),
-      timeoutMs: 30_000,
+      // Was 30s, but the frontend's own abort timeout is 55s (see
+      // handleSend in the session page). A slow custom provider response
+      // was getting cut off here first, surfacing as a false "timeout"
+      // even though the frontend was still willing to wait longer.
+      timeoutMs: 55_000,
     })
   } catch (e) {
     throw new Error(e instanceof SafeFetchError ? e.message : "Не вдалося з'єднатися з Custom провайдером.")
