@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import {
+  useState, useEffect, useRef, useCallback, memo,
+  forwardRef, useImperativeHandle, useLayoutEffect,
+} from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, Send, Bot, Zap, Brain,
@@ -352,13 +355,6 @@ function SaveMemoryBtn({ content, t }: { content: string; t: ReturnType<typeof u
 }
 
 // ─── Markdown rendering ────────────────────────────────────────────
-//
-// react-markdown changed its API across major versions — newer ones
-// (v9/v10) dropped the `inline` prop on the `code` component that
-// older tutorials rely on. This overrides `pre` instead (block code
-// always arrives as <pre><code>) and pulls the language + text back
-// out of its child, so it works regardless of exact installed version.
-// Run: npm install react-markdown remark-gfm
 
 const mdComponents: Record<string, (props: any) => React.ReactElement> = {
   p:  ({ children }) => <p style={{ margin: "0 0 10px" }}>{children}</p>,
@@ -377,9 +373,6 @@ const mdComponents: Record<string, (props: any) => React.ReactElement> = {
   table: ({ children }) => <div style={{ overflowX: "auto", margin: "8px 0" }}><table style={{ borderCollapse: "collapse", fontSize: 13 }}>{children}</table></div>,
   th: ({ children }) => <th style={{ border: "0.5px solid rgba(255,255,255,0.12)", padding: "6px 10px", textAlign: "left", color: T.t2, background: "rgba(255,255,255,0.04)" }}>{children}</th>,
   td: ({ children }) => <td style={{ border: "0.5px solid rgba(255,255,255,0.10)", padding: "6px 10px", color: T.t2 }}>{children}</td>,
-  // Inline code only — block code is fully handled by the `pre`
-  // override below, which intercepts before this ever gets called
-  // for fenced code.
   code: ({ children }: any) => (
     <code style={{ background: "rgba(255,255,255,0.08)", padding: "1.5px 5px", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: "0.88em", color: "#FFB4C4" }}>
       {children}
@@ -405,20 +398,16 @@ const mdComponents: Record<string, (props: any) => React.ReactElement> = {
   },
 }
 
-function Markdown({ content }: { content: string }) {
+// PERF: memo — markdown is only re-parsed when the text itself changes,
+// not on every render of the parent.
+const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
       {content}
     </ReactMarkdown>
   )
-}
+})
 
-// Reveals `fullText` progressively over a short, length-scaled duration
-// instead of dumping the whole reply in at once — makes a reply that
-// arrived as a single fetch response still feel alive coming in. Only
-// used for `active` (freshly-arrived) messages; historical messages on
-// load render instantly (active=false), so opening a chat never
-// replays a "typing" effect for the whole conversation.
 function useTypewriter(fullText: string, active: boolean): string {
   const [revealed, setRevealed] = useState(active ? "" : fullText)
 
@@ -439,16 +428,13 @@ function useTypewriter(fullText: string, active: boolean): string {
   return revealed
 }
 
-
-
-function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
+// PERF: memo — an existing message never re-renders unless its own
+// props change (it used to re-render on every keystroke in the input).
+const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
   const isStreamingEmpty = !!msg.streaming && !msg.content
 
-  // Only animate the reveal for a genuinely new assistant reply — not
-  // for the user's own message (that should show instantly, they just
-  // typed it) and not for anything loaded from history.
   const revealed = useTypewriter(msg.content, !!isNew && !isUser && !isError)
   const displayContent = (!isUser && !isError) ? revealed : msg.content
 
@@ -466,9 +452,6 @@ function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agen
     </div>
   )
 
-  // ── User message: still a compact bubble, right-aligned. Short
-  // messages read fine boxed, and it's the visual anchor that says
-  // "this is you" against the flowing assistant text below. ──
   if (isUser) {
     return (
       <div className="astrocore-msg" style={{
@@ -493,11 +476,6 @@ function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agen
     )
   }
 
-  // ── Assistant reply: no box. Just the avatar and free-flowing,
-  // properly rendered markdown at a comfortable reading width — this
-  // is what actually made replies look "boxed in" before; the shape
-  // of the bubble was never really the issue, the raw unrendered
-  // **markdown** text inside it was. ──
   return (
     <div className="astrocore-msg" style={{
       display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 24,
@@ -532,7 +510,7 @@ function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agen
       </div>
     </div>
   )
-}
+})
 
 function TypingDots() {
   return (
@@ -600,6 +578,119 @@ function ToolsPanel({ onAction, onClose, t }: { onAction: (text: string) => void
   )
 }
 
+// ─── Composer input ──────────────────────────────────────────────
+//
+// PERF: the text being typed lives ONLY here. Typing re-renders this
+// small component, not the whole page with every message in it —
+// that was the source of the input lag. The page talks to it through
+// a ref (setText / append / clear / focus).
+
+type ComposerHandle = {
+  setText: (v: string) => void
+  append:  (v: string, sep?: string) => void
+  clear:   () => void
+  focus:   () => void
+}
+
+type ComposerInputProps = {
+  onSend:         (text: string) => void
+  loading:        boolean
+  hasAttachments: boolean
+  placeholder:    string
+  sendTitle:      string
+  leftSlot:       React.ReactNode
+  rightSlot:      React.ReactNode
+}
+
+const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function ComposerInput(
+  { onSend, loading, hasAttachments, placeholder, sendTitle, leftSlot, rightSlot },
+  ref,
+) {
+  const [text,    setText]    = useState("")
+  const [focused, setFocused] = useState(false)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    setText: v => setText(v),
+    append:  (v, sep = " ") => setText(prev => (prev.trim() ? prev + sep + v : v)),
+    clear:   () => setText(""),
+    focus:   () => taRef.current?.focus(),
+  }), [])
+
+  // Auto-grow the textarea (up to 180px) whenever the text changes,
+  // whether it was typed, dictated, or inserted by a quick action.
+  useLayoutEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = Math.min(el.scrollHeight, 180) + "px"
+  }, [text])
+
+  const canSend = (text.trim().length > 0 || hasAttachments) && !loading
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-end", gap: 6,
+      background: focused ? "rgba(17,17,28,0.99)" : T.s1,
+      border: `1px solid ${focused ? "rgba(232,0,42,0.28)" : "rgba(255,255,255,0.10)"}`,
+      borderRadius: 20,
+      padding: "8px 8px 8px 10px",
+      boxShadow: focused ? "0 0 0 3px rgba(232,0,42,0.06), 0 8px 32px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.3)",
+      transition: "border-color 180ms ease, box-shadow 180ms ease",
+    }}>
+      {leftSlot}
+
+      <textarea
+        ref={taRef}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault()
+            if (canSend) onSend(text)
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={placeholder}
+        disabled={loading}
+        rows={1}
+        style={{
+          flex: 1, background: "none", border: "none", outline: "none",
+          fontSize: 14, color: T.t1, resize: "none",
+          lineHeight: 1.6, maxHeight: 180, overflow: "auto",
+          fontFamily: "inherit", padding: "4px 0",
+          alignSelf: "flex-end",
+        }}
+      />
+
+      <div style={{ display: "flex", gap: 5, alignItems: "center", paddingBottom: 2 }}>
+        {rightSlot}
+        <button
+          onClick={() => { if (canSend) onSend(text) }}
+          disabled={!canSend}
+          title={sendTitle}
+          style={{
+            width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+            background: canSend ? T.red : "rgba(255,255,255,0.07)",
+            border: "none", cursor: canSend ? "pointer" : "not-allowed",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 150ms ease, box-shadow 150ms ease",
+            boxShadow: canSend ? "0 0 18px rgba(232,0,42,0.40)" : "none",
+          }}
+          onMouseEnter={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+          onMouseLeave={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = T.red }}
+        >
+          {loading
+            ? <RotateCcw size={14} style={{ color: T.t4, animation: "spin 1s linear infinite" }} />
+            : <Send size={14} style={{ color: canSend ? "#fff" : T.t4, marginLeft: 1 }} />
+          }
+        </button>
+      </div>
+    </div>
+  )
+})
+
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function SessionPage() {
@@ -612,49 +703,26 @@ export default function SessionPage() {
   const [agent,       setAgent]       = useState<Agent | undefined>()
   const [provider,    setProvider]    = useState<Provider | undefined>()
   const [messages,    setMessages]    = useState<Message[]>([])
-  const [input,       setInput]       = useState("")
   const [loading,     setLoading]     = useState(false)
   const [notFound,    setNotFound]    = useState(false)
   const [showScroll,  setShowScroll]  = useState(false)
-  const [focused,     setFocused]     = useState(false)
   const [justAddedId, setJustAddedId] = useState<string | null>(null)
 
-  // Attachments: name + optional text content
   const [attachments, setAttachments] = useState<{ name: string; content?: string; imageDataUrl?: string }[]>([])
 
-  // Microphone
   const [isListening, setIsListening] = useState(false)
   const [micError,    setMicError]    = useState("")
   const recognitionRef = useRef<{ stop: () => void } | null>(null)
 
-  // Web mode toggle
   const [webMode, setWebMode] = useState(false)
-
-  // Tools panel
   const [showTools, setShowTools] = useState(false)
 
-  const bottomRef  = useRef<HTMLDivElement>(null)
-  const inputRef   = useRef<HTMLTextAreaElement>(null)
-  const scrollRef  = useRef<HTMLDivElement>(null)
-  const fileRef    = useRef<HTMLInputElement>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
+  const inputApi    = useRef<ComposerHandle>(null)
+  const scrollRef   = useRef<HTMLDivElement>(null)
+  const fileRef     = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
-  // Synchronous re-entrancy guard for handleSend. `loading` (React state)
-  // updates asynchronously, so if handleSend fires twice in the same tick
-  // — double Enter, IME composition sending a duplicate keydown, a fast
-  // double-click — the second call can read the still-stale `loading`
-  // value and slip through, firing a second AI request/insert. A ref is
-  // checked and set synchronously, so the second call is blocked
-  // immediately regardless of what triggered it.
-  const sendingRef = useRef(false)
-
-  // On first opening a session, jump straight to the bottom with no
-  // visible animation — nobody wants to watch the page glide down past
-  // old messages every time they open a chat. Once that first jump has
-  // happened, later message updates (sending, receiving a reply) still
-  // scroll smoothly, since those really do benefit from the animation.
-  // Reset inside loadSession (not just on mount) so switching to a
-  // different chat also gets the instant jump, not just the first one
-  // ever opened.
+  const sendingRef  = useRef(false)
   const hasScrolledInitially = useRef(false)
 
   const loadSession = useCallback(async () => {
@@ -700,7 +768,6 @@ export default function SessionPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
-  // Close tools panel on outside click
   useEffect(() => {
     if (!showTools) return
     function handler(e: MouseEvent) {
@@ -772,15 +839,7 @@ export default function SessionPage() {
     rec.maxAlternatives = 1
     rec.onresult = (ev: any) => {
       const transcript = ev.results[0]?.[0]?.transcript ?? ""
-      if (transcript) {
-        setInput(prev => (prev ? prev + " " + transcript : transcript))
-        setTimeout(() => {
-          if (inputRef.current) {
-            inputRef.current.style.height = "auto"
-            inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 180) + "px"
-          }
-        }, 0)
-      }
+      if (transcript) inputApi.current?.append(transcript, " ")
     }
     rec.onerror = () => { setIsListening(false) }
     rec.onend   = () => { setIsListening(false) }
@@ -791,9 +850,9 @@ export default function SessionPage() {
 
   // ── Send ─────────────────────────────────────────────────────────
 
-  async function handleSend() {
+  async function handleSend(rawText: string) {
     if (sendingRef.current) return
-    const text = input.trim()
+    const text = rawText.trim()
     const hasAttachments = attachments.length > 0
     if ((!text && !hasAttachments) || loading || !session) return
     sendingRef.current = true
@@ -812,9 +871,8 @@ export default function SessionPage() {
 
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
-    if (!user) return
+    if (!user) { sendingRef.current = false; return }
 
-    // Insert user message
     const { data: userMsgData } = await sb.from("chat_messages").insert({
       user_id:    user.id,
       session_id: sessionId,
@@ -832,11 +890,10 @@ export default function SessionPage() {
     const updatedWithUser = [...messages, userMsg]
     setMessages(updatedWithUser)
     setJustAddedId(userMsg.id)
-    setInput("")
+    inputApi.current?.clear()
     setAttachments([])
     setLoading(true)
 
-    // Update title on first message
     if (messages.length === 0) {
       await sb.from("chat_sessions").update({
         title:      (text || attachments[0]?.name || t.chatSession.newChatFallback).slice(0, 60),
@@ -872,10 +929,6 @@ export default function SessionPage() {
         memoryContext ? `\n\n[Workspace context]:\n${memoryContext}` : "",
       ].filter(Boolean).join("")
 
-      // Belt-and-braces client-side timeout: if some hosting layer
-      // stalls the stream without ever closing the connection or
-      // erroring, this guarantees the request still fails loudly
-      // instead of leaving the UI stuck "loading" forever.
       const abortController = new AbortController()
       const abortTimer = setTimeout(() => abortController.abort(), 55000)
 
@@ -940,23 +993,13 @@ export default function SessionPage() {
     } finally {
       setLoading(false)
       sendingRef.current = false
-      inputRef.current?.focus()
+      setTimeout(() => inputApi.current?.focus(), 0)
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() }
-  }
-
-  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setInput(e.target.value)
-    e.target.style.height = "auto"
-    e.target.style.height = Math.min(e.target.scrollHeight, 180) + "px"
-  }
-
   function insertQuickAction(text: string) {
-    setInput(prev => (prev.trim() ? prev + "\n" + text : text))
-    setTimeout(() => inputRef.current?.focus(), 50)
+    inputApi.current?.append(text, "\n")
+    setTimeout(() => inputApi.current?.focus(), 50)
   }
 
   if (notFound) {
@@ -988,7 +1031,9 @@ export default function SessionPage() {
     )
   }
 
-  const canSend = (input.trim().length > 0 || attachments.length > 0) && !loading
+  const placeholder = isListening
+    ? t.chatSession.listeningPlaceholder
+    : loading ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder
 
   return (
     <>
@@ -1007,10 +1052,10 @@ export default function SessionPage() {
         backgroundImage: "radial-gradient(rgba(255,255,255,0.028) 1px,transparent 1px)",
         backgroundSize: "28px 28px", overflow: "hidden",
       }}>
-        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.55),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 20 }} />
+        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.55),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 20, willChange: "transform" }} />
 
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 24px", borderBottom: `0.5px solid ${T.b1}`, background: "rgba(8,8,15,0.96)", backdropFilter: "blur(16px)", flexShrink: 0, zIndex: 5, position: "relative" }}>
+        {/* Header — PERF: backdropFilter removed, the background is already ~opaque so blur was invisible but costly */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 24px", borderBottom: `0.5px solid ${T.b1}`, background: "rgba(8,8,15,0.98)", flexShrink: 0, zIndex: 5, position: "relative" }}>
           <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 50% 100% at 0% 50%,rgba(232,0,42,0.035) 0%,transparent 100%)" }} />
           <button onClick={() => router.push("/chat")} style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, cursor: "pointer", color: T.t3, display: "flex", alignItems: "center", justifyContent: "center" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
@@ -1049,7 +1094,7 @@ export default function SessionPage() {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                   {[t.chatSession.suggestion1, t.chatSession.suggestion2, t.chatSession.suggestion3].map(q => (
-                    <button key={q} onClick={() => { setInput(q); inputRef.current?.focus() }} style={{ fontSize: 12.5, padding: "7px 14px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t3, transition: "all 130ms ease" }}
+                    <button key={q} onClick={() => { inputApi.current?.setText(q); inputApi.current?.focus() }} style={{ fontSize: 12.5, padding: "7px 14px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t3, transition: "all 130ms ease" }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1; (e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.28)"; (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)" }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3; (e.currentTarget as HTMLElement).style.borderColor = T.b1; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)" }}
                     >{q}</button>
@@ -1074,23 +1119,16 @@ export default function SessionPage() {
           <QuickActions
             skills={getAgentSkills(agent.name, agent.system_prompt ?? "")}
             onSelect={prompt => {
-              setInput(prompt)
-              setTimeout(() => {
-                if (inputRef.current) {
-                  inputRef.current.focus()
-                  inputRef.current.style.height = "auto"
-                  inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 180) + "px"
-                }
-              }, 0)
+              inputApi.current?.setText(prompt)
+              setTimeout(() => inputApi.current?.focus(), 0)
             }}
           />
         )}
 
-        {/* Composer */}
-        <div style={{ flexShrink: 0, padding: "10px 24px 18px", background: "rgba(8,8,15,0.97)", backdropFilter: "blur(16px)" }}>
+        {/* Composer — PERF: backdropFilter removed (background is 97% opaque, blur was invisible but repainted on every keystroke) */}
+        <div style={{ flexShrink: 0, padding: "10px 24px 18px", background: "rgba(8,8,15,0.99)" }}>
           <div ref={composerRef} style={{ maxWidth: 1240, margin: "0 auto", width: "100%", position: "relative" }}>
 
-            {/* Provider warning */}
             {!provider && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", borderRadius: 9, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.20)", fontSize: 12, color: "#FF4D6A" }}>
                 <AlertCircle size={13} />
@@ -1099,7 +1137,6 @@ export default function SessionPage() {
               </div>
             )}
 
-            {/* Mic error */}
             {micError && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "7px 12px", borderRadius: 8, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.20)", fontSize: 11.5, color: "#FF4D6A" }}>
                 <AlertCircle size={12} /> {micError}
@@ -1107,7 +1144,6 @@ export default function SessionPage() {
               </div>
             )}
 
-            {/* Listening indicator */}
             {isListening && (
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, padding: "6px 12px", borderRadius: 8, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)", fontSize: 11.5, color: T.red }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.red, display: "inline-block", animation: "redpulse 1.2s ease infinite" }} />
@@ -1115,7 +1151,6 @@ export default function SessionPage() {
               </div>
             )}
 
-            {/* Attachments */}
             {attachments.length > 0 && (
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 8 }}>
                 {attachments.map((a, i) => (
@@ -1134,66 +1169,26 @@ export default function SessionPage() {
               </div>
             )}
 
-            {/* Tools panel */}
             {showTools && (
               <ToolsPanel onAction={insertQuickAction} onClose={() => setShowTools(false)} t={t} />
             )}
 
-            {/* Main pill */}
-            <div style={{
-              display: "flex", alignItems: "flex-end", gap: 6,
-              background: focused ? "rgba(17,17,28,0.99)" : T.s1,
-              border: `1px solid ${focused ? "rgba(232,0,42,0.28)" : "rgba(255,255,255,0.10)"}`,
-              borderRadius: 20,
-              padding: "8px 8px 8px 10px",
-              boxShadow: focused ? "0 0 0 3px rgba(232,0,42,0.06), 0 8px 32px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.3)",
-              transition: "border-color 180ms ease, box-shadow 180ms ease",
-            }}>
-
-              {/* Left icons */}
-              <div style={{ display: "flex", gap: 1, alignItems: "center", paddingBottom: 2 }}>
-                <IconBtn icon={Plus} title={t.chatSession.actions} onClick={() => setShowTools(v => !v)} active={showTools} />
-                <IconBtn
-                  icon={Paperclip}
-                  title={t.chatSession.attachFile}
-                  onClick={() => fileRef.current?.click()}
-                />
-                <IconBtn
-                  icon={Globe}
-                  title={webMode ? t.chatSession.webModeOn : t.chatSession.webMode}
-                  active={webMode}
-                  onClick={() => setWebMode(v => !v)}
-                />
-                <IconBtn
-                  icon={Wrench}
-                  title={t.chatSession.quickActions}
-                  active={showTools}
-                  onClick={() => setShowTools(v => !v)}
-                />
-              </div>
-
-              {/* Textarea */}
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder={isListening ? t.chatSession.listeningPlaceholder : loading ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder}
-                disabled={loading}
-                rows={1}
-                style={{
-                  flex: 1, background: "none", border: "none", outline: "none",
-                  fontSize: 14, color: T.t1, resize: "none",
-                  lineHeight: 1.6, maxHeight: 180, overflow: "auto",
-                  fontFamily: "inherit", padding: "4px 0",
-                  alignSelf: "flex-end",
-                }}
-              />
-
-              {/* Right icons */}
-              <div style={{ display: "flex", gap: 5, alignItems: "center", paddingBottom: 2 }}>
+            <ComposerInput
+              ref={inputApi}
+              onSend={handleSend}
+              loading={loading}
+              hasAttachments={attachments.length > 0}
+              placeholder={placeholder}
+              sendTitle={t.chatSession.send}
+              leftSlot={
+                <div style={{ display: "flex", gap: 1, alignItems: "center", paddingBottom: 2 }}>
+                  <IconBtn icon={Plus} title={t.chatSession.actions} onClick={() => setShowTools(v => !v)} active={showTools} />
+                  <IconBtn icon={Paperclip} title={t.chatSession.attachFile} onClick={() => fileRef.current?.click()} />
+                  <IconBtn icon={Globe} title={webMode ? t.chatSession.webModeOn : t.chatSession.webMode} active={webMode} onClick={() => setWebMode(v => !v)} />
+                  <IconBtn icon={Wrench} title={t.chatSession.quickActions} active={showTools} onClick={() => setShowTools(v => !v)} />
+                </div>
+              }
+              rightSlot={
                 <IconBtn
                   icon={isListening ? MicOff : Mic}
                   title={isListening ? t.chatSession.stopRecording : t.chatSession.voiceInput}
@@ -1201,30 +1196,9 @@ export default function SessionPage() {
                   pulse={isListening}
                   onClick={toggleMic}
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={!canSend}
-                  title={t.chatSession.send}
-                  style={{
-                    width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                    background: canSend ? T.red : "rgba(255,255,255,0.07)",
-                    border: "none", cursor: canSend ? "pointer" : "not-allowed",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "background 150ms ease, box-shadow 150ms ease",
-                    boxShadow: canSend ? "0 0 18px rgba(232,0,42,0.40)" : "none",
-                  }}
-                  onMouseEnter={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-                  onMouseLeave={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = T.red }}
-                >
-                  {loading
-                    ? <RotateCcw size={14} style={{ color: T.t4, animation: "spin 1s linear infinite" }} />
-                    : <Send size={14} style={{ color: canSend ? "#fff" : T.t4, marginLeft: 1 }} />
-                  }
-                </button>
-              </div>
-            </div>
+              }
+            />
 
-            {/* Hidden file input */}
             <input
               ref={fileRef}
               type="file"
@@ -1234,7 +1208,6 @@ export default function SessionPage() {
               onChange={e => { handleFiles(e.target.files); e.target.value = "" }}
             />
 
-            {/* Centered hint */}
             <div style={{ textAlign: "center", marginTop: 8 }}>
               <span style={{ fontSize: 10.5, color: "#2E2E4A" }}>
                 {t.chatSession.hint}
