@@ -5,15 +5,13 @@ import { assertSafeProviderUrl, joinProviderPath, UnsafeProviderUrlError } from 
 import { safeFetch, readCappedText, SafeFetchError } from "@/lib/server/safe-fetch"
 import { generateMedia } from "@/lib/server/media-generation"
 
-// Normal chat replies are fast, but a generate_image/generate_video
-// tool call can add up to ~55s (image) or ~110s (video: base image +
-// motion, each polled separately) on top of that. This raises the
-// function's time limit accordingly. On Vercel Hobby, 60s is the max —
-// if agent-triggered VIDEO generation times out in practice, either
-// upgrade the plan for a higher limit or generate video only via the
-// Gallery's dedicated button (app/api/generate-media/route.ts) instead
-// of through chat, until this route has a proper async version.
-export const maxDuration = 60
+// Agent providers (OpenClaw via the bridge on the VPS) can take several
+// minutes when they search the web or drive a browser, and image/video
+// generation also adds time. 300s is the Vercel Hobby ceiling with
+// Fluid compute. If a deploy complains about this value, enable Fluid
+// compute in Vercel → Settings → Functions (without it Hobby allows 60).
+// Anything longer than this needs an async/background flow.
+export const maxDuration = 300
 
 type ProviderRow = {
   id: string
@@ -510,18 +508,15 @@ async function callCustom(
         model: provider.model,
         messages: msgs,
         max_tokens: 4096,
-        // Was a fixed `astrocore:${model}` string — every chat session using
-        // the same custom provider looked like one "user" to it, so if the
-        // provider (e.g. OpenClaw) keys its own context/memory off this
-        // field, different chats bled into each other. Scoping it per
-        // session gives each chat an isolated context on the provider side.
+        // Scoped per chat session so each chat can get an isolated
+        // context on the provider side (if the provider uses this field).
         user: sessionId ? `astrocore-${sessionId}` : `astrocore:${provider.model}`,
       }),
-      // Was 30s, but the frontend's own abort timeout is 55s (see
-      // handleSend in the session page). A slow custom provider response
-      // was getting cut off here first, surfacing as a false "timeout"
-      // even though the frontend was still willing to wait longer.
-      timeoutMs: 55_000,
+      // Timeout chain for long agent tasks (search + browser):
+      //   bridge on VPS 295s → this call 290s → maxDuration 300s → page 310s.
+      // This one is just under maxDuration, so the route returns a clear
+      // timeout error before Vercel kills the function.
+      timeoutMs: 290_000,
     })
   } catch (e) {
     throw new Error(e instanceof SafeFetchError ? e.message : "Не вдалося з'єднатися з Custom провайдером.")
