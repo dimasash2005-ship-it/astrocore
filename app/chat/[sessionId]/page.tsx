@@ -428,6 +428,13 @@ function useTypewriter(fullText: string, active: boolean): string {
   return revealed
 }
 
+// PERF: the browser skips layout & paint for messages that are off
+// screen, so a long chat costs about the same as a short one.
+const OFFSCREEN_SKIP = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "auto 160px",
+} as React.CSSProperties
+
 // PERF: memo — an existing message never re-renders unless its own
 // props change (it used to re-render on every keystroke in the input).
 const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
@@ -457,6 +464,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
       <div className="astrocore-msg" style={{
         display: "flex", flexDirection: "row-reverse",
         marginBottom: 20,
+        ...OFFSCREEN_SKIP,
         animation: isNew ? "msgIn 240ms ease-out" : undefined,
       }}>
         <div style={{ maxWidth: "68%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
@@ -480,6 +488,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
     <div className="astrocore-msg" style={{
       display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 24,
       animation: isNew ? "msgIn 240ms ease-out" : undefined,
+      ...OFFSCREEN_SKIP,
     }}>
       <div style={{
         width: 32, height: 32, borderRadius: 9, flexShrink: 0,
@@ -585,6 +594,9 @@ function ToolsPanel({ onAction, onClose, t }: { onAction: (text: string) => void
 // that was the source of the input lag. The page talks to it through
 // a ref (setText / append / clear / focus).
 
+const SUPPORTS_FIELD_SIZING =
+  typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("field-sizing", "content")
+
 type ComposerHandle = {
   setText: (v: string) => void
   append:  (v: string, sep?: string) => void
@@ -617,9 +629,12 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
     focus:   () => taRef.current?.focus(),
   }), [])
 
-  // Auto-grow the textarea (up to 180px) whenever the text changes,
-  // whether it was typed, dictated, or inserted by a quick action.
+  // Auto-grow. PERF: modern Chrome/Safari grow the textarea natively via
+  // CSS `field-sizing: content`, with zero JS. The old trick (height=auto
+  // → read scrollHeight) forced a full-page reflow of the whole chat on
+  // EVERY keystroke. It's kept only as a fallback for old browsers.
   useLayoutEffect(() => {
+    if (SUPPORTS_FIELD_SIZING) return
     const el = taRef.current
     if (!el) return
     el.style.height = "auto"
@@ -661,6 +676,7 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
           lineHeight: 1.6, maxHeight: 180, overflow: "auto",
           fontFamily: "inherit", padding: "4px 0",
           alignSelf: "flex-end",
+          ...({ fieldSizing: "content" } as React.CSSProperties),
         }}
       />
 
