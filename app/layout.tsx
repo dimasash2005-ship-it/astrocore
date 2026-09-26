@@ -19,22 +19,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uk">
-      <head>
-        {/* Google tag (gtag.js) */}
-        <Script
-          async
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="beforeInteractive"
-        />
-        <Script id="google-analytics" strategy="beforeInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}');
-          `}
-        </Script>
-      </head>
       <body
         style={{
           background: "#08080F",
@@ -45,6 +29,20 @@ export default function RootLayout({
         <AuthProvider>{children}</AuthProvider>
         <CookieConsent />
         <Analytics />
+
+        {/* Google tag (gtag.js) — loaded after the page is interactive */}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
       </body>
     </html>
   );
