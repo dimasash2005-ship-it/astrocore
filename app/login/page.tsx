@@ -7,6 +7,7 @@ import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe } fro
 import { getSupabase } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/useLanguage";
 import { LANGUAGES, type Language } from "@/lib/language";
+import { useAuthIntro, hasLanded, AuthBrandIntro, LightningWeb, IntroReveal, AuthIntroStyles } from "@/components/auth/AuthIntro";
 
 const T = {
   bg:   "#08080F",
@@ -63,7 +64,7 @@ function LanguageBadge({ language, setLanguage }: { language: Language; setLangu
   )
 }
 
-function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
+function LeftPanel({ t, landed }: { t: ReturnType<typeof useLanguage>["t"]; landed: boolean }) {
   const [pulse, setPulse] = useState(false)
   const [scan,  setScan]  = useState(0)
 
@@ -100,6 +101,9 @@ function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
           pointerEvents: "none",
         }} />
       ))}
+
+      {/* Lightning web strikes under the text when the logo lands */}
+      <LightningWeb active={landed} />
 
       {/* top glow */}
       <div aria-hidden style={{
@@ -164,7 +168,7 @@ function LeftPanel({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
           letterSpacing: "-0.04em", lineHeight: 1.12, margin: 0, marginBottom: 14,
         }}>
           {t.loginPage.headline1}<br />
-          <span style={{ color: T.red }}>{t.loginPage.headline2}</span> {t.loginPage.headline3}<br />
+          <span className={landed ? "aci-lit" : undefined} style={{ color: T.red }}>{t.loginPage.headline2}</span> {t.loginPage.headline3}<br />
           {t.loginPage.headline4}
         </h1>
         <p style={{ fontSize: 14, color: T.t3, lineHeight: 1.65, margin: 0, maxWidth: 360 }}>
@@ -347,6 +351,7 @@ function LoginForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
 
 function LoginPage() {
   const { t, language, setLanguage } = useLanguage()
+  const phase = useAuthIntro()
   return (
     <div style={{
       minHeight: "100vh",
@@ -356,12 +361,13 @@ function LoginPage() {
       <style>{`
         @keyframes spin { to { transform: rotate(360deg) } }
       `}</style>
+      <AuthIntroStyles />
 
       <LanguageBadge language={language} setLanguage={setLanguage} />
 
       {/* Left side — only on large screens */}
       <div style={{ display: "flex", flex: 1 }} className="auth-left">
-        <LeftPanel t={t} />
+        <LeftPanel t={t} landed={hasLanded(phase)} />
       </div>
 
       {/* Right side — form */}
@@ -371,6 +377,7 @@ function LoginPage() {
         background: "linear-gradient(180deg,#0D0D1A 0%,#08080F 100%)",
         minWidth: 480,
         position: "relative",
+        overflow: "hidden", // keeps the logo's flight path from causing a scrollbar
       }}>
         {/* subtle vertical red line on left */}
         <div aria-hidden style={{
@@ -378,9 +385,17 @@ function LoginPage() {
           background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.35),transparent)",
           pointerEvents: "none",
         }} />
-        <Suspense fallback={null}>
-          <LoginForm t={t} />
-        </Suspense>
+        <div style={{ display: "flex", flexDirection: "column", position: "relative", zIndex: 1 }}>
+          {/* Logo flies in on an orbit, lands here, then ASTROCORE AI appears */}
+          <div style={{ width: 420, padding: "0 8px" }}>
+            <AuthBrandIntro phase={phase} />
+          </div>
+          <IntroReveal phase={phase}>
+            <Suspense fallback={null}>
+              <LoginForm t={t} />
+            </Suspense>
+          </IntroReveal>
+        </div>
       </div>
     </div>
   )
