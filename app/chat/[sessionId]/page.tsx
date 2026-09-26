@@ -946,10 +946,7 @@ export default function SessionPage() {
       ].filter(Boolean).join("")
 
       const abortController = new AbortController()
-      // Long agent tasks (search + browser) can take several minutes.
-      // Slightly above the server limit (maxDuration = 300 in /api/chat),
-      // so the server's own timeout error is what the user sees.
-      const abortTimer = setTimeout(() => abortController.abort(), 310_000)
+      const abortTimer = setTimeout(() => abortController.abort(), 55000)
 
       let res: Response
       try {
