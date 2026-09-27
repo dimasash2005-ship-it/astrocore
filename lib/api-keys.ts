@@ -1,6 +1,7 @@
 import { randomBytes, createHash } from "crypto"
 import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
+import { encryptSecret, maskSecret } from "@/lib/server/encryption"
 
 // ─────────────────────────────────────────────────────────────
 // This file is server-only. It must never be imported from a
@@ -253,4 +254,101 @@ export async function getActiveProviderForUser(userId: string): Promise<ActivePr
 
   if (error || !data) return null
   return data as ActiveProviderRow
+}
+// ─────────────────────────────────────────────────────────────
+// Agent registry (OpenClaw "connect in 3 steps").
+//
+// Flow:
+//   1. /api/agents/connect (session) creates a providers row
+//      (slug "openclaw", status "unverified", is_active false) and an
+//      ac_live_ key whose api_keys.provider_id points at that row.
+//   2. The installer on the user's server calls /api/agents/register
+//      with that key, sending its public HTTPS endpoint + gateway token.
+//   3. registerAgentForKey() finds the row THROUGH THE KEY (never from
+//      the request body), encrypts the token and marks it connected.
+//
+// The key both identifies which pending connection this is and
+// authorizes it, so a caller can only ever fill in its own row.
+// ─────────────────────────────────────────────────────────────
+
+export const AGENT_CONNECT_PERMISSIONS = ["agents", "memory", "reports", "gallery"] as const
+
+export interface AgentRegistration {
+  endpointUrl: string // already validated https base, e.g. https://host/v1
+  gatewayToken: string
+  agentVersion: string | null
+}
+
+async function getProviderIdForKey(keyId: string, userId: string): Promise<string | null> {
+  const supabase = getServiceRoleClient()
+  const { data, error } = await supabase
+    .from("api_keys")
+    .select("provider_id")
+    .eq("id", keyId)
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .maybeSingle()
+
+  if (error || !data?.provider_id) return null
+  return data.provider_id as string
+}
+
+/**
+ * Called by /api/agents/register. Returns null when the key is not tied
+ * to an OpenClaw connection of this user (wrong key type, revoked, or the
+ * provider row was deleted).
+ */
+export async function registerAgentForKey(
+  keyId: string,
+  userId: string,
+  reg: AgentRegistration
+): Promise<{ providerId: string } | null> {
+  const providerId = await getProviderIdForKey(keyId, userId)
+  if (!providerId) return null
+
+  const supabase = getServiceRoleClient()
+  const { data, error } = await supabase
+    .from("providers")
+    .update({
+      webhook_url:       reg.endpointUrl,
+      encrypted_api_key: encryptSecret(reg.gatewayToken),
+      key_preview:       maskSecret(reg.gatewayToken),
+      status:            "connected",
+      is_active:         true,
+      agent_version:     reg.agentVersion,
+      last_seen_at:      new Date().toISOString(),
+    })
+    .eq("id", providerId)
+    .eq("user_id", userId)
+    .eq("slug", "openclaw")
+    .select("id")
+    .maybeSingle()
+
+  if (error || !data) return null
+  return { providerId: data.id as string }
+}
+
+/** Called by /api/agents/heartbeat — keeps the online/offline status fresh. */
+export async function touchAgentHeartbeat(
+  keyId: string,
+  userId: string,
+  agentVersion: string | null
+): Promise<boolean> {
+  const providerId = await getProviderIdForKey(keyId, userId)
+  if (!providerId) return false
+
+  const patch: Record<string, string> = { last_seen_at: new Date().toISOString() }
+  if (agentVersion) patch.agent_version = agentVersion
+
+  const supabase = getServiceRoleClient()
+  const { data, error } = await supabase
+    .from("providers")
+    .update(patch)
+    .eq("id", providerId)
+    .eq("user_id", userId)
+    .eq("slug", "openclaw")
+    .select("id")
+    .maybeSingle()
+
+  return !error && !!data
 }

@@ -23,6 +23,7 @@ export function getDefaultModel(slug: string): string {
     case "anthropic": return "claude-sonnet-4-5"
     case "openai":    return "gpt-4o"
     case "google":    return "gemini-2.0-flash"
+    case "openclaw":  return "openclaw"
     default:          return "gpt-4o"
   }
 }
@@ -168,7 +169,7 @@ export async function callGoogle(
 }
 
 export async function callCustom(
-  provider: { apiKey: string; model: string; webhookUrl: string | null; authHeader?: string | null; customHeaders?: Record<string, string> },
+  provider: { apiKey: string; model: string; webhookUrl: string | null; authHeader?: string | null; customHeaders?: Record<string, string>; timeoutMs?: number },
   messages: { role: string; content: string }[],
   systemPrompt: string,
   conversationId?: string
@@ -209,7 +210,7 @@ export async function callCustom(
         max_tokens: 4096,
         user: conversationId ? `astrocore-${conversationId}` : `astrocore-${provider.model}`,
       }),
-      timeoutMs: 60_000,
+      timeoutMs: provider.timeoutMs ?? 60_000,
     })
   } catch (e) {
     throw new Error(e instanceof SafeFetchError ? e.message : "Не вдалося з'єднатися з Custom провайдером.")
@@ -247,6 +248,14 @@ export async function callProvider(
     case "custom":
       return callCustom(
         { apiKey, model, webhookUrl: row.webhook_url, authHeader: row.auth_header, customHeaders: row.custom_headers ?? undefined },
+        messages, systemPrompt, conversationId
+      )
+    // OpenClaw Gateway speaks the OpenAI chat-completions format, so it reuses
+    // the Custom path (SSRF guard, safeFetch). webhook_url is the ".../v1" base
+    // saved by /api/agents/register. Agent turns run tools, so allow longer.
+    case "openclaw":
+      return callCustom(
+        { apiKey, model, webhookUrl: row.webhook_url, authHeader: null, customHeaders: undefined, timeoutMs: 280_000 },
         messages, systemPrompt, conversationId
       )
     default:
