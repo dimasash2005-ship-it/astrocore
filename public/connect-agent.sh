@@ -73,6 +73,14 @@ setup_gateway() {
     || die "Не вдалося увімкнути chatCompletions. Перевір версію OpenClaw (openclaw --version)."
   ok "Ендпоінт /v1/chat/completions увімкнено"
 
+  # Caddy runs on this same machine, so only loopback is a trusted proxy.
+  # Without this the Gateway rejects proxied requests (proxy_attribution_required).
+  openclaw config set gateway.trustedProxies '["127.0.0.1","::1"]' >/dev/null 2>&1 \
+    || die "Не вдалося задати gateway.trustedProxies."
+  ok "Довірений проксі: лише локальний Caddy (127.0.0.1)"
+  openclaw gateway restart >/dev/null 2>&1 || systemctl restart openclaw-gateway 2>/dev/null || true
+  sleep 3
+
   GATEWAY_PORT="$(read_gateway_field port)" || die "Не вдалося прочитати $OPENCLAW_CONFIG (не JSON?)."
   GATEWAY_TOKEN="$(read_gateway_field token)" || die "Не вдалося прочитати токен з $OPENCLAW_CONFIG."
   case "$GATEWAY_TOKEN" in
@@ -153,6 +161,8 @@ ${AGENT_DOMAIN} {
 	}
 	handle @chat {
 		reverse_proxy 127.0.0.1:${GATEWAY_PORT} {
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Real-IP {remote_host}
 			flush_interval -1
 		}
 	}
