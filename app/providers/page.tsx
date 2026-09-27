@@ -4,10 +4,11 @@ import { useState, useEffect } from "react"
 import {
   Key, Plus, Trash2, Eye, EyeOff, Check,
   Zap, Activity, Shield, ChevronDown, ChevronUp, X,
-  Loader2, AlertCircle, Globe, Sparkles, Bot, Webhook,
+  Loader2, AlertCircle, Globe, Sparkles, Bot, Webhook, Terminal,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
+import { ConnectAgentButton, AgentStatusBadge } from "@/components/agents/ConnectAgentButton"
 
 const T = {
   bg:   "#08080F",
@@ -25,7 +26,7 @@ const T = {
   amber:"#F59E0B",
 }
 
-type ProviderSlug = "openai" | "anthropic" | "google" | "custom"
+type ProviderSlug = "openai" | "anthropic" | "google" | "custom" | "openclaw"
 
 type Provider = {
   id:          string
@@ -37,6 +38,9 @@ type Provider = {
   key_preview: string | null
   webhook_url: string | null
   created_at:  string
+  // OpenClaw agents only (set by connect-agent.sh register + heartbeat)
+  last_seen_at?:  string | null
+  agent_version?: string | null
 }
 
 // Brand-ish icon + color per provider — used for the card's identity
@@ -47,6 +51,7 @@ const BRAND: Record<ProviderSlug, { icon: React.ElementType; color: string }> = 
   anthropic: { icon: Bot,      color: "#D97757" },
   google:    { icon: Globe,    color: "#4285F4" },
   custom:    { icon: Webhook,  color: "#8B5CF6" },
+  openclaw:  { icon: Terminal, color: "#F97316" },
 }
 
 const inp: React.CSSProperties = {
@@ -466,7 +471,16 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
             </div>
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1 }}>{provider.name}</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, marginTop: 1 }}>{provider.model}</div>
+              {provider.slug === "openclaw" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <AgentStatusBadge lastSeenAt={provider.last_seen_at} />
+                  {provider.agent_version && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>v{provider.agent_version}</span>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4, marginTop: 1 }}>{provider.model}</div>
+              )}
             </div>
           </div>
 
@@ -502,7 +516,7 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
               background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
             }}>
               <div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{t.providers.apiKeyLabel}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{provider.slug === "openclaw" ? "Токен Gateway" : t.providers.apiKeyLabel}</div>
                 <div style={{ fontSize: 12, color: T.t2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>
                   {provider.key_preview ?? "••••••••"}
                 </div>
@@ -516,12 +530,12 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
               </span>
             </div>
 
-            {provider.slug === "custom" && provider.webhook_url && (
+            {(provider.slug === "custom" || provider.slug === "openclaw") && provider.webhook_url && (
               <div style={{
                 padding: "8px 12px", borderRadius: 8,
                 background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
               }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{t.providers.webhookUrlField}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{provider.slug === "openclaw" ? "Адреса агента" : t.providers.webhookUrlField}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: T.t2, wordBreak: "break-all" }}>{provider.webhook_url}</div>
               </div>
             )}
@@ -568,7 +582,7 @@ function ProviderCard({ provider, onDelete, onToggle, t }: {
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+function EmptyState({ onAdd, onConnected, t }: { onAdd: () => void; onConnected: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -608,6 +622,9 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
       >
         <Plus size={14} /> {t.providers.connectProvider}
       </button>
+      <div style={{ marginTop: 12 }}>
+        <ConnectAgentButton variant="secondary" onConnected={onConnected} />
+      </div>
     </div>
   )
 }
@@ -732,7 +749,7 @@ export default function ProvidersPage() {
               </p>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               {active.length > 0 && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 7,
@@ -743,6 +760,7 @@ export default function ProvidersPage() {
                   <Activity size={12} /> <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{active.length}</span> {t.providers.activeSuffix}
                 </div>
               )}
+              <ConnectAgentButton variant="secondary" onConnected={load} />
               <button onClick={() => setShowModal(true)} style={{
                 display: "flex", alignItems: "center", gap: 7,
                 background: T.red, color: "#fff", border: "none",
@@ -761,7 +779,7 @@ export default function ProvidersPage() {
 
         {/* Body */}
         {!loaded ? null : providers.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} t={t} />
+          <EmptyState onAdd={() => setShowModal(true)} onConnected={load} t={t} />
         ) : (
           <div style={{ padding: "24px 48px 56px", maxWidth: 1200, position: "relative" }}>
             <div aria-hidden style={{

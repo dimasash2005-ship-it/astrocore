@@ -75,7 +75,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("providers")
-      .select("id, name, slug, model, is_active, status, key_preview, webhook_url, created_at")
+      .select("id, name, slug, model, is_active, status, key_preview, webhook_url, created_at, last_seen_at, agent_version")
       .order("created_at", { ascending: true })
 
     if (error) throw new Error(error.message)
