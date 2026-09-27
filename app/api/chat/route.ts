@@ -114,6 +114,17 @@ export async function POST(req: NextRequest) {
           typeof sessionId === "string" ? sessionId : undefined
         )
         break
+      // OpenClaw agent registered via connect-agent.sh: its Gateway speaks
+      // the same OpenAI chat-completions format, so it reuses the Custom
+      // path. webhook_url is the ".../v1" base; the decrypted key is the
+      // gateway token. No user-set auth/custom headers for this type.
+      case "openclaw":
+        content = await callCustom(
+          { apiKey, model: finalModel, webhookUrl: row.webhook_url, authHeader: null, customHeaders: undefined },
+          messages, finalSystemPrompt,
+          typeof sessionId === "string" ? sessionId : undefined
+        )
+        break
       default:
         return NextResponse.json({ error: `Невідомий провайдер: ${row.slug}` }, { status: 400 })
     }
@@ -133,6 +144,7 @@ function getDefaultModel(slug: string): string {
     case "anthropic": return "claude-sonnet-4-5"
     case "openai":    return "gpt-4o"
     case "google":    return "gemini-2.0-flash"
+    case "openclaw":  return "openclaw"
     default:          return "gpt-4o"
   }
 }
