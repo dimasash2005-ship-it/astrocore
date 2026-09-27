@@ -442,10 +442,12 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
   const isStreamingEmpty = !!msg.streaming && !msg.content
 
-  const revealed = useTypewriter(msg.content, !!isNew && !isUser && !isError)
-  const displayContent = (!isUser && !isError) ? revealed : msg.content
+  // A streamed reply already arrives piece by piece — no typewriter on top of it,
+  // and no copy/save buttons until it's complete.
+  const revealed = useTypewriter(msg.content, !!isNew && !isUser && !isError && !msg.streaming)
+  const displayContent = msg.streaming ? msg.content : (!isUser && !isError) ? revealed : msg.content
 
-  const actionsRow = !isStreamingEmpty && !isUser && (
+  const actionsRow = !msg.streaming && !isUser && (
     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
       <div className="astrocore-msg-actions" style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -945,6 +947,74 @@ export default function SessionPage() {
         memoryContext ? `\n\n[Workspace context]:\n${memoryContext}` : "",
       ].filter(Boolean).join("")
 
+      // ── OpenClaw agent: streamed reply, up to ~5 min ───────────────
+      // Every other provider keeps the original non-streaming path below.
+      if (currentProvider.slug === "openclaw") {
+        const replyId   = crypto.randomUUID()
+        const startedAt = new Date().toISOString()
+        setJustAddedId(null)
+        setMessages(prev => [...prev, { id: replyId, role: "assistant", content: "", createdAt: startedAt, streaming: true }])
+
+        const streamAbort = new AbortController()
+        const streamTimer = setTimeout(() => streamAbort.abort(), 310_000)
+        let acc = ""
+        let failed: string | null = null
+        let flushTimer: ReturnType<typeof setTimeout> | null = null
+        const flush = () => {
+          flushTimer = null
+          const snapshot = acc
+          setMessages(prev => prev.map(m => (m.id === replyId ? { ...m, content: snapshot } : m)))
+        }
+
+        try {
+          const streamRes = await fetch("/api/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
+              systemPrompt,
+              providerId: currentProvider.id,
+              sessionId,
+            }),
+            signal: streamAbort.signal,
+          })
+
+          if (!streamRes.ok || !streamRes.body) {
+            const errData = await streamRes.json().catch(() => ({}))
+            failed = errData?.error || t.chatSession.noReply
+          } else {
+            const reader  = streamRes.body.getReader()
+            const decoder = new TextDecoder()
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              acc += decoder.decode(value, { stream: true })
+              // Batch UI updates (~16/s) instead of re-rendering on every chunk.
+              if (!flushTimer) flushTimer = setTimeout(flush, 60)
+            }
+            acc += decoder.decode()
+          }
+        } catch {
+          if (acc) {
+            acc += language === "uk" ? "\n\n_(відповідь обірвалась)_" : "\n\n_(reply was cut off)_"
+          } else {
+            failed = t.chatSession.sendError
+          }
+        } finally {
+          clearTimeout(streamTimer)
+          if (flushTimer) clearTimeout(flushTimer)
+        }
+
+        const finalContent = failed ?? (acc.trim() ? acc : t.chatSession.noReply)
+        setMessages(prev => prev.map(m => (m.id === replyId ? { ...m, content: finalContent, streaming: false } : m)))
+
+        await sb.from("chat_messages").insert({
+          user_id: user.id, session_id: sessionId, role: "assistant", content: finalContent,
+        })
+        await sb.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId)
+        return // `finally` below still resets loading / focus
+      }
+
       const abortController = new AbortController()
       const abortTimer = setTimeout(() => abortController.abort(), 55000)
 
@@ -1119,7 +1189,7 @@ export default function SessionPage() {
               </div>
             )}
             {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} t={t} lang={language} isNew={msg.id === justAddedId} />)}
-            {loading && <TypingDots />}
+            {loading && !messages.some(m => m.streaming) && <TypingDots />}
             <div ref={bottomRef} />
           </div>
         </div>
