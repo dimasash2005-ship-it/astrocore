@@ -84,7 +84,12 @@ setup_gateway() {
 }
 
 # ── 3. local check (no model call — an empty body is enough to test auth) ──
-http_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@" || echo 000; }
+# curl -w already prints 000 when it can't connect; `|| true` only swallows the exit code.
+http_code() {
+  local c
+  c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@" 2>/dev/null)" || true
+  printf '%s' "${c:-000}"
+}
 
 check_gateway_local() {
   step 3 "Перевірка Gateway на сервері"
@@ -173,7 +178,7 @@ EOF
 
   printf '  … чекаю на HTTPS-сертифікат'
   local code="000" i
-  for i in $(seq 1 30); do
+  for i in $(seq 1 40); do
     code="$(http_code -X POST "https://${AGENT_DOMAIN}/v1/chat/completions" \
       -H "Authorization: Bearer ${GATEWAY_TOKEN}" -H "Content-Type: application/json" -d '{}')"
     case "$code" in 000|502|503) printf '.'; sleep 3 ;; *) break ;; esac
@@ -218,7 +223,8 @@ register_agent() {
     }))')"
   resp="$(mktemp)"
   code="$(curl -s -o "$resp" -w '%{http_code}' --max-time 30 -X POST "${ASTROCORE_URL}/api/agents/register" \
-    -H "X-Api-Key: ${ASTROCORE_API_KEY}" -H "Content-Type: application/json" --data-binary "$body" || echo 000)"
+    -H "X-Api-Key: ${ASTROCORE_API_KEY}" -H "Content-Type: application/json" --data-binary "$body" 2>/dev/null)" || true
+  code="${code:-000}"
   case "$code" in
     200) ok "Агента зареєстровано — у чаті AsCore він тепер «підключено»" ;;
     401) rm -f "$resp"; die "AsCore не прийняв ключ (401). Створи нове підключення в AsCore і скопіюй свіжу команду." ;;
