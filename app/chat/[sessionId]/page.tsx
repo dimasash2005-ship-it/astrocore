@@ -45,6 +45,9 @@ type Message = {
   // never persisted, just tells MessageBubble to show a typing
   // indicator instead of an empty bubble while content is still "".
   streaming?: boolean
+  // Reply is being produced by an OpenClaw agent in the background
+  // (chat_messages.status = "pending"). It's filled in via Realtime.
+  jobPending?: boolean
 }
 
 type DBMessage = {
@@ -53,6 +56,7 @@ type DBMessage = {
   role: string
   content: string
   created_at: string
+  status?: string | null
 }
 
 type Session = {
@@ -80,6 +84,10 @@ type Provider = {
   api_key: string
   model: string
   is_active: boolean
+  // "pull" = connected through the AsCore connector (background jobs),
+  // "push" / missing = old HTTPS + stream setup.
+  transport?: string | null
+  last_seen_at?: string | null
 }
 
 type SpeechRecognitionConstructor = new () => {
@@ -112,6 +120,17 @@ function timeStr(iso: string, lang: Language): string {
 
 function getExt(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? ""
+}
+
+// Merges a chat_messages row (from Realtime or polling) into a local message.
+function applyDbRow(m: Message, row: { content?: string | null; status?: string | null }): Message {
+  const pending = row.status === "pending"
+  return {
+    ...m,
+    content:    typeof row.content === "string" ? row.content : m.content,
+    streaming:  pending,
+    jobPending: pending,
+  }
 }
 
 // ─── Icon button ──────────────────────────────────────────────────
@@ -428,6 +447,24 @@ function useTypewriter(fullText: string, active: boolean): string {
   return revealed
 }
 
+// "Агент працює · 2:14" under a background reply that isn't finished yet.
+function WorkingLabel({ since, lang }: { since: string; lang: Language }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const startedAt = Date.parse(since)
+  const sec = Number.isFinite(startedAt) ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0
+  const mm = Math.floor(sec / 60)
+  const ss = String(sec % 60).padStart(2, "0")
+  return (
+    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: T.t4 }}>
+      {lang === "uk" ? "Агент працює" : "Agent is working"} · {mm}:{ss}
+    </span>
+  )
+}
+
 // PERF: the browser skips layout & paint for messages that are off
 // screen, so a long chat costs about the same as a short one.
 const OFFSCREEN_SKIP = {
@@ -503,10 +540,13 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
 
       <div style={{ maxWidth: 960, minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
         {isStreamingEmpty ? (
-          <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "6px 1px" }}>
-            {[0,1,2].map(i => (
-              <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
-            ))}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 1px" }}>
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+            {msg.jobPending && <WorkingLabel since={msg.createdAt} lang={lang} />}
           </div>
         ) : (
           <div style={{
@@ -517,6 +557,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
             <Markdown content={isError ? msg.content : displayContent} />
           </div>
         )}
+        {msg.jobPending && !isStreamingEmpty && <WorkingLabel since={msg.createdAt} lang={lang} />}
         {actionsRow}
       </div>
     </div>
@@ -743,6 +784,9 @@ export default function SessionPage() {
   const sendingRef  = useRef(false)
   const hasScrolledInitially = useRef(false)
 
+  // A background agent reply is still in progress in this chat.
+  const hasPendingJob = messages.some(m => m.jobPending)
+
   const loadSession = useCallback(async () => {
     hasScrolledInitially.current = false
     const sb = getSupabase()
@@ -755,10 +799,12 @@ export default function SessionPage() {
     setSession(sessionData as Session)
 
     const msgs: Message[] = (messagesData ?? []).map((m: DBMessage) => ({
-      id:        m.id,
-      role:      m.role as "user" | "assistant",
-      content:   m.content,
-      createdAt: m.created_at,
+      id:         m.id,
+      role:       m.role as "user" | "assistant",
+      content:    m.content,
+      createdAt:  m.created_at,
+      streaming:  m.status === "pending",
+      jobPending: m.status === "pending",
     }))
     setMessages(msgs)
 
@@ -775,6 +821,41 @@ export default function SessionPage() {
   }, [sessionId])
 
   useEffect(() => { loadSession() }, [loadSession])
+
+  // Live updates of background agent replies (partial text, final text, errors).
+  useEffect(() => {
+    const sb = getSupabase()
+    const channel = sb
+      .channel(`chat-messages-${sessionId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_messages", filter: `session_id=eq.${sessionId}` },
+        payload => {
+          const row = payload.new as Partial<DBMessage>
+          if (!row?.id) return
+          setMessages(prev => prev.map(m => (m.id === row.id ? applyDbRow(m, row) : m)))
+        },
+      )
+      .subscribe()
+    return () => { sb.removeChannel(channel) }
+  }, [sessionId])
+
+  // Safety net: if the Realtime connection drops (sleeping laptop, bad
+  // network), re-read pending replies every few seconds.
+  const pendingKey = messages.filter(m => m.jobPending).map(m => m.id).join(",")
+  useEffect(() => {
+    if (!pendingKey) return
+    const ids = pendingKey.split(",")
+    const timer = setInterval(async () => {
+      const { data } = await getSupabase().from("chat_messages").select("id, content, status").in("id", ids)
+      if (!data) return
+      setMessages(prev => prev.map(m => {
+        const row = data.find((r: { id: string }) => r.id === m.id)
+        return row ? applyDbRow(m, row) : m
+      }))
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [pendingKey])
 
   useEffect(() => {
     if (messages.length === 0) return
@@ -872,7 +953,7 @@ export default function SessionPage() {
     if (sendingRef.current) return
     const text = rawText.trim()
     const hasAttachments = attachments.length > 0
-    if ((!text && !hasAttachments) || loading || !session) return
+    if ((!text && !hasAttachments) || loading || hasPendingJob || !session) return
     sendingRef.current = true
 
     const attachmentLines = attachments.map(a => {
@@ -906,6 +987,11 @@ export default function SessionPage() {
     }
 
     const updatedWithUser = [...messages, userMsg]
+    // History sent to the model: never include replies that are still in progress.
+    const history = updatedWithUser
+      .filter(m => !m.streaming)
+      .map(m => ({ role: m.role, content: m.content }))
+
     setMessages(updatedWithUser)
     setJustAddedId(userMsg.id)
     inputApi.current?.clear()
@@ -919,21 +1005,22 @@ export default function SessionPage() {
       }).eq("id", sessionId)
     }
 
+    async function addErrorReply(errContent: string) {
+      const { data: errMsgData } = await sb.from("chat_messages").insert({
+        user_id: user!.id, session_id: sessionId, role: "assistant", content: errContent,
+      }).select().single()
+      const errId = errMsgData?.id ?? crypto.randomUUID()
+      setMessages(prev => [...prev, { id: errId, role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
+      setJustAddedId(errId)
+    }
+
     try {
       const currentAgent    = agent
       const currentProvider = provider
 
       if (!currentProvider) {
-        const errContent = t.chatSession.providerNotFoundError
-        const { data: errMsgData } = await sb.from("chat_messages").insert({
-          user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
-        }).select().single()
-        const errId = errMsgData?.id ?? crypto.randomUUID()
-        setMessages(prev => [...prev, { id: errId, role: "assistant", content: errContent, createdAt: errMsgData?.created_at ?? new Date().toISOString() }])
-        setJustAddedId(errId)
-        setLoading(false)
-        sendingRef.current = false
-        return
+        await addErrorReply(t.chatSession.providerNotFoundError)
+        return // `finally` below resets loading / focus
       }
 
       const memoryRaw     = localStorage.getItem("astrocore_memory")
@@ -947,7 +1034,40 @@ export default function SessionPage() {
         memoryContext ? `\n\n[Workspace context]:\n${memoryContext}` : "",
       ].filter(Boolean).join("")
 
-      // ── OpenClaw agent: streamed reply, up to ~5 min ───────────────
+      // ── OpenClaw via the AsCore connector: background job, no time limit ──
+      // The route returns immediately; the agent fills in the reply later and
+      // it arrives through Realtime (see the effects above).
+      if (currentProvider.slug === "openclaw" && currentProvider.transport === "pull") {
+        const jobRes = await fetch("/api/chat/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: history,
+            systemPrompt,
+            providerId: currentProvider.id,
+            sessionId,
+          }),
+        })
+        const jobData = await jobRes.json().catch(() => ({}))
+
+        if (!jobRes.ok || !jobData?.messageId) {
+          await addErrorReply(jobData?.error || t.chatSession.sendError)
+          return
+        }
+
+        setJustAddedId(null)
+        setMessages(prev => prev.some(m => m.id === jobData.messageId) ? prev : [...prev, {
+          id:         jobData.messageId as string,
+          role:       "assistant",
+          content:    "",
+          createdAt:  (jobData.createdAt as string) ?? new Date().toISOString(),
+          streaming:  true,
+          jobPending: true,
+        }])
+        return
+      }
+
+      // ── OpenClaw, old HTTPS setup: streamed reply, up to ~5 min ───────────
       // Every other provider keeps the original non-streaming path below.
       if (currentProvider.slug === "openclaw") {
         const replyId   = crypto.randomUUID()
@@ -971,7 +1091,7 @@ export default function SessionPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
+              messages: history,
               systemPrompt,
               providerId: currentProvider.id,
               sessionId,
@@ -1024,7 +1144,7 @@ export default function SessionPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: updatedWithUser.map(m => ({ role: m.role, content: m.content })),
+            messages: history,
             systemPrompt,
             providerId: currentProvider.id,
             sessionId,
@@ -1037,20 +1157,7 @@ export default function SessionPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
-        const errContent = errData?.error || t.chatSession.noReply
-
-        const { data: errMsgData } = await sb.from("chat_messages").insert({
-          user_id: user.id, session_id: sessionId, role: "assistant", content: errContent,
-        }).select().single()
-
-        const errId = errMsgData?.id ?? crypto.randomUUID()
-        setMessages(prev => [...prev, {
-          id: errId,
-          role: "assistant",
-          content: errContent,
-          createdAt: errMsgData?.created_at ?? new Date().toISOString(),
-        }])
-        setJustAddedId(errId)
+        await addErrorReply(errData?.error || t.chatSession.noReply)
       } else {
         const data = await res.json()
         const replyContent = data.content ?? data.error ?? t.chatSession.noReply
@@ -1117,9 +1224,10 @@ export default function SessionPage() {
     )
   }
 
+  const busy = loading || hasPendingJob
   const placeholder = isListening
     ? t.chatSession.listeningPlaceholder
-    : loading ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder
+    : busy ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder
 
   return (
     <>
@@ -1262,7 +1370,7 @@ export default function SessionPage() {
             <ComposerInput
               ref={inputApi}
               onSend={handleSend}
-              loading={loading}
+              loading={busy}
               hasAttachments={attachments.length > 0}
               placeholder={placeholder}
               sendTitle={t.chatSession.send}
