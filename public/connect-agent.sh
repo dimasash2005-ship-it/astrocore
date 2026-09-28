@@ -163,11 +163,11 @@ install_connector() {
   [ -n "$sb_url" ] && [ -n "$sb_key" ] || die "AsCore повернув неповні налаштування."
 
   install -d -m 755 "$CONNECTOR_DIR"
-  curl -fsSL --max-time 30 "${ASTROCORE_URL}/ascore-connector.mjs" -o "${CONNECTOR_DIR}/connector.mjs.new" \
+  curl -fsSL --max-time 30 "${ASTROCORE_URL}/ascore-connector.mjs" -o "${CONNECTOR_DIR}/connector.new.mjs" \
     || die "Не вдалося завантажити ${ASTROCORE_URL}/ascore-connector.mjs"
-  node --check "${CONNECTOR_DIR}/connector.mjs.new" >/dev/null 2>&1 \
-    || { rm -f "${CONNECTOR_DIR}/connector.mjs.new"; die "Завантажений конектор пошкоджений."; }
-  mv -f "${CONNECTOR_DIR}/connector.mjs.new" "${CONNECTOR_DIR}/connector.mjs"
+  node --check "${CONNECTOR_DIR}/connector.new.mjs" >/dev/null 2>&1 \
+    || { rm -f "${CONNECTOR_DIR}/connector.new.mjs"; die "Завантажений конектор пошкоджений."; }
+  mv -f "${CONNECTOR_DIR}/connector.new.mjs" "${CONNECTOR_DIR}/connector.mjs"
   chmod 644 "${CONNECTOR_DIR}/connector.mjs"
   ok "Конектор завантажено"
 
