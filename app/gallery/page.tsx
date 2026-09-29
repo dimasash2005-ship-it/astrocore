@@ -5,6 +5,7 @@ import {
   Image as ImageIcon, Plus, Search, Trash2, X,
   Code2, FileText, Layers, Clock, Copy, Check,
   Sparkles, Download, Video, Wand2, Loader2,
+  ChevronLeft, ChevronRight, ExternalLink, Play,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -61,10 +62,6 @@ function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language
   return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" })
 }
 
-function cut(s: string, n: number) {
-  return s && s.length > n ? s.slice(0, n) + "…" : (s || "")
-}
-
 // ─── Modal ────────────────────────────────────────────────────────
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -72,10 +69,13 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
         position: "fixed", inset: 0, zIndex: 100,
-        background: "rgba(0,0,0,0.78)",
+        background: "rgba(4,4,10,0.72)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        animation: "galFade .18s ease-out",
       }}>
-      {children}
+      <div style={{ width: "100%", display: "flex", justifyContent: "center", animation: "galPop .24s cubic-bezier(.2,.9,.3,1.2)" }}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -443,22 +443,45 @@ function GenerateModal({ onClose, onAdded, t, language }: {
   )
 }
 
-// ─── Gallery card ─────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────
 
-function GalleryCard({ item, onDelete, t, lang }: {
-  item: GalleryItem; onDelete: () => void
-  t: ReturnType<typeof useLanguage>["t"]; lang: Language
+function isUrlItem(item: GalleryItem) {
+  return (item.type === "image" || item.type === "video") && item.content.startsWith("http")
+}
+
+function textPreview(s: string) {
+  return (s || "").replace(/[#*_`>]+/g, "").replace(/\n{2,}/g, "\n").trim()
+}
+
+function downloadItem(item: GalleryItem) {
+  if (isUrlItem(item)) { window.open(item.content, "_blank", "noopener"); return }
+  const ext = item.type === "code" ? "txt" : "md"
+  const blob = new Blob([item.content], { type: "text/plain;charset=utf-8" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = `${(item.title || "output").replace(/[\\/:*?"<>|]+/g, "").slice(0, 60) || "output"}.${ext}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+
+// ─── Gallery card (compact, same style as Memory / Vault) ────────
+
+function GalleryCard({ item, onOpen, onDelete, t, lang, index }: {
+  item: GalleryItem; onOpen: () => void; onDelete: () => void
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language; index: number
 }) {
   const [copied, setCopied] = useState(false)
   const TYPE_META = getTypeMeta(t, lang)
   const meta = TYPE_META[item.type ?? "text"] ?? TYPE_META.text
   const Icon = meta.icon
+  const media = isUrlItem(item)
+  const isCode = item.type === "code"
 
   function handleCopy(e: React.MouseEvent) {
     e.stopPropagation()
     navigator.clipboard.writeText(item.content).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
+      setTimeout(() => setCopied(false), 1600)
     })
   }
 
@@ -467,141 +490,131 @@ function GalleryCard({ item, onDelete, t, lang }: {
     if (window.confirm(`${t.gallery.deleteConfirmPrefix}${item.title}${t.gallery.deleteConfirmSuffix}`)) onDelete()
   }
 
-  const isCode  = item.type === "code"
-  const isImage = item.type === "image"
-  const isVideo = item.type === "video"
-  const isUrl   = (isImage || isVideo) && item.content.startsWith("http")
+  return (
+    <div role="button" tabIndex={0} onClick={onOpen}
+      onKeyDown={e => { if (e.key === "Enter") onOpen() }}
+      className={`gal-card${media ? " is-media" : ""}`}
+      style={{ animationDelay: `${Math.min(index, 12) * 40}ms`, ["--tc" as string]: meta.color } as React.CSSProperties}
+    >
+      {media && (
+        <div className="gal-thumb">
+          {item.type === "image" ? (
+            <img src={item.content} alt={item.title} loading="lazy"
+              onError={e => { (e.currentTarget as HTMLElement).style.display = "none" }} />
+          ) : (
+            <>
+              <video src={item.content} muted loop playsInline preload="metadata"
+                onMouseEnter={e => { (e.currentTarget as HTMLVideoElement).play().catch(() => {}) }}
+                onMouseLeave={e => { (e.currentTarget as HTMLVideoElement).pause() }} />
+              <span className="gal-play"><Play size={14} fill="currentColor" /></span>
+            </>
+          )}
+          <span className="gal-thumb-shade" />
+        </div>
+      )}
+
+      <div className="gal-body">
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          {!media && (
+            <div style={{
+              width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+              background: meta.bg, border: `0.5px solid ${meta.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Icon size={14} style={{ color: meta.color }} />
+            </div>
+          )}
+          <div className="gal-title">{item.title}</div>
+          <div className="gal-actions">
+            <button title="Copy" onClick={handleCopy} className="gal-icon">{copied ? <Check size={12} /> : <Copy size={12} />}</button>
+            <button title="Delete" onClick={handleDelete} className="gal-icon gal-icon-del"><Trash2 size={12} /></button>
+          </div>
+        </div>
+
+        {!media && (
+          <div className={`gal-preview${isCode ? " is-code" : ""}`}>
+            {isCode ? item.content : textPreview(item.content)}
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 12, flexWrap: "wrap" }}>
+          <span className="gal-chip" style={{ color: meta.color, background: meta.bg, borderColor: meta.border }}>
+            <Icon size={9} /> {meta.label}
+          </span>
+          {item.tags?.includes("ai") && <span className="gal-chip gal-chip-red"><Sparkles size={9} /> AI</span>}
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
+            <Clock size={10} />{ago(item.created_at, t, lang)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Preview (lightbox) ───────────────────────────────────────────
+
+function Preview({ item, onClose, onPrev, onNext, onDelete, t, lang, pos }: {
+  item: GalleryItem; onClose: () => void; onPrev?: () => void; onNext?: () => void
+  onDelete: () => void; t: ReturnType<typeof useLanguage>["t"]; lang: Language; pos: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const TYPE_META = getTypeMeta(t, lang)
+  const meta = TYPE_META[item.type ?? "text"] ?? TYPE_META.text
+  const Icon = meta.icon
+  const media = isUrlItem(item)
+  const uk = lang === "uk"
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+      if (e.key === "ArrowLeft"  && onPrev) onPrev()
+      if (e.key === "ArrowRight" && onNext) onNext()
+    }
+    window.addEventListener("keydown", fn)
+    return () => window.removeEventListener("keydown", fn)
+  }, [onClose, onPrev, onNext])
+
+  function copy() {
+    navigator.clipboard.writeText(item.content).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600) })
+  }
+  function del() {
+    if (window.confirm(`${t.gallery.deleteConfirmPrefix}${item.title}${t.gallery.deleteConfirmSuffix}`)) onDelete()
+  }
 
   return (
-    <div style={{
-      background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-      border: `0.5px solid ${T.b1}`,
-      borderRadius: 14,
-      display: "flex", flexDirection: "column",
-      transition: "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
-      overflow: "hidden",
-      position: "relative",
-    }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "linear-gradient(160deg,#14142A 0%,#0F0F1E 100%)"
-        el.style.borderColor = "rgba(232,0,42,0.22)"
-        el.style.boxShadow = "0 0 24px rgba(232,0,42,0.07)"
-        const act = el.querySelector(".gal-actions") as HTMLElement
-        if (act) act.style.opacity = "1"
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)"
-        el.style.borderColor = T.b1
-        el.style.boxShadow = "none"
-        const act = el.querySelector(".gal-actions") as HTMLElement
-        if (act) act.style.opacity = "0"
-      }}
-    >
-      {/* image preview */}
-      {isImage && isUrl && (
-        <div style={{
-          height: 160, overflow: "hidden", position: "relative",
-          background: "rgba(255,255,255,0.02)",
-        }}>
-          <img src={item.content} alt={item.title}
-            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}
-            onError={e => { (e.currentTarget as HTMLElement).style.display = "none" }}
-          />
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(0deg,rgba(8,8,15,0.6) 0%,transparent 60%)",
-          }} />
-        </div>
-      )}
+    <div className="gal-lb" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      {onPrev && <button className="gal-nav" style={{ left: 18 }} onClick={onPrev} aria-label="Previous"><ChevronLeft size={20} /></button>}
+      {onNext && <button className="gal-nav" style={{ right: 18 }} onClick={onNext} aria-label="Next"><ChevronRight size={20} /></button>}
 
-      {/* video preview — plays on hover, muted */}
-      {isVideo && isUrl && (
-        <div style={{
-          height: 160, overflow: "hidden", position: "relative",
-          background: "rgba(255,255,255,0.02)",
-        }}>
-          <video src={item.content} muted loop playsInline
-            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLVideoElement).play().catch(() => {}) }}
-            onMouseLeave={e => { (e.currentTarget as HTMLVideoElement).pause() }}
-            onError={e => { (e.currentTarget as HTMLElement).style.display = "none" }}
-          />
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "linear-gradient(0deg,rgba(8,8,15,0.6) 0%,transparent 60%)",
-            pointerEvents: "none",
-          }} />
-        </div>
-      )}
-
-      {/* card body */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
-
-        {/* header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            {/* type badge */}
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 10, padding: "2px 7px", borderRadius: 5, flexShrink: 0,
-              background: meta.bg, border: `0.5px solid ${meta.border}`, color: meta.color,
-            }}>
-              <Icon size={9} />{meta.label}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {cut(item.title, 40)}
-            </span>
-          </div>
-          <div className="gal-actions" style={{ display: "flex", gap: 4, opacity: 0, transition: "opacity 140ms ease", flexShrink: 0 }}>
-            <button onClick={handleCopy} style={{ padding: 5, borderRadius: 6, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", lineHeight: 0, color: copied ? T.red : T.t4 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = copied ? T.red : T.t4 }}>
-              {copied ? <Check size={12} /> : <Copy size={12} />}
-            </button>
-            <button onClick={handleDelete} style={{ padding: 5, borderRadius: 6, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", lineHeight: 0, color: T.t4 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
-              <Trash2 size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* content preview (text/code, and image/video fallback when content isn't a URL) */}
-        {!isImage && !isVideo && (
-          <div style={{
-            fontSize: isCode ? 11.5 : 12, color: isCode ? "#7DD3FC" : T.t3,
-            lineHeight: 1.65, padding: "9px 11px", borderRadius: 8,
-            background: isCode ? "rgba(125,211,252,0.04)" : "rgba(255,255,255,0.025)",
-            border: isCode ? "0.5px solid rgba(125,211,252,0.10)" : "0.5px solid rgba(255,255,255,0.06)",
-            fontFamily: isCode ? "monospace" : "inherit",
-            overflow: "hidden", display: "-webkit-box",
-            WebkitLineClamp: 5, WebkitBoxOrient: "vertical",
-          }}>
-            {item.content}
-          </div>
-        )}
-
-        {(isImage || isVideo) && !isUrl && (
-          <div style={{
-            fontSize: 12, color: T.t3, lineHeight: 1.65, padding: "9px 11px", borderRadius: 8,
-            background: "rgba(167,139,250,0.04)", border: "0.5px solid rgba(167,139,250,0.10)",
-            overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical",
-          }}>
-            {item.content}
-          </div>
-        )}
-
-        {/* footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 2 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            {t.gallery.aiOutputLabel}
+      <div className={`gal-lb-box${media ? " is-media" : ""}`} key={item.id}>
+        {/* top bar */}
+        <div className="gal-lb-top">
+          <span className="gal-chip" style={{ color: meta.color, background: meta.bg, borderColor: meta.border }}>
+            <Icon size={9} /> {meta.label}
           </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
-            <Clock size={10} />
-            {ago(item.created_at, t, lang)}
+          <div style={{ flex: 1, minWidth: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {item.title}
           </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>{pos}</span>
+          <button className="gal-btn" onClick={copy}>{copied ? <Check size={13} /> : <Copy size={13} />}<span>{copied ? (uk ? "Скопійовано" : "Copied") : (media ? (uk ? "Посилання" : "Link") : (uk ? "Копіювати" : "Copy"))}</span></button>
+          <button className="gal-btn" onClick={() => downloadItem(item)}>{media ? <ExternalLink size={13} /> : <Download size={13} />}<span>{media ? (uk ? "Відкрити" : "Open") : (uk ? "Завантажити" : "Download")}</span></button>
+          <button className="gal-btn gal-btn-del" onClick={del} title="Delete"><Trash2 size={13} /></button>
+          <button className="gal-btn" onClick={onClose} title="Esc"><X size={14} /></button>
+        </div>
+
+        {/* content */}
+        <div className="gal-lb-content">
+          {media && item.type === "image" && <img src={item.content} alt={item.title} />}
+          {media && item.type === "video" && <video src={item.content} controls autoPlay loop playsInline />}
+          {!media && (
+            <pre className={item.type === "code" ? "is-code" : ""}>{item.content}</pre>
+          )}
+        </div>
+
+        <div className="gal-lb-foot">
+          <Clock size={10} /> {ago(item.created_at, t, lang)}
+          {!media && <span>· {item.content.length.toLocaleString(uk ? "uk-UA" : "en-US")} {uk ? "симв." : "chars"}</span>}
+          <span style={{ marginLeft: "auto" }}>{uk ? "← → гортати · Esc закрити" : "← → browse · Esc close"}</span>
         </div>
       </div>
     </div>
@@ -610,38 +623,21 @@ function GalleryCard({ item, onDelete, t, lang }: {
 
 // ─── Empty state ──────────────────────────────────────────────────
 
-function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+function EmptyState({ onAdd, onGenerate, t, isUk }: { onAdd: () => void; onGenerate: () => void; t: ReturnType<typeof useLanguage>["t"]; isUk: boolean }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "80px 24px", textAlign: "center",
-      width: "100%",
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center", width: "100%" }}>
       <div style={{
         width: 72, height: 72, borderRadius: 20, marginBottom: 20,
         background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 0 32px rgba(232,0,42,0.07)",
+        display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.07)",
       }}>
         <Sparkles size={28} style={{ color: T.red, opacity: 0.7 }} />
       </div>
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.gallery.emptyTitle}</div>
-      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 340, marginBottom: 28 }}>
-        {t.gallery.emptyDesc}
-      </div>
-      <button onClick={onAdd} style={{
-        display: "flex", alignItems: "center", gap: 7,
-        background: T.red, color: "#fff", border: "none",
-        borderRadius: 10, padding: "10px 22px",
-        fontSize: 13, fontWeight: 500, cursor: "pointer",
-      }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-      >
-        <Plus size={14} /> {t.gallery.addOutput}
-      </button>
-      <div style={{ marginTop: 18, fontSize: 10.5, color: "#3A3A5A", textTransform: "uppercase", letterSpacing: "0.10em" }}>
-        {t.gallery.savedGenerations}
+      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 28 }}>{t.gallery.emptyDesc}</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={onGenerate} className="gal-ghost"><Wand2 size={14} /> {isUk ? "Згенерувати AI" : "Generate AI"}</button>
+        <button onClick={onAdd} className="gal-primary"><Plus size={14} /> {t.gallery.addOutput}</button>
       </div>
     </div>
   )
@@ -651,297 +647,262 @@ function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useL
 
 export default function GalleryPage() {
   const { t, language } = useLanguage()
-  const [items,     setItems]     = useState<GalleryItem[]>([])
-  const [search,    setSearch]    = useState("")
+  const [items,      setItems]      = useState<GalleryItem[]>([])
+  const [loaded,     setLoaded]     = useState(false)
+  const [search,     setSearch]     = useState("")
   const [typeFilter, setTypeFilter] = useState<FilterType>("all")
-  const [showModal, setShowModal] = useState(false)
+  const [showModal,  setShowModal]  = useState(false)
   const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [openId,     setOpenId]     = useState<string | null>(null)
 
   const isUk = language === "uk"
   const TYPE_META = getTypeMeta(t, language)
 
   async function load() {
-    const sb = getSupabase()
-    const { data } = await sb
-      .from("gallery_items")
-      .select("*")
-      .order("created_at", { ascending: false })
+    const { data } = await getSupabase().from("gallery_items").select("*").order("created_at", { ascending: false })
     if (data) setItems(data as GalleryItem[])
+    setLoaded(true)
   }
   useEffect(() => { load() }, [])
 
   async function handleDelete(id: string) {
-    const sb = getSupabase()
-    await sb.from("gallery_items").delete().eq("id", id)
-    load()
+    await getSupabase().from("gallery_items").delete().eq("id", id)
+    setItems(prev => prev.filter(i => i.id !== id))
   }
 
-  const filtered = useMemo(() => items.filter(item => {
-    const matchSearch = !search ||
-      item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.content.toLowerCase().includes(search.toLowerCase())
-    const matchType = typeFilter === "all" || (item.type ?? "text") === typeFilter
-    return matchSearch && matchType
-  }), [items, search, typeFilter])
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return items.filter(item => {
+      const matchSearch = !q || item.title.toLowerCase().includes(q) || item.content.toLowerCase().includes(q)
+      const matchType = typeFilter === "all" || (item.type ?? "text") === typeFilter
+      return matchSearch && matchType
+    })
+  }, [items, search, typeFilter])
 
   const counts = useMemo(() => ({
+    all:   items.length,
     text:  items.filter(i => (i.type ?? "text") === "text").length,
     code:  items.filter(i => i.type === "code").length,
     image: items.filter(i => i.type === "image").length,
     video: items.filter(i => i.type === "video").length,
   }), [items])
 
+  const openIdx  = openId ? filtered.findIndex(i => i.id === openId) : -1
+  const openItem = openIdx >= 0 ? filtered[openIdx] : null
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-
-        @keyframes scanline {
-          0%   { transform: translateX(-100%); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { transform: translateX(200%); opacity: 0; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
-        @keyframes astrocoreBadgeSweep {
-          0%   { left: -40%; }
-          100% { left: 100%; }
-        }
+        @keyframes scanline { 0% { transform: translateX(-100%); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(200%); opacity: 0; } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
-        @keyframes astrocoreHeroSweep {
-          0%   { left: -20%; }
-          100% { left: 100%; }
+        @keyframes astrocoreHeroSweep { 0% { left: -20%; } 100% { left: 100%; } }
+        @keyframes galIn  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes galFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes galPop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+
+        .gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+
+        .gal-card {
+          position: relative; display: flex; flex-direction: column; text-align: left; cursor: pointer;
+          min-height: 172px; border-radius: 14px; overflow: hidden;
+          background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1};
+          animation: galIn .45s cubic-bezier(.2,.8,.2,1) both;
+          transition: transform .2s cubic-bezier(.3,1.4,.5,1), border-color .2s, box-shadow .2s, background .2s;
         }
+        .gal-card::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 2px; z-index: 2;
+          background: linear-gradient(180deg, transparent, var(--tc, ${T.red}), transparent); opacity: .55; transition: opacity .2s; }
+        .gal-card.is-media::before { display: none; }
+        .gal-card:hover { transform: translateY(-3px); border-color: rgba(232,0,42,.35);
+          background: linear-gradient(160deg,#15142A 0%,#0F0F1E 100%); box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(232,0,42,.08); }
+        .gal-card:hover::before { opacity: 1; }
+        .gal-card:focus-visible { outline: 2px solid ${T.red}; outline-offset: 2px; }
+
+        .gal-thumb { position: relative; height: 170px; overflow: hidden; background: #0A0A12; }
+        .gal-thumb img, .gal-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+        .gal-card:hover .gal-thumb img, .gal-card:hover .gal-thumb video { transform: scale(1.05); }
+        .gal-thumb-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(0deg, rgba(10,10,18,.85) 0%, transparent 55%); }
+        .gal-play { position: absolute; top: 10px; left: 10px; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+          color: #fff; background: rgba(0,0,0,.5); border: 0.5px solid rgba(255,255,255,.2); backdrop-filter: blur(4px); pointer-events: none; }
+
+        .gal-body { display: flex; flex-direction: column; flex: 1; padding: 14px 16px 13px; }
+        .gal-card.is-media .gal-body { padding-top: 11px; }
+        .gal-title { flex: 1; min-width: 0; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1};
+          line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .gal-preview { margin-top: 10px; font-size: 12.5px; line-height: 1.6; color: ${T.t3}; white-space: pre-line;
+          display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .gal-preview.is-code { white-space: pre; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7DD3FC; line-height: 1.55;
+          padding: 8px 10px; border-radius: 8px; background: rgba(125,211,252,.04); border: 0.5px solid rgba(125,211,252,.10); -webkit-line-clamp: 5; }
+
+        .gal-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+        .gal-card:hover .gal-actions, .gal-card:focus-within .gal-actions { opacity: 1; }
+        .gal-icon { padding: 5px; border-radius: 7px; border: none; background: rgba(255,255,255,.06); color: ${T.t3}; cursor: pointer; line-height: 0; transition: color .12s, background .12s; }
+        .gal-icon:hover { color: ${T.t1}; background: rgba(255,255,255,.1); }
+        .gal-icon-del:hover { color: #FF4D6A; background: rgba(232,0,42,.12); }
+
+        .gal-chip { display: inline-flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 9px;
+          padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: .06em;
+          color: ${T.t3}; background: rgba(255,255,255,.04); border: 0.5px solid ${T.b1}; flex-shrink: 0; }
+        .gal-chip-red { color: ${T.red}; background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.2); }
+
+        .gal-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 172px;
+          border-radius: 14px; border: 1px dashed rgba(232,0,42,.3); background: rgba(232,0,42,.03); color: ${T.t3};
+          font-family: inherit; font-size: 13px; }
+        .gal-new-row { display: flex; gap: 8px; }
+        .gal-new-row button { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; cursor: pointer; font-size: 12px; font-family: inherit;
+          border: 0.5px solid rgba(232,0,42,.3); background: rgba(232,0,42,.08); color: ${T.t2}; transition: background .15s, color .15s; }
+        .gal-new-row button:hover { background: ${T.red}; color: #fff; }
+
+        .gal-primary { display: flex; align-items: center; gap: 7px; background: ${T.red}; color: #fff; border: none; border-radius: 10px;
+          padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .13s, box-shadow .13s, transform .13s; }
+        .gal-primary:hover { background: #FF1A3E; box-shadow: 0 0 20px rgba(232,0,42,.35); transform: translateY(-1px); }
+        .gal-ghost { display: flex; align-items: center; gap: 7px; background: rgba(232,0,42,.08); color: ${T.red}; border: 0.5px solid ${T.bRed};
+          border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .13s; }
+        .gal-ghost:hover { background: rgba(232,0,42,.16); }
+
+        .gal-seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: ${T.s1}; border: 0.5px solid ${T.b1}; flex-wrap: wrap; }
+        .gal-seg button { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 7px; border: none; cursor: pointer;
+          font-size: 12px; font-family: inherit; background: transparent; color: ${T.t3}; transition: background .15s, color .15s; }
+        .gal-seg button:hover { color: ${T.t1}; background: rgba(255,255,255,.04); }
+        .gal-seg button.on { background: rgba(232,0,42,.14); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(232,0,42,.4); }
+        .gal-seg b { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: ${T.t4}; }
+        .gal-seg button.on b { color: ${T.red}; }
+
+        /* lightbox */
+        .gal-lb { position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 28px 80px;
+          background: rgba(4,4,10,.82); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: galFade .18s ease-out; }
+        .gal-lb-box { width: 100%; max-width: 900px; max-height: calc(100vh - 56px); display: flex; flex-direction: column; overflow: hidden;
+          border-radius: 16px; background: linear-gradient(160deg,#111120 0%,#0B0B16 100%); border: 0.5px solid rgba(232,0,42,.25);
+          box-shadow: 0 30px 90px rgba(0,0,0,.8), 0 0 60px rgba(232,0,42,.06); animation: galPop .24s cubic-bezier(.2,.9,.3,1.2); }
+        .gal-lb-box.is-media { max-width: 1200px; }
+        .gal-lb-top { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 0.5px solid ${T.b1}; }
+        .gal-btn { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit;
+          background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.09); color: ${T.t2}; transition: background .12s, color .12s, border-color .12s; flex-shrink: 0; }
+        .gal-btn:hover { background: rgba(255,255,255,.08); color: ${T.t1}; }
+        .gal-btn-del:hover { background: rgba(232,0,42,.14); border-color: rgba(232,0,42,.35); color: #FF4D6A; }
+        .gal-lb-content { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
+        .gal-lb-box.is-media .gal-lb-content { align-items: center; background: #06060C; }
+        .gal-lb-content img, .gal-lb-content video { max-width: 100%; max-height: calc(100vh - 170px); display: block; object-fit: contain; }
+        .gal-lb-content pre { margin: 0; width: 100%; padding: 22px 26px; white-space: pre-wrap; word-break: break-word;
+          font-family: inherit; font-size: 14px; line-height: 1.75; color: ${T.t2}; }
+        .gal-lb-content pre.is-code { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.65; color: #BFE6FF; white-space: pre; background: #07070D; }
+        .gal-lb-foot { display: flex; align-items: center; gap: 6px; padding: 9px 16px; border-top: 0.5px solid ${T.b1};
+          font-family: 'JetBrains Mono', monospace; font-size: 10px; color: ${T.t4}; }
+        .gal-nav { position: fixed; top: 50%; transform: translateY(-50%); z-index: 2; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+          display: grid; place-items: center; color: ${T.t2}; background: rgba(255,255,255,.05); border: 0.5px solid rgba(255,255,255,.12); transition: all .15s; }
+        .gal-nav:hover { background: ${T.red}; border-color: ${T.red}; color: #fff; box-shadow: 0 0 20px rgba(232,0,42,.45); }
+        @media (max-width: 760px) { .gal-lb { padding: 12px; } .gal-nav { display: none; } .gal-btn span { display: none; } }
+        @media (prefers-reduced-motion: reduce) { .gal-card, .gal-lb-box { animation: none; } }
       `}</style>
 
       <div style={{
-        marginLeft: SIDEBAR_W,
-        minHeight: "100vh",
-        background: T.bg,
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
-        backgroundSize: "24px 24px",
+        marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg,
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)", backgroundSize: "24px 24px",
       }}>
-
-        {/* scan line */}
-        <div aria-hidden style={{
-          position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
-          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
-          animation: "scanline 6s linear infinite",
-          pointerEvents: "none", zIndex: 10,
-        }} />
+        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10 }} />
 
         {/* ── Hero ── */}
-        <div style={{
-          position: "relative",
-          padding: "36px 48px 28px",
-          borderBottom: `0.5px solid ${T.b1}`,
-          overflow: "hidden",
-        }}>
-          <div aria-hidden style={{
-            position: "absolute", bottom: -1, left: 0, right: 0, height: 1.5,
-            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
-          }}>
-            <div className="astrocore-hero-sweep" style={{
-              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
-            }} />
+        <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+          <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5, background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none" }}>
+            <div className="astrocore-hero-sweep" style={{ position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)", boxShadow: "0 0 10px rgba(232,0,42,0.85)" }} />
           </div>
-          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
-          <div aria-hidden style={{ position: "absolute", top: 0, left: "20%", right: "20%", height: 120, pointerEvents: "none", background: "radial-gradient(ellipse 100% 100% at 50% 0%,rgba(232,0,42,0.05) 0%,transparent 100%)" }} />
+          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 320, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.07) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
-              }}>
-                <span aria-hidden style={{
-                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
-                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
-                }}>
-                  <span className="astrocore-badge-sweep" style={{
-                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
-                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                  }} />
-                </span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
-                  Output Gallery
-                </span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,0,42,0.09)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "4px 12px", marginBottom: 14 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>Output Gallery</span>
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.gallery.title}</h1>
-              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                {t.gallery.subtitle}
-              </p>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.gallery.subtitle}</p>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowGenerateModal(true)} style={{
-                display: "flex", alignItems: "center", gap: 7,
-                background: "rgba(232,0,42,0.10)", color: T.red, border: `0.5px solid ${T.bRed}`,
-                borderRadius: 9, padding: "9px 18px",
-                fontSize: 13, fontWeight: 500, cursor: "pointer",
-                transition: "background 130ms ease",
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.18)" }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
-              >
-                <Wand2 size={14} /> {isUk ? "Згенерувати AI" : "Generate AI"}
-              </button>
-              <button onClick={() => setShowModal(true)} style={{
-                display: "flex", alignItems: "center", gap: 7,
-                background: T.red, color: "#fff", border: "none",
-                borderRadius: 9, padding: "9px 18px",
-                fontSize: 13, fontWeight: 500, cursor: "pointer",
-                transition: "background 130ms ease",
-              }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-              >
-                <Plus size={14} /> {t.gallery.addOutput}
-              </button>
+              <button onClick={() => setShowGenerateModal(true)} className="gal-ghost"><Wand2 size={14} /> {isUk ? "Згенерувати AI" : "Generate AI"}</button>
+              <button onClick={() => setShowModal(true)} className="gal-primary"><Plus size={14} /> {t.gallery.addOutput}</button>
             </div>
           </div>
         </div>
 
         {/* ── Body ── */}
-        {items.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} t={t} />
+        {loaded && items.length === 0 ? (
+          <EmptyState onAdd={() => setShowModal(true)} onGenerate={() => setShowGenerateModal(true)} t={t} isUk={isUk} />
         ) : (
-          <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
-
-            {/* divider above stats */}
-            <div aria-hidden style={{
-              position: "relative", height: 1.5, marginBottom: 22,
-              background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
-            }}>
-              <div className="astrocore-hero-sweep" style={{
-                position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                boxShadow: "0 0 8px rgba(232,0,42,0.75)",
-                animationDelay: "0.4s",
-              }} />
-            </div>
-
-            {/* Stats */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
-              {[
-                { label: t.gallery.totalOutputs, value: items.length,   icon: Layers   },
-                { label: t.gallery.textsLabel,         value: counts.text,   icon: FileText },
-                { label: t.gallery.codesLabel,           value: counts.code,   icon: Code2    },
-                { label: t.gallery.imagesLabel,       value: counts.image,  icon: ImageIcon },
-                { label: isUk ? "Відео" : "Video",       value: counts.video,  icon: Video },
-              ].map(({ label, value, icon: Icon }) => (
-                <div key={label} style={{
-                  display: "flex", alignItems: "center", gap: 9,
-                  padding: "8px 14px", borderRadius: 9,
-                  background: T.s1, border: `0.5px solid ${T.b1}`,
-                }}>
-                  <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
-                  <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* divider below stats */}
-            <div aria-hidden style={{
-              position: "relative", height: 1.5, marginBottom: 22,
-              background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
-            }}>
-              <div className="astrocore-hero-sweep" style={{
-                position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-                background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                boxShadow: "0 0 8px rgba(232,0,42,0.75)",
-                animationDelay: "1.6s",
-              }} />
-            </div>
-
-            {/* Search + type filter */}
+          <div style={{ padding: "24px 48px 56px" }}>
+            {/* filters (with counts) + search in one row */}
             <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10,
-                background: T.s1, border: `0.5px solid ${T.b1}`,
-                borderRadius: 11, padding: "0 14px",
-                height: 40, flex: "1 1 220px", minWidth: 180,
-              }}>
-                <Search size={14} style={{ color: T.t4, flexShrink: 0 }} />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder={t.gallery.searchPlaceholder}
-                  style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }}
-                />
-                {search && (
-                  <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-
-              {/* Type filters */}
-              <div style={{ display: "flex", gap: 6 }}>
+              <div className="gal-seg">
                 {([
-                  { value: "all",   label: t.gallery.filterAll     },
-                  { value: "text",  label: t.gallery.typeText   },
-                  { value: "code",  label: t.gallery.typeCode     },
-                  { value: "image", label: t.gallery.typeImage },
-                  { value: "video", label: isUk ? "Відео" : "Video" },
+                  { value: "all",   label: t.gallery.filterAll, icon: Layers },
+                  { value: "text",  label: t.gallery.typeText,  icon: FileText },
+                  { value: "code",  label: t.gallery.typeCode,  icon: Code2 },
+                  { value: "image", label: t.gallery.typeImage, icon: ImageIcon },
+                  { value: "video", label: isUk ? "Відео" : "Video", icon: Video },
                 ] as const).map(f => {
-                  const active = typeFilter === f.value
-                  const meta   = f.value !== "all" ? TYPE_META[f.value] : null
+                  const Ico = f.icon
+                  const col = f.value !== "all" ? TYPE_META[f.value].color : T.red
                   return (
-                    <button key={f.value} onClick={() => setTypeFilter(f.value)} style={{
-                      fontSize: 11, padding: "5px 12px", borderRadius: 7, border: "none", cursor: "pointer",
-                      background: active
-                        ? (meta ? meta.bg : T.red)
-                        : "rgba(255,255,255,0.05)",
-                      color: active
-                        ? (meta ? meta.color : "#fff")
-                        : T.t3,
-                      outline: active
-                        ? `1px solid ${meta ? meta.border : "rgba(232,0,42,0.35)"}`
-                        : "1px solid transparent",
-                      transition: "background 130ms ease",
-                    }}>
-                      {f.label}
+                    <button key={f.value} onClick={() => setTypeFilter(f.value)} className={typeFilter === f.value ? "on" : ""}>
+                      <Ico size={12} style={{ color: typeFilter === f.value ? col : undefined }} />
+                      {f.label} <b>{counts[f.value]}</b>
                     </button>
                   )
                 })}
               </div>
+
+              <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 10, background: T.s1, border: `0.5px solid ${T.b1}`, borderRadius: 10, padding: "0 14px", height: 38 }}>
+                <Search size={14} style={{ color: T.t4, flexShrink: 0 }} />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t.gallery.searchPlaceholder}
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }} />
+                {search && (
+                  <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}><X size={13} /></button>
+                )}
+              </div>
             </div>
 
-            {/* Results info */}
             {(search || typeFilter !== "all") && (
               <div style={{ fontSize: 12, color: T.t4, marginBottom: 14 }}>
                 {t.gallery.foundOfPrefix}{filtered.length}{t.gallery.foundOfMid}{items.length}
-                <button onClick={() => { setSearch(""); setTypeFilter("all") }} style={{
-                  marginLeft: 10, fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer",
-                }}>{t.gallery.clear}</button>
+                <button onClick={() => { setSearch(""); setTypeFilter("all") }} style={{ marginLeft: 10, fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer" }}>{t.gallery.clear}</button>
               </div>
             )}
 
-            {/* Grid */}
-            {filtered.length === 0 ? (
-              <div style={{ padding: "48px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: T.t4 }}>{t.gallery.nothingFound}</div>
-              </div>
+            {filtered.length === 0 && (search || typeFilter !== "all") ? (
+              <div style={{ padding: "48px 0", textAlign: "center", fontSize: 13, color: T.t4 }}>{t.gallery.nothingFound}</div>
             ) : (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-                gap: 14,
-              }}>
-                {filtered.map(item => (
-                  <GalleryCard key={item.id} item={item} onDelete={() => handleDelete(item.id)} t={t} lang={language} />
+              <div className="gal-grid">
+                {!search && typeFilter === "all" && (
+                  <div className="gal-new">
+                    <span style={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(232,0,42,.12)", color: T.red }}><Plus size={17} /></span>
+                    {isUk ? "Новий результат" : "New output"}
+                    <div className="gal-new-row">
+                      <button onClick={() => setShowGenerateModal(true)}><Wand2 size={12} /> AI</button>
+                      <button onClick={() => setShowModal(true)}><Plus size={12} /> {isUk ? "Вручну" : "Manual"}</button>
+                    </div>
+                  </div>
+                )}
+                {filtered.map((item, i) => (
+                  <GalleryCard key={item.id} item={item} index={i} t={t} lang={language}
+                    onOpen={() => setOpenId(item.id)}
+                    onDelete={() => handleDelete(item.id)} />
                 ))}
               </div>
             )}
           </div>
         )}
       </div>
+
+      {openItem && (
+        <Preview
+          item={openItem}
+          t={t} lang={language}
+          pos={`${openIdx + 1} / ${filtered.length}`}
+          onClose={() => setOpenId(null)}
+          onPrev={openIdx > 0 ? () => setOpenId(filtered[openIdx - 1].id) : undefined}
+          onNext={openIdx < filtered.length - 1 ? () => setOpenId(filtered[openIdx + 1].id) : undefined}
+          onDelete={() => { handleDelete(openItem.id); setOpenId(null) }}
+        />
+      )}
 
       {showModal && (
         <AddModal onClose={() => setShowModal(false)} onAdded={load} t={t} />
