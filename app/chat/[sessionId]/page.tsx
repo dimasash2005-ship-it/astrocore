@@ -10,12 +10,10 @@ import {
   Activity, RotateCcw, Copy, Check,
   ChevronDown, AlertCircle, Paperclip,
   Image as ImageIcon, X, BookOpen, Plus,
-  Mic, MicOff, Globe, Wrench,
+  Mic, MicOff, Smile, FileText,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
-import { QuickActions } from "@/components/agents/QuickActions"
-import { getAgentSkills } from "@/components/agents/skillRegistry"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import ReactMarkdown from "react-markdown"
@@ -587,46 +585,84 @@ function Badge({ icon: Icon, label, color, bg, border }: { icon: React.ElementTy
   )
 }
 
-// ─── Tools panel ─────────────────────────────────────────────────
+// ─── "+" menu and emoji picker ───────────────────────────────────
 
-function ToolsPanel({ onAction, onClose, t }: { onAction: (text: string) => void; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
-  const QUICK_ACTIONS = [
-    t.chatSession.quickAction1,
-    t.chatSession.quickAction2,
-    t.chatSession.quickAction3,
-    t.chatSession.quickAction4,
-  ]
+const POPOVER: React.CSSProperties = {
+  position: "absolute", bottom: "calc(100% + 10px)", zIndex: 50,
+  borderRadius: 14, background: "linear-gradient(160deg,#16141F 0%,#0F0F1A 100%)",
+  border: "0.5px solid rgba(255,255,255,0.12)",
+  boxShadow: "0 18px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4)",
+  animation: "popIn 160ms cubic-bezier(.2,.9,.3,1.2)",
+}
+
+function MenuItem({ icon: Icon, label, hint, onClick }: { icon: React.ElementType; label: string; hint: string; onClick: () => void }) {
   return (
-    <div style={{
-      position: "absolute", bottom: "calc(100% + 8px)", left: 0,
-      width: 220, borderRadius: 12,
-      background: "linear-gradient(160deg,#14141F 0%,#0F0F1A 100%)",
-      border: "0.5px solid rgba(232,0,42,0.22)",
-      boxShadow: "0 16px 48px rgba(0,0,0,0.7)",
-      zIndex: 50, overflow: "hidden",
-    }}>
-      <div style={{ padding: "9px 12px 7px", borderBottom: "0.5px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.chatSession.quickActions}</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: 2 }}>
-          <X size={12} />
-        </button>
-      </div>
-      <div style={{ padding: "6px 6px 8px" }}>
-        {QUICK_ACTIONS.map(action => (
-          <button key={action} onClick={() => { onAction(action); onClose() }} style={{
-            display: "block", width: "100%", textAlign: "left",
-            padding: "8px 10px", borderRadius: 8, fontSize: 12.5,
-            background: "none", border: "none", cursor: "pointer", color: T.t2,
-            transition: "background 120ms ease",
-          }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none" }}
-          >
-            {action}
-          </button>
-        ))}
-      </div>
+    <button onClick={onClick} style={{
+      display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+      padding: "9px 10px", borderRadius: 10, border: "none", background: "none", cursor: "pointer", color: T.t1,
+      transition: "background 120ms ease",
+    }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "none" }}
+    >
+      <span style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.25)" }}>
+        <Icon size={15} style={{ color: "#FF5A74" }} />
+      </span>
+      <span style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 11, color: T.t4 }}>{hint}</span>
+      </span>
+    </button>
+  )
+}
+
+// Opens from the small "+" button to the left of the message box.
+function AttachMenu({ lang, onFile, onPhoto }: { lang: Language; onFile: () => void; onPhoto: () => void }) {
+  const uk = lang === "uk"
+  return (
+    <div style={{ ...POPOVER, left: 0, width: 250, padding: 6 }}>
+      <MenuItem icon={ImageIcon} label={uk ? "Фото або зображення" : "Photo or image"} hint="PNG, JPG, WEBP, GIF" onClick={onPhoto} />
+      <MenuItem icon={FileText}  label={uk ? "Завантажити файл" : "Upload a file"} hint={uk ? "PDF, TXT, код, таблиці" : "PDF, TXT, code, CSV"} onClick={onFile} />
     </div>
+  )
+}
+
+const EMOJIS = [
+  "😀","😂","🤣","🙂","😉","😊","😍","🥰","😘","😎","🤩","🥳","🤔","🤨","😏","😅",
+  "🥲","😢","😭","😤","😡","🤯","😴","🤗","🙏","👍","👎","👌","✌️","🤝","👏","🙌",
+  "💪","👀","🔥","✨","⚡","💥","🚀","🎯","🏆","🎉","✅","❌","⚠️","❓","💡","📌",
+  "📝","📊","📈","💰","💬","🧠","🤖","💻","📱","☕","❤️","💔","💯","🙈","😇","🫡",
+]
+
+function EmojiPicker({ onPick }: { onPick: (e: string) => void }) {
+  return (
+    <div style={{ ...POPOVER, right: 0, padding: 8, display: "grid", gridTemplateColumns: "repeat(8, 34px)", gap: 2, maxHeight: 260, overflowY: "auto" }}>
+      {EMOJIS.map(e => (
+        <button key={e} onClick={() => onPick(e)} style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "none", cursor: "pointer", fontSize: 19, lineHeight: 1 }}
+          onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)" }}
+          onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = "none" }}
+        >{e}</button>
+      ))}
+    </div>
+  )
+}
+
+// Small round button that sits outside the message box ("+" and emoji).
+function RoundBtn({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={title} style={{
+      width: 38, height: 38, borderRadius: "50%", flexShrink: 0, marginBottom: 7,
+      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+      background: active ? "rgba(232,0,42,0.16)" : T.s1,
+      border: `1px solid ${active ? "rgba(232,0,42,0.45)" : "rgba(255,255,255,0.10)"}`,
+      color: active ? T.red : T.t3,
+      transition: "background 150ms ease, color 150ms ease, border-color 150ms ease",
+    }}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.t1 }}
+      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.t3 }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -645,6 +681,7 @@ type ComposerHandle = {
   append:  (v: string, sep?: string) => void
   clear:   () => void
   focus:   () => void
+  insert:  (v: string) => void
 }
 
 type ComposerInputProps = {
@@ -653,12 +690,13 @@ type ComposerInputProps = {
   hasAttachments: boolean
   placeholder:    string
   sendTitle:      string
-  leftSlot:       React.ReactNode
-  rightSlot:      React.ReactNode
+  rightSlot:      React.ReactNode   // inside the box, next to "Send"
+  outsideLeft?:   React.ReactNode   // separate button left of the box
+  outsideRight?:  React.ReactNode   // separate button right of the box
 }
 
 const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function ComposerInput(
-  { onSend, loading, hasAttachments, placeholder, sendTitle, leftSlot, rightSlot },
+  { onSend, loading, hasAttachments, placeholder, sendTitle, rightSlot, outsideLeft, outsideRight },
   ref,
 ) {
   const [text,    setText]    = useState("")
@@ -670,6 +708,15 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
     append:  (v, sep = " ") => setText(prev => (prev.trim() ? prev + sep + v : v)),
     clear:   () => setText(""),
     focus:   () => taRef.current?.focus(),
+    // insert at the cursor (used by the emoji picker)
+    insert:  v => {
+      const el = taRef.current
+      const val = el?.value ?? ""
+      const s0 = el?.selectionStart ?? val.length
+      const e0 = el?.selectionEnd ?? val.length
+      setText(val.slice(0, s0) + v + val.slice(e0))
+      requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(s0 + v.length, s0 + v.length) })
+    },
   }), [])
 
   // Auto-grow. PERF: modern Chrome/Safari grow the textarea natively via
@@ -681,71 +728,85 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
     const el = taRef.current
     if (!el) return
     el.style.height = "auto"
-    el.style.height = Math.min(el.scrollHeight, 180) + "px"
+    el.style.height = Math.min(el.scrollHeight, 240) + "px"
   }, [text])
 
   const canSend = (text.trim().length > 0 || hasAttachments) && !loading
+  // Short text: a slim one-line pill. Longer / multi-line text: the box
+  // grows and the buttons drop to their own row under the text.
+  const multiline = text.includes("\n") || text.length > 90
 
+  // Layout like ChatGPT / Claude. "+" and emoji live outside the box.
   return (
-    <div style={{
-      display: "flex", alignItems: "flex-end", gap: 6,
-      background: focused ? "rgba(17,17,28,0.99)" : T.s1,
-      border: `1px solid ${focused ? "rgba(232,0,42,0.28)" : "rgba(255,255,255,0.10)"}`,
-      borderRadius: 20,
-      padding: "8px 8px 8px 10px",
-      boxShadow: focused ? "0 0 0 3px rgba(232,0,42,0.06), 0 8px 32px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.3)",
-      transition: "border-color 180ms ease, box-shadow 180ms ease",
-    }}>
-      {leftSlot}
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+      {outsideLeft}
 
-      <textarea
-        ref={taRef}
-        value={text}
-        onChange={e => setText(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault()
-            if (canSend) onSend(text)
-          }
-        }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={placeholder}
-        disabled={loading}
-        rows={1}
+      <div
+        onClick={e => { if (e.target === e.currentTarget) taRef.current?.focus() }}
         style={{
-          flex: 1, background: "none", border: "none", outline: "none",
-          fontSize: 14, color: T.t1, resize: "none",
-          lineHeight: 1.6, maxHeight: 180, overflow: "auto",
-          fontFamily: "inherit", padding: "4px 0",
-          alignSelf: "flex-end",
-          ...({ fieldSizing: "content" } as React.CSSProperties),
-        }}
-      />
-
-      <div style={{ display: "flex", gap: 5, alignItems: "center", paddingBottom: 2 }}>
-        {rightSlot}
-        <button
-          onClick={() => { if (canSend) onSend(text) }}
-          disabled={!canSend}
-          title={sendTitle}
-          style={{
-            width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-            background: canSend ? T.red : "rgba(255,255,255,0.07)",
-            border: "none", cursor: canSend ? "pointer" : "not-allowed",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background 150ms ease, box-shadow 150ms ease",
-            boxShadow: canSend ? "0 0 18px rgba(232,0,42,0.40)" : "none",
+          flex: 1, minWidth: 0,
+          display: "flex",
+          flexDirection: multiline ? "column" : "row",
+          alignItems: multiline ? "stretch" : "flex-end",
+          gap: multiline ? 6 : 8,
+          background: focused ? "rgba(17,17,28,0.99)" : T.s1,
+          border: `1px solid ${focused ? "rgba(232,0,42,0.28)" : "rgba(255,255,255,0.10)"}`,
+          borderRadius: multiline ? 22 : 26,
+          padding: multiline ? "14px 8px 8px 18px" : "8px 8px 8px 18px",
+          boxShadow: focused ? "0 0 0 3px rgba(232,0,42,0.06), 0 8px 32px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.3)",
+          transition: "border-color 180ms ease, box-shadow 180ms ease, border-radius 180ms ease",
+          cursor: "text",
+        }}>
+        <textarea
+          ref={taRef}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              if (canSend) onSend(text)
+            }
           }}
-          onMouseEnter={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-          onMouseLeave={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = T.red }}
-        >
-          {loading
-            ? <RotateCcw size={14} style={{ color: T.t4, animation: "spin 1s linear infinite" }} />
-            : <Send size={14} style={{ color: canSend ? "#fff" : T.t4, marginLeft: 1 }} />
-          }
-        </button>
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          disabled={loading}
+          rows={1}
+          style={{
+            flex: 1, width: "100%", minWidth: 0, background: "none", border: "none", outline: "none",
+            fontSize: 15, color: T.t1, resize: "none",
+            lineHeight: 1.6, minHeight: 24, maxHeight: 240, overflow: "auto",
+            fontFamily: "inherit", padding: multiline ? "0 10px 0 0" : "6px 0",
+            ...({ fieldSizing: "content" } as React.CSSProperties),
+          }}
+        />
+
+        <div style={{ display: "flex", gap: 6, alignItems: "center", alignSelf: multiline ? "flex-end" : "auto", cursor: "default", flexShrink: 0 }}>
+          {rightSlot}
+          <button
+            onClick={() => { if (canSend) onSend(text) }}
+            disabled={!canSend}
+            title={sendTitle}
+            style={{
+              width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+              background: canSend ? T.red : "rgba(255,255,255,0.07)",
+              border: "none", cursor: canSend ? "pointer" : "not-allowed",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "background 150ms ease, box-shadow 150ms ease",
+              boxShadow: canSend ? "0 0 18px rgba(232,0,42,0.40)" : "none",
+            }}
+            onMouseEnter={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
+            onMouseLeave={e => { if (canSend) (e.currentTarget as HTMLElement).style.background = T.red }}
+          >
+            {loading
+              ? <RotateCcw size={14} style={{ color: T.t4, animation: "spin 1s linear infinite" }} />
+              : <Send size={14} style={{ color: canSend ? "#fff" : T.t4, marginLeft: 1 }} />
+            }
+          </button>
+        </div>
       </div>
+
+      {outsideRight}
     </div>
   )
 })
@@ -773,13 +834,14 @@ export default function SessionPage() {
   const [micError,    setMicError]    = useState("")
   const recognitionRef = useRef<{ stop: () => void } | null>(null)
 
-  const [webMode, setWebMode] = useState(false)
-  const [showTools, setShowTools] = useState(false)
+  // which popover is open above the composer: "+" menu or emoji picker
+  const [menu, setMenu] = useState<null | "attach" | "emoji">(null)
 
   const bottomRef   = useRef<HTMLDivElement>(null)
   const inputApi    = useRef<ComposerHandle>(null)
   const scrollRef   = useRef<HTMLDivElement>(null)
   const fileRef     = useRef<HTMLInputElement>(null)
+  const photoRef    = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const sendingRef  = useRef(false)
   const hasScrolledInitially = useRef(false)
@@ -868,15 +930,15 @@ export default function SessionPage() {
   }, [messages, loading])
 
   useEffect(() => {
-    if (!showTools) return
+    if (!menu) return
     function handler(e: MouseEvent) {
       if (composerRef.current && !composerRef.current.contains(e.target as Node)) {
-        setShowTools(false)
+        setMenu(null)
       }
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
-  }, [showTools])
+  }, [menu])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -962,11 +1024,7 @@ export default function SessionPage() {
       return `${t.chatSession.attachedFileLabel}: ${a.name}`
     })
 
-    const webNote = webMode
-      ? "\n\n[Note: The user enabled Web mode, but real web search isn't connected yet.]"
-      : ""
-
-    const fullText = [text, ...attachmentLines, webNote].filter(Boolean).join("\n\n").trim()
+    const fullText = [text, ...attachmentLines].filter(Boolean).join("\n\n").trim()
 
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()
@@ -1190,11 +1248,6 @@ export default function SessionPage() {
     }
   }
 
-  function insertQuickAction(text: string) {
-    inputApi.current?.append(text, "\n")
-    setTimeout(() => inputApi.current?.focus(), 50)
-  }
-
   if (notFound) {
     return (
       <div style={{ marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1235,6 +1288,7 @@ export default function SessionPage() {
         @keyframes scanline { 0%{transform:translateX(-100%);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(200%);opacity:0} }
         @keyframes dot { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }
         @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes popIn { from{opacity:0;transform:translateY(6px) scale(.97)} to{opacity:1;transform:none} }
         @keyframes redpulse { 0%,100%{box-shadow:0 0 4px rgba(232,0,42,0.8)} 50%{box-shadow:0 0 10px rgba(232,0,42,1)} }
         ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
       `}</style>
@@ -1270,7 +1324,6 @@ export default function SessionPage() {
             <Badge icon={Activity} label={t.chatSession.aiCoreOnline} color={T.red} bg="rgba(232,0,42,0.09)" border="rgba(232,0,42,0.25)" />
             {provider && <Badge icon={Zap} label={t.chatSession.providerConnected} color={T.green} bg="rgba(34,197,94,0.08)" border="rgba(34,197,94,0.22)" />}
             <Badge icon={Brain} label={t.chatSession.memoryLayer} color="#A78BFA" bg="rgba(167,139,250,0.08)" border="rgba(167,139,250,0.22)" />
-            {webMode && <Badge icon={Globe} label={t.chatSession.webMode} color="#7DD3FC" bg="rgba(125,211,252,0.08)" border="rgba(125,211,252,0.22)" />}
           </div>
         </div>
 
@@ -1306,17 +1359,6 @@ export default function SessionPage() {
           <button onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} style={{ position: "absolute", bottom: 130, right: 28, width: 34, height: 34, borderRadius: "50%", background: T.s1, border: `0.5px solid ${T.b1}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.t3, zIndex: 10, boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}>
             <ChevronDown size={16} />
           </button>
-        )}
-
-        {/* Quick Actions */}
-        {agent && (
-          <QuickActions
-            skills={getAgentSkills(agent.name, agent.system_prompt ?? "")}
-            onSelect={prompt => {
-              inputApi.current?.setText(prompt)
-              setTimeout(() => inputApi.current?.focus(), 0)
-            }}
-          />
         )}
 
         {/* Composer — PERF: backdropFilter removed (background is 97% opaque, blur was invisible but repainted on every keystroke) */}
@@ -1363,8 +1405,15 @@ export default function SessionPage() {
               </div>
             )}
 
-            {showTools && (
-              <ToolsPanel onAction={insertQuickAction} onClose={() => setShowTools(false)} t={t} />
+            {menu === "attach" && (
+              <AttachMenu
+                lang={language}
+                onPhoto={() => { setMenu(null); photoRef.current?.click() }}
+                onFile={() => { setMenu(null); fileRef.current?.click() }}
+              />
+            )}
+            {menu === "emoji" && (
+              <EmojiPicker onPick={e => inputApi.current?.insert(e)} />
             )}
 
             <ComposerInput
@@ -1374,13 +1423,23 @@ export default function SessionPage() {
               hasAttachments={attachments.length > 0}
               placeholder={placeholder}
               sendTitle={t.chatSession.send}
-              leftSlot={
-                <div style={{ display: "flex", gap: 1, alignItems: "center", paddingBottom: 2 }}>
-                  <IconBtn icon={Plus} title={t.chatSession.actions} onClick={() => setShowTools(v => !v)} active={showTools} />
-                  <IconBtn icon={Paperclip} title={t.chatSession.attachFile} onClick={() => fileRef.current?.click()} />
-                  <IconBtn icon={Globe} title={webMode ? t.chatSession.webModeOn : t.chatSession.webMode} active={webMode} onClick={() => setWebMode(v => !v)} />
-                  <IconBtn icon={Wrench} title={t.chatSession.quickActions} active={showTools} onClick={() => setShowTools(v => !v)} />
-                </div>
+              outsideLeft={
+                <RoundBtn
+                  active={menu === "attach"}
+                  title={language === "uk" ? "Додати фото або файл" : "Add photo or file"}
+                  onClick={() => setMenu(m => m === "attach" ? null : "attach")}
+                >
+                  <Plus size={17} style={{ transition: "transform 200ms ease", transform: menu === "attach" ? "rotate(45deg)" : "none" }} />
+                </RoundBtn>
+              }
+              outsideRight={
+                <RoundBtn
+                  active={menu === "emoji"}
+                  title={language === "uk" ? "Смайлики" : "Emoji"}
+                  onClick={() => setMenu(m => m === "emoji" ? null : "emoji")}
+                >
+                  <Smile size={17} />
+                </RoundBtn>
               }
               rightSlot={
                 <IconBtn
@@ -1401,12 +1460,15 @@ export default function SessionPage() {
               style={{ display: "none" }}
               onChange={e => { handleFiles(e.target.files); e.target.value = "" }}
             />
+            <input
+              ref={photoRef}
+              type="file"
+              multiple
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={e => { handleFiles(e.target.files); e.target.value = "" }}
+            />
 
-            <div style={{ textAlign: "center", marginTop: 8 }}>
-              <span style={{ fontSize: 10.5, color: "#2E2E4A" }}>
-                {t.chatSession.hint}
-              </span>
-            </div>
           </div>
         </div>
       </div>
