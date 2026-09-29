@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus, Bot, Trash2, MessageSquare,
   Settings, Zap, Activity, Sparkles,
+  Search, X,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { chatStore } from "@/lib/store"
@@ -390,27 +391,6 @@ function getTemplates(lang: Language) {
   return lang === "en" ? TEMPLATES_EN : TEMPLATES_UK
 }
 
-function RBtn({ icon: Icon, label, onClick, small }: {
-  icon: React.ElementType; label: string; onClick: () => void; small?: boolean
-}) {
-  return (
-    <button onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: 6,
-        background: T.red, color: "#fff",
-        border: "none", borderRadius: 9,
-        padding: small ? "7px 14px" : "9px 18px",
-        fontSize: small ? 12 : 13, fontWeight: 500, cursor: "pointer",
-        transition: "background 130ms ease",
-      }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 22px rgba(232,0,42,0.40)" }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red; (e.currentTarget as HTMLElement).style.boxShadow = "none" }}
-    >
-      <Icon size={small ? 13 : 14} />{label}
-    </button>
-  )
-}
-
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -755,165 +735,96 @@ function CreateAgentModal({ providers, onClose, onCreated, t, language }: {
   )
 }
 
-function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t }: {
+// ─── Agent card (compact, same style as Memory / Vault) ───────────
+
+function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t, index }: {
   agent: Agent; provider?: Provider; sessionCount: number
   onChat: (e: React.MouseEvent) => void
   onOpen: () => void
   onDelete: (e: React.MouseEvent) => void
   t: ReturnType<typeof useLanguage>["t"]
+  index: number
 }) {
+  const color = agent.avatar_color ?? T.red
   return (
-    <div onClick={onOpen}
-      style={{
-        background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-        border: "0.5px solid rgba(255,255,255,0.09)",
-        borderRadius: 14, padding: "18px 18px 14px",
-        cursor: "pointer",
-        transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
-        display: "flex", flexDirection: "column", gap: 12,
-        position: "relative", overflow: "hidden",
-      }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "linear-gradient(160deg,#14142A 0%,#0F0F1E 100%)"
-        el.style.borderColor = "rgba(232,0,42,0.28)"
-        el.style.boxShadow = "0 0 28px rgba(232,0,42,0.08)"
-        const actions = el.querySelector(".card-actions") as HTMLElement
-        if (actions) actions.style.opacity = "1"
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)"
-        el.style.borderColor = "rgba(255,255,255,0.09)"
-        el.style.boxShadow = "none"
-        const actions = el.querySelector(".card-actions") as HTMLElement
-        if (actions) actions.style.opacity = "0"
-      }}
+    <div
+      role="button" tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === "Enter") onOpen() }}
+      className="mem-card"
+      style={{ animationDelay: `${Math.min(index, 12) * 40}ms`, ["--ac" as string]: color } as React.CSSProperties}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-            background: agent.avatar_color ?? T.red,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 700, color: "#fff",
-            boxShadow: `0 0 16px ${agent.avatar_color ?? T.red}40`,
-          }}>
-            {agent.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 2 }}>{agent.name}</div>
-            {agent.description && (
-              <div style={{ fontSize: 11.5, color: T.t3, lineHeight: 1.4 }}>{agent.description}</div>
-            )}
-          </div>
-        </div>
-
-        <div className="card-actions" style={{ display: "flex", gap: 4, opacity: 0, transition: "opacity 150ms ease" }}>
-          <button onClick={e => { e.stopPropagation(); onOpen() }}
-            style={{ padding: "5px", borderRadius: 7, background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer", color: T.t3, lineHeight: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}>
-            <Settings size={13} />
-          </button>
-          <button onClick={onDelete}
-            style={{ padding: "5px", borderRadius: 7, background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer", color: T.t3, lineHeight: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}>
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {provider ? (
-          <>
-            <span style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.09)", color: T.t2 }}>
-              {provider.name}
-            </span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3 }}>
-              {provider.model}
-            </span>
-          </>
-        ) : (
-          <span style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)", color: "#FF4D6A" }}>
-            {t.agents.providerNotFound}
-          </span>
-        )}
-        {sessionCount > 0 && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t3, display: "flex", alignItems: "center", gap: 4 }}>
-            <MessageSquare size={9} />{sessionCount} {t.agents.sessionsSuffix}
-          </span>
-        )}
-      </div>
-
-      {agent.system_prompt && (
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
         <div style={{
-          fontSize: 11, color: T.t3, lineHeight: 1.5,
-          padding: "7px 10px", borderRadius: 8,
-          background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-          fontStyle: "italic",
-          overflow: "hidden", display: "-webkit-box",
-          WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+          width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+          background: color, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#fff",
+          boxShadow: `0 0 14px ${color}40`,
         }}>
-          "{agent.system_prompt}"
+          {agent.name.charAt(0).toUpperCase()}
         </div>
-      )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="mem-title" style={{ WebkitLineClamp: 1 }}>{agent.name}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {provider ? provider.model : ""}
+          </div>
+        </div>
+        <div className="ag-actions">
+          <button title="Settings" onClick={e => { e.stopPropagation(); onOpen() }} className="ag-icon"><Settings size={13} /></button>
+          <button title="Delete" onClick={onDelete} className="ag-icon ag-icon-del"><Trash2 size={13} /></button>
+        </div>
+      </div>
 
-      <button onClick={onChat} style={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-        height: 36, borderRadius: 9, fontSize: 12.5, fontWeight: 500,
-        background: "rgba(255,255,255,0.04)",
-        border: "0.5px solid rgba(255,255,255,0.08)",
-        color: T.t2, cursor: "pointer", transition: "all 150ms ease",
-      }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.20)"
-          ;(e.currentTarget as HTMLElement).style.color = "#fff"
-          ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.30)"
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"
-          ;(e.currentTarget as HTMLElement).style.color = T.t2
-          ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.08)"
-        }}>
-        <MessageSquare size={13} />
-        {t.agents.startChat}
-      </button>
+      <div className="mem-preview">
+        {agent.description || agent.system_prompt || "—"}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto", paddingTop: 14, flexWrap: "wrap" }}>
+        {provider
+          ? <span className="mem-chip">{provider.name}</span>
+          : <span className="mem-chip mem-chip-red">{t.agents.providerNotFound}</span>}
+        {sessionCount > 0 && (
+          <span className="mem-chip"><MessageSquare size={9} /> {sessionCount} {t.agents.sessionsSuffix}</span>
+        )}
+        <button onClick={onChat} className="ag-chat">
+          <MessageSquare size={12} /> {t.agents.startChat}
+        </button>
+      </div>
     </div>
   )
 }
 
+// ─── Empty state ──────────────────────────────────────────────────
+
 function EmptyState({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: "80px 24px", textAlign: "center",
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center", width: "100%" }}>
       <div style={{
         width: 72, height: 72, borderRadius: 20, marginBottom: 20,
-        background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.18)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 0 32px rgba(232,0,42,0.08)",
+        background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.07)",
       }}>
         <Bot size={30} style={{ color: T.red, opacity: 0.7 }} />
       </div>
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.agents.noAgentsYet}</div>
-      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, maxWidth: 320, marginBottom: 24 }}>
-        {t.agents.noAgentsHint}
-      </div>
-      <RBtn icon={Plus} label={t.agents.createAgent} onClick={onAdd} />
+      <div style={{ fontSize: 13, color: T.t3, lineHeight: 1.65, maxWidth: 360, marginBottom: 28 }}>{t.agents.noAgentsHint}</div>
+      <button onClick={onAdd} className="mem-primary"><Plus size={14} /> {t.agents.createAgent}</button>
     </div>
   )
 }
 
+// ─── Page ─────────────────────────────────────────────────────────
+
 export default function AgentsPage() {
   const router = useRouter()
   const { t, language } = useLanguage()
+  const uk = language === "uk"
   const [agents,    setAgents]    = useState<Agent[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
   const [sessions,  setSessions]  = useState<{ agentId: string }[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [loaded,    setLoaded]    = useState(false)
+  const [search,    setSearch]    = useState("")
 
   async function refresh() {
     const sb = getSupabase()
@@ -921,9 +832,10 @@ export default function AgentsPage() {
       sb.from("agents").select("*").order("created_at", { ascending: true }),
       sb.from("providers").select("id,name,slug,model,is_active"),
     ])
-    if (agentsData)   setAgents(agentsData as Agent[])
+    if (agentsData)    setAgents(agentsData as Agent[])
     if (providersData) setProviders(providersData as Provider[])
     setSessions(chatStore.getAll().map(s => ({ agentId: s.agentId })))
+    setLoaded(true)
   }
 
   useEffect(() => { refresh() }, [])
@@ -939,8 +851,7 @@ export default function AgentsPage() {
     const agent = agents.find(a => a.id === id)
     if (!agent) return
     if (window.confirm(`${t.agents.deleteConfirmPrefix}${agent.name}${t.agents.deleteConfirmSuffix}`)) {
-      const sb = getSupabase()
-      await sb.from("agents").delete().eq("id", id)
+      await getSupabase().from("agents").delete().eq("id", id)
       refresh()
     }
   }
@@ -953,164 +864,172 @@ export default function AgentsPage() {
   function getProvider(id: string | null) { return providers.find(p => p.id === id) }
   function getSessionCount(id: string) { return sessions.filter(s => s.agentId === id).length }
 
+  const filtered = useMemo(() => {
+    if (!search) return agents
+    const q = search.toLowerCase()
+    return agents.filter(a =>
+      a.name.toLowerCase().includes(q) ||
+      (a.description ?? "").toLowerCase().includes(q) ||
+      (a.system_prompt ?? "").toLowerCase().includes(q))
+  }, [agents, search])
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-
-        @keyframes scanline {
-          0%   { transform: translateX(-100%); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { transform: translateX(100vw); opacity: 0; }
-        }
-        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
-        @keyframes astrocoreBadgeSweep {
-          0%   { left: -40%; }
-          100% { left: 100%; }
-        }
+        @keyframes scanline { 0% { transform: translateX(-100%); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(200%); opacity: 0; } }
         .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
-        @keyframes astrocoreHeroSweep {
-          0%   { left: -20%; }
-          100% { left: 100%; }
+        @keyframes astrocoreHeroSweep { 0% { left: -20%; } 100% { left: 100%; } }
+        .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
+        @keyframes astrocoreBadgeSweep { 0% { left: -40%; } 100% { left: 100%; } }
+        @keyframes memIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+        .mem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+        .mem-card {
+          position: relative; display: flex; flex-direction: column; text-align: left; cursor: pointer;
+          min-height: 172px; padding: 16px 16px 14px; border-radius: 14px; font-family: inherit;
+          background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1};
+          color: ${T.t2}; overflow: hidden; animation: memIn .45s cubic-bezier(.2,.8,.2,1) both;
+          transition: transform .2s cubic-bezier(.3,1.4,.5,1), border-color .2s, box-shadow .2s, background .2s;
         }
+        .mem-card::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 2px;
+          background: linear-gradient(180deg, transparent, var(--ac, ${T.red}), transparent); opacity: .6; transition: opacity .2s; }
+        .mem-card:hover { transform: translateY(-3px); border-color: rgba(232,0,42,.35);
+          background: linear-gradient(160deg,#15142A 0%,#0F0F1E 100%); box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(232,0,42,.08); }
+        .mem-card:hover::before { opacity: 1; }
+        .mem-card:focus-visible { outline: 2px solid ${T.red}; outline-offset: 2px; }
+        .mem-title { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 600; color: ${T.t1};
+          line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .mem-arrow { flex-shrink: 0; color: ${T.t4}; opacity: 0; transform: translate(-4px, 4px); transition: all .2s; }
+        .mem-card:hover .mem-arrow { opacity: 1; transform: none; color: ${T.red}; }
+        .mem-preview { margin-top: 12px; font-size: 12.5px; line-height: 1.6; color: ${T.t3};
+          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .mem-chip { display: inline-flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 9px;
+          padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: .06em;
+          color: ${T.t3}; background: rgba(255,255,255,.04); border: 0.5px solid ${T.b1}; }
+        .mem-chip-red { color: #FF4D6A; background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.18); }
+
+        .ag-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+        .mem-card:hover .ag-actions, .mem-card:focus-within .ag-actions { opacity: 1; }
+        .ag-icon { padding: 5px; border-radius: 7px; background: rgba(255,255,255,.06); border: none; cursor: pointer; color: ${T.t3}; line-height: 0; transition: color .12s, background .12s; }
+        .ag-icon:hover { color: ${T.t1}; background: rgba(255,255,255,.1); }
+        .ag-icon-del:hover { color: #FF4D6A; background: rgba(232,0,42,.12); }
+        .ag-chat { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px;
+          border-radius: 8px; font-size: 11.5px; font-weight: 500; font-family: inherit; cursor: pointer;
+          background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.09); color: ${T.t2};
+          transition: background .15s, color .15s, border-color .15s; }
+        .ag-chat:hover { background: ${T.red}; border-color: ${T.red}; color: #fff; box-shadow: 0 0 16px rgba(232,0,42,.35); }
+
+        .mem-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 172px;
+          border-radius: 14px; border: 1px dashed rgba(232,0,42,.3); background: rgba(232,0,42,.03); color: ${T.t3};
+          cursor: pointer; font-family: inherit; font-size: 13px; transition: background .2s, border-color .2s, color .2s; }
+        .mem-new:hover { background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.55); color: ${T.t1}; }
+        .mem-new span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(232,0,42,.12); color: ${T.red}; }
+
+        .mem-primary { display: flex; align-items: center; gap: 7px; background: ${T.red}; color: #fff; border: none; border-radius: 10px;
+          padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .13s, box-shadow .13s, transform .13s; }
+        .mem-primary:hover { background: #FF1A3E; box-shadow: 0 0 20px rgba(232,0,42,.35); transform: translateY(-1px); }
+        @media (prefers-reduced-motion: reduce) { .mem-card { animation: none; } }
       `}</style>
 
       <div style={{
-        marginLeft: SIDEBAR_W,
-        minHeight: "100vh",
-        background: T.bg,
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
-        backgroundSize: "24px 24px",
+        marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg,
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)", backgroundSize: "24px 24px",
       }}>
-        <div aria-hidden style={{
-          position: "fixed", top: 0, left: 0, right: 0, height: 1,
-          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
-          animation: "scanline 6s linear infinite",
-          pointerEvents: "none", zIndex: 10,
-        }} />
+        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10 }} />
 
-        {/* Hero */}
-        <div style={{
-          position: "relative", padding: "36px 48px 30px",
-          borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
-        }}>
-          <div aria-hidden style={{
-            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
-            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
-          }}>
-            <div className="astrocore-hero-sweep" style={{
-              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
-            }} />
+        {/* ── Hero ── */}
+        <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+          <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5, background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none" }}>
+            <div className="astrocore-hero-sweep" style={{ position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)", boxShadow: "0 0 10px rgba(232,0,42,0.85)" }} />
           </div>
-          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)", pointerEvents: "none" }} />
+          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 320, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.07) 0%,transparent 70%)" }} />
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
-              }}>
-                <span aria-hidden style={{
-                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
-                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
-                }}>
-                  <span className="astrocore-badge-sweep" style={{
-                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
-                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                  }} />
-                </span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
-                  Agent Control
-                </span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,0,42,0.09)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "4px 12px", marginBottom: 14 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>Agent Control</span>
               </div>
-              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.2 }}>{t.agents.title}</h1>
-              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
-                {t.agents.subtitle}
-              </p>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.agents.title}</h1>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.agents.subtitle}</p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {providers.length === 0 && (
-                <div onClick={() => router.push("/providers")} style={{
+              {loaded && providers.length === 0 && (
+                <button onClick={() => router.push("/providers")} style={{
                   display: "flex", alignItems: "center", gap: 7, cursor: "pointer",
                   padding: "7px 12px", borderRadius: 9, fontSize: 12,
                   background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.2)", color: "#FF4D6A",
                 }}>
                   <Zap size={12} /> {t.agents.addApiKeyLink}
-                </div>
+                </button>
               )}
-              <RBtn icon={Plus} label={t.agents.newAgentBtn} onClick={() => setShowModal(true)} />
+              <button onClick={() => setShowModal(true)} className="mem-primary"><Plus size={14} /> {t.agents.newAgentBtn}</button>
             </div>
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "28px 48px 56px", maxWidth: 1560 }}>
-          {agents.length > 0 && (
-            <>
-              <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
-                {[
-                  { label: t.agents.totalAgents,  value: agents.length,    icon: Bot           },
-                  { label: t.agents.activeSessions,   value: sessions.length,  icon: MessageSquare },
-                  { label: t.agents.providers,       value: providers.length, icon: Activity      },
-                ].map(({ label, value, icon: Icon }) => (
-                  <div key={label} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "10px 16px", borderRadius: 10,
-                    background: T.s1, border: `0.5px solid ${T.b1}`,
-                  }}>
-                    <Icon size={14} style={{ color: T.red, opacity: 0.7 }} />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
-                    <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {agents.length === 0 ? (
-            <EmptyState onAdd={() => setShowModal(true)} t={t} />
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
-              {agents.map(agent => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  provider={getProvider(agent.provider_id)}
-                  sessionCount={getSessionCount(agent.id)}
-                  onChat={e => handleChat(e, agent)}
-                  onOpen={() => router.push(`/agents/${agent.id}`)}
-                  onDelete={e => handleDelete(e, agent.id)}
-                  t={t}
-                />
-              ))}
-              <div onClick={() => setShowModal(true)} style={{
-                borderRadius: 14, padding: "18px",
-                border: "0.5px dashed rgba(232,0,42,0.22)",
-                background: "rgba(232,0,42,0.03)",
-                cursor: "pointer", display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center", gap: 8,
-                minHeight: 160, transition: "background 150ms ease, border-color 150ms ease",
-              }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)"
-                  ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.40)"
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.03)"
-                  ;(e.currentTarget as HTMLElement).style.borderColor = "rgba(232,0,42,0.22)"
-                }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Plus size={18} style={{ color: T.red }} />
+        {/* ── Body ── */}
+        {loaded && agents.length === 0 ? (
+          <EmptyState onAdd={() => setShowModal(true)} t={t} />
+        ) : (
+          <div style={{ padding: "24px 48px 56px" }}>
+            {/* stats + search in one row */}
+            <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+              {[
+                { label: t.agents.totalAgents,    value: agents.length,    icon: Bot           },
+                { label: t.agents.activeSessions, value: sessions.length,  icon: MessageSquare },
+                { label: t.agents.providers,      value: providers.length, icon: Activity      },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 14px", borderRadius: 9, background: T.s1, border: `0.5px solid ${T.b1}` }}>
+                  <Icon size={13} style={{ color: T.red, opacity: 0.7 }} />
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
+                  <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
                 </div>
-                <span style={{ fontSize: 12.5, color: T.t3 }}>{t.agents.addAgentTile}</span>
+              ))}
+
+              <div style={{ flex: "1 1 260px", display: "flex", alignItems: "center", gap: 10, background: T.s1, border: `0.5px solid ${T.b1}`, borderRadius: 10, padding: "0 14px", height: 38 }}>
+                <Search size={14} style={{ color: T.t4, flexShrink: 0 }} />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={uk ? "Пошук агентів…" : "Search agents…"}
+                  style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: T.t1 }} />
+                {search && (
+                  <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}><X size={13} /></button>
+                )}
               </div>
             </div>
-          )}
-        </div>
+
+            {search && (
+              <div style={{ fontSize: 12, color: T.t4, marginBottom: 14 }}>
+                {uk ? `Знайдено ${filtered.length} з ${agents.length}` : `Found ${filtered.length} of ${agents.length}`}
+              </div>
+            )}
+
+            {filtered.length === 0 && search ? (
+              <div style={{ padding: "48px 0", textAlign: "center", fontSize: 13, color: T.t4 }}>{uk ? "Нічого не знайдено" : "Nothing found"}</div>
+            ) : (
+              <div className="mem-grid">
+                {!search && (
+                  <button className="mem-new" onClick={() => setShowModal(true)}>
+                    <span><Plus size={17} /></span>
+                    {t.agents.addAgentTile}
+                  </button>
+                )}
+                {filtered.map((agent, i) => (
+                  <AgentCard
+                    key={agent.id}
+                    index={i}
+                    agent={agent}
+                    provider={getProvider(agent.provider_id)}
+                    sessionCount={getSessionCount(agent.id)}
+                    onChat={e => handleChat(e, agent)}
+                    onOpen={() => router.push(`/agents/${agent.id}`)}
+                    onDelete={e => handleDelete(e, agent.id)}
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showModal && (

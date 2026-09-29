@@ -290,10 +290,6 @@ function Card({ title, icon: Icon, children, action, accent }: {
   )
 }
 
-function Divider() {
-  return <div style={{ height: "0.5px", background: "rgba(255,255,255,0.06)", margin: "12px 0" }} />
-}
-
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
@@ -554,6 +550,7 @@ export default function AgentDetailPage() {
   const [sessions,     setSessions]     = useState<ChatSession[]>([])
   const [isEditing,    setIsEditing]    = useState(false)
   const [notFound,     setNotFound]     = useState(false)
+  const [promptOpen,   setPromptOpen]   = useState(false)
 
   const loadData = useCallback(async () => {
     const sb = getSupabase()
@@ -640,6 +637,44 @@ export default function AgentDetailPage() {
           0%   { left: -20%; }
           100% { left: 100%; }
         }
+
+        .ad-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+        .ad-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; }
+        @media (max-width: 1150px) { .ad-grid { grid-template-columns: 1fr; } .ad-side { position: static; } }
+
+        .ad-label { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4};
+          text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+        .ad-link { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: ${T.red}; background: none; border: none;
+          cursor: pointer; opacity: .85; padding: 0; }
+        .ad-link:hover { opacity: 1; }
+
+        .ad-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; padding-bottom: 18px; border-bottom: 0.5px solid rgba(255,255,255,.06); }
+        @media (max-width: 700px) { .ad-facts { grid-template-columns: 1fr; } }
+
+        .ad-prompt { position: relative; font-size: 13.5px; color: ${T.t2}; line-height: 1.75; padding: 16px 18px; border-radius: 12px;
+          background: rgba(255,255,255,.025); border: 0.5px solid rgba(255,255,255,.07); white-space: pre-wrap; word-break: break-word;
+          max-height: 320px; overflow: hidden; }
+        .ad-prompt.open { max-height: none; }
+        .ad-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 80px; background: linear-gradient(transparent, #0F0F19); pointer-events: none; }
+        .ad-empty-prompt { width: 100%; text-align: left; padding: 18px; border-radius: 12px; border: 0.5px dashed rgba(232,0,42,.3);
+          background: rgba(232,0,42,.03); color: ${T.t3}; font-size: 13px; cursor: pointer; }
+        .ad-empty-prompt:hover { background: rgba(232,0,42,.07); color: ${T.t1}; }
+
+        .ad-workspace { background: #0A0A10; border: 0.5px solid rgba(232,0,42,0.16); border-radius: 14px; overflow: hidden;
+          background-image: linear-gradient(rgba(255,255,255,0.04) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.04) 0.5px, transparent 0.5px);
+          background-size: 14px 14px; }
+        .ad-ws-grid { display: grid; grid-template-columns: 1fr 1fr; }
+        .ad-ws-cell { padding: 18px 20px; border-bottom: 0.5px solid rgba(255,255,255,.06); }
+        .ad-ws-cell:nth-child(odd) { border-right: 0.5px solid rgba(255,255,255,.06); }
+        .ad-ws-cell:nth-last-child(-n+2) { border-bottom: 0; }
+        @media (max-width: 800px) { .ad-ws-grid { grid-template-columns: 1fr; } .ad-ws-cell { border-right: 0 !important; border-bottom: 0.5px solid rgba(255,255,255,.06) !important; } }
+        .ad-skill { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; border: 0.5px solid rgba(232,0,42,.22);
+          background: rgba(232,0,42,.08); color: ${T.t2}; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .12s, color .12s, transform .12s; }
+        .ad-skill:hover { background: rgba(232,0,42,.2); color: ${T.t1}; transform: translateY(-1px); }
+
+        .ad-stats { display: grid; grid-template-columns: 1fr; gap: 1px; border-radius: 14px; overflow: hidden;
+          border: 0.5px solid rgba(255,255,255,.09); background: rgba(255,255,255,.07); }
+        .ad-stat { background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); padding: 14px 18px; }
       `}</style>
 
       <div style={{
@@ -730,37 +765,18 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "24px 48px 56px", maxWidth: 900 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Body — full width: main column (settings + workspace) and a
+            side column (overview, chats, danger zone). One column on narrow screens. */}
+        <div className="ad-grid" style={{ padding: "26px 48px 64px" }}>
 
-            {/* Overview — genuine data readout, keeps the mono/caps
-                treatment plus the same grid-texture background used
-                for Dashboard's system panels. */}
-            <div style={{
-              position: "relative",
-              background: "#0A0A10",
-              backgroundImage: "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)",
-              backgroundSize: "14px 14px",
-              border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "18px 20px",
-              display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20,
-            }}>
-              <InfoRow label={t.agentDetail.provider} value={provider ? provider.name : t.agentDetail.providerNotFound} />
-              <InfoRow label={t.agentDetail.modelLabel}    value={provider ? provider.model : "—"} mono />
-              <InfoRow label={t.agentDetail.sessionsLabel}     value={`${sessions.length} ${t.agentDetail.sessionsSuffix}`} mono />
-            </div>
+          {/* ── Main column ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
 
             {/* Settings */}
             <Card title={t.agentDetail.settingsCard} icon={Bot}
               action={
                 !isEditing ? (
-                  <button onClick={() => setIsEditing(true)} style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer", opacity: 0.8,
-                  }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
-                  >
+                  <button onClick={() => setIsEditing(true)} className="ad-link">
                     <Edit3 size={11} /> {t.agentDetail.edit}
                   </button>
                 ) : undefined
@@ -769,68 +785,63 @@ export default function AgentDetailPage() {
               {isEditing ? (
                 <EditForm agent={agent} providers={allProviders} onSaved={handleSaved} onCancel={() => setIsEditing(false)} t={t} />
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 5, background: agent.avatar_color ?? T.red, flexShrink: 0 }} />
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: T.t3 }}>{agent.avatar_color ?? "—"}</span>
-                  </div>
-                  <Divider />
-                  <InfoRow label={t.agentDetail.nameField} value={agent.name} />
-                  <Divider />
-                  <InfoRow label={t.agentDetail.description} value={agent.description || "—"} />
-                  <Divider />
-                  <InfoRow label={t.agentDetail.provider} value={provider ? `${provider.name} — ${provider.model}` : t.agentDetail.providerNotFound} />
-                  {agent.system_prompt && (
-                    <>
-                      <Divider />
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{t.agentDetail.systemPrompt}</div>
-                        <div style={{ fontSize: 12, color: T.t2, lineHeight: 1.65, padding: "10px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          {agent.system_prompt}
-                        </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  <div className="ad-facts">
+                    <div>
+                      <div className="ad-label">{t.agentDetail.nameField}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ width: 14, height: 14, borderRadius: 4, background: agent.avatar_color ?? T.red, flexShrink: 0 }} />
+                        <span style={{ fontSize: 14, color: T.t1, fontWeight: 500 }}>{agent.name}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>{agent.avatar_color ?? ""}</span>
                       </div>
-                    </>
-                  )}
+                    </div>
+                    <InfoRow label={t.agentDetail.provider} value={provider ? `${provider.name} — ${provider.model}` : t.agentDetail.providerNotFound} />
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <InfoRow label={t.agentDetail.description} value={agent.description || "—"} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="ad-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{t.agentDetail.systemPrompt}</span>
+                      {agent.system_prompt && <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{agent.system_prompt.length.toLocaleString()} {language === "uk" ? "симв." : "chars"}</span>}
+                    </div>
+                    {agent.system_prompt ? (
+                      <div className={`ad-prompt${promptOpen ? " open" : ""}`}>
+                        {agent.system_prompt}
+                        {!promptOpen && agent.system_prompt.length > 600 && <div className="ad-fade" />}
+                      </div>
+                    ) : (
+                      <button onClick={() => setIsEditing(true)} className="ad-empty-prompt">
+                        {language === "uk" ? "Інструкцій ще немає — натисни, щоб написати, як агент має працювати" : "No instructions yet — click to describe how the agent should work"}
+                      </button>
+                    )}
+                    {agent.system_prompt && agent.system_prompt.length > 600 && (
+                      <button onClick={() => setPromptOpen(v => !v)} className="ad-link" style={{ marginTop: 8 }}>
+                        {promptOpen ? (language === "uk" ? "Згорнути" : "Collapse") : (language === "uk" ? "Показати повністю" : "Show all")}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </Card>
 
-            {/* ── Agent Workspace — the clearest system-register block
-                on this page: skills, tools, knowledge, and workflow are
-                genuine functional data about the agent, not a named
-                section, so the grid-texture + mono-caps treatment
-                (same as Dashboard's Providers/Activity panels) belongs
-                here rather than being applied by default everywhere. ── */}
-            <div style={{
-              position: "relative",
-              background: "#0A0A10",
-              backgroundImage: "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)",
-              backgroundSize: "14px 14px",
-              border: "0.5px solid rgba(232,0,42,0.16)", borderRadius: 10, overflow: "hidden",
-            }}>
-              {/* Workspace header */}
-              <div style={{
-                padding: "11px 16px 10px",
-                borderBottom: "0.5px solid rgba(255,255,255,0.09)",
-                background: "rgba(10,10,16,0.55)",
-                display: "flex", alignItems: "center", gap: 8,
-              }}>
+            {/* Agent Workspace */}
+            <div className="ad-workspace">
+              <div style={{ padding: "12px 18px 11px", borderBottom: "0.5px solid rgba(255,255,255,0.09)", background: "rgba(10,10,16,0.55)", display: "flex", alignItems: "center", gap: 8 }}>
                 <Zap size={12} style={{ color: T.red }} />
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, color: T.red, textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   Agent Workspace
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-
+              <div className="ad-ws-grid">
                 {/* Skills */}
-                <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-                    {t.agentDetail.skills}
-                  </div>
+                <div className="ad-ws-cell">
+                  <div className="ad-label" style={{ marginBottom: 12 }}>{t.agentDetail.skills}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                     {getAgentSkills(agent.name, agent.system_prompt, language).map(skill => (
-                      <button key={skill.label}
+                      <button key={skill.label} className="ad-skill"
                         onClick={async () => {
                           const sb = getSupabase()
                           const { data: { user } } = await sb.auth.getUser()
@@ -845,22 +856,8 @@ export default function AgentDetailPage() {
                           })
                           router.push(`/chat/${data.id}`)
                         }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 5,
-                          padding: "5px 10px", borderRadius: 7, border: "none", cursor: "pointer",
-                          background: "rgba(232,0,42,0.08)", outline: "0.5px solid rgba(232,0,42,0.20)",
-                          color: T.t2, fontSize: 12, fontWeight: 500, transition: "all 120ms ease",
-                        }}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.20)"
-                          ;(e.currentTarget as HTMLElement).style.color = T.t1
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)"
-                          ;(e.currentTarget as HTMLElement).style.color = T.t2
-                        }}
                       >
-                        <Zap size={10} style={{ color: T.red, opacity: 0.7 }} />
+                        <Zap size={10} style={{ color: T.red, opacity: 0.8 }} />
                         {skill.label}
                       </button>
                     ))}
@@ -868,54 +865,62 @@ export default function AgentDetailPage() {
                 </div>
 
                 {/* Tools */}
-                <div style={{ padding: "16px 18px", borderBottom: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-                    {t.agentDetail.tools}
-                  </div>
+                <div className="ad-ws-cell">
+                  <div className="ad-label" style={{ marginBottom: 12 }}>{t.agentDetail.tools}</div>
                   <AgentTools />
                 </div>
 
                 {/* Knowledge */}
-                <div style={{ padding: "16px 18px", borderRight: "0.5px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-                    {t.agentDetail.knowledge}
-                  </div>
+                <div className="ad-ws-cell">
+                  <div className="ad-label" style={{ marginBottom: 12 }}>{t.agentDetail.knowledge}</div>
                   <AgentKnowledge systemPrompt={agent.system_prompt} />
                 </div>
 
                 {/* Workflow */}
-                <div style={{ padding: "16px 18px" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 600, color: T.t4, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
-                    Workflow
-                  </div>
+                <div className="ad-ws-cell">
+                  <div className="ad-label" style={{ marginBottom: 12 }}>Workflow</div>
                   <AgentWorkflow agentName={agent.name} />
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Side column ── */}
+          <aside className="ad-side">
+            {/* Overview */}
+            <div className="ad-stats">
+              <div className="ad-stat">
+                <div className="ad-label">{t.agentDetail.provider}</div>
+                <div style={{ fontSize: 14, color: provider ? T.t1 : "#FF4D6A" }}>{provider ? provider.name : t.agentDetail.providerNotFound}</div>
+              </div>
+              <div className="ad-stat">
+                <div className="ad-label">{t.agentDetail.modelLabel}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: T.t1, wordBreak: "break-all" }}>{provider ? provider.model : "—"}</div>
+              </div>
+              <div className="ad-stat">
+                <div className="ad-label">{t.agentDetail.sessionsLabel}</div>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: T.t1 }}>{sessions.length}</div>
               </div>
             </div>
 
             {/* Sessions */}
             <Card title={`${t.agentDetail.chatSessions} (${sessions.length})`} icon={MessageSquare}
               action={
-                <button onClick={handleNewChat} style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  fontSize: 11, color: T.red, background: "none", border: "none", cursor: "pointer", opacity: 0.8,
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
-                >
+                <button onClick={handleNewChat} className="ad-link">
                   <Plus size={11} /> {t.agentDetail.newChat}
                 </button>
               }
             >
-              <SessionList sessions={sessions} onOpen={id => router.push(`/chat/${id}`)} onDelete={handleDeleteSession} t={t} lang={language} />
+              <div style={{ maxHeight: 420, overflowY: "auto", margin: "-4px -4px", padding: "4px" }}>
+                <SessionList sessions={sessions} onOpen={id => router.push(`/chat/${id}`)} onDelete={handleDeleteSession} t={t} lang={language} />
+              </div>
             </Card>
 
             {/* Danger */}
             <Card title={t.agentDetail.dangerZoneCard} icon={Trash2} accent>
               <DangerZone agentName={agent.name} onDelete={handleDeleteAgent} t={t} />
             </Card>
-
-          </div>
+          </aside>
         </div>
       </div>
     </>
