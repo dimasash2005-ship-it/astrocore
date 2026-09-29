@@ -15,9 +15,9 @@ import { useLanguage } from "@/lib/useLanguage"
 import { LANGUAGES, translations } from "@/lib/language"
 
 // Collapsed (rail) width — this is what other pages reserve as margin.
-export const SIDEBAR_W = 76
+export const SIDEBAR_W = 68
 // Expanded width on hover, per the design reference (~270px).
-const EXP_W = 270
+const EXP_W = 232
 
 const SPD = "200ms cubic-bezier(0.4,0,0.2,1)"
 
@@ -150,57 +150,17 @@ function NavLink({ href, icon: Icon, label, active, open }: {
       <Link href={href} ref={linkRef}
         onMouseEnter={handleEnter}
         onMouseLeave={() => setHov(false)}
-        style={{
-          position: "relative",
-          display: "flex", alignItems: "center",
-          height: 44, borderRadius: 14,
-          padding: "0 14px", gap: 12,
-          textDecoration: "none", overflow: "hidden", flexShrink: 0,
-          cursor: "pointer",
-          background: active
-            ? "linear-gradient(135deg,rgba(140,4,26,0.55) 0%,rgba(90,2,17,0.35) 100%)"
-            : hov ? "rgba(255,255,255,0.055)" : "transparent",
-          boxShadow: active
-            ? "0 0 0 1px rgba(232,0,42,0.35), 0 4px 18px rgba(232,0,42,0.22), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 14px rgba(0,0,0,0.25)"
-            : "none",
-          transition: `background ${SPD}, box-shadow ${SPD}`,
-        }}>
-        <Icon size={18} style={{
-          flexShrink: 0,
-          color: active ? "#FFFFFF" : hov ? "#E4E0F8" : "#ADA9C8",
-          filter: active ? "drop-shadow(0 0 5px rgba(232,0,42,0.85))" : "none",
-          transition: `color ${SPD}`,
-        }} />
-        <Label open={open} style={{ fontSize: 13.5, fontWeight: active ? 600 : 400, color: active ? "#FFFFFF" : hov ? "#DAD6F0" : "#ABA7C6", letterSpacing: "-0.01em" }}>
+        className={`sb-link${active ? " is-active" : ""}`}
+      >
+        <span className="sb-bar" aria-hidden />
+        <Icon size={17} className="sb-icon" />
+        <Label open={open} style={{ fontSize: 13, fontWeight: active ? 600 : 450, letterSpacing: "-0.01em" }}>
           {label}
         </Label>
-
-        {active && (
-          <span aria-hidden style={{
-            position: "absolute", left: 0, top: "50%",
-            transform: "translateY(-50%)",
-            width: 2.5, height: 18, borderRadius: 2,
-            background: "#E8002A",
-            boxShadow: "0 0 8px rgba(232,0,42,0.7)",
-          }} />
-        )}
       </Link>
 
       {hov && !open && (
-        <div aria-hidden style={{
-          position: "fixed",
-          top: tipY, left: SIDEBAR_W + 10,
-          transform: "translateY(-50%)",
-          zIndex: 400,
-          background: "linear-gradient(160deg,#151524 0%,#0E0E1A 100%)",
-          border: "0.5px solid rgba(232,0,42,0.25)",
-          borderRadius: 8,
-          padding: "6px 11px",
-          fontSize: 12.5, fontWeight: 500, color: "#EAE6FF",
-          whiteSpace: "nowrap",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-          pointerEvents: "none",
-        }}>
+        <div aria-hidden className="sb-tip" style={{ top: tipY, left: SIDEBAR_W + 10 }}>
           {label}
         </div>
       )}
@@ -208,34 +168,35 @@ function NavLink({ href, icon: Icon, label, active, open }: {
   )
 }
 
+// Language: tiny segmented UA | EN switch. In the collapsed rail it shows
+// only the active code as a small pill (click = next language).
+function langCode(code: string) {
+  return code === "uk" ? "UA" : code.toUpperCase().slice(0, 2)
+}
+
 function LanguageSwitch({ open }: { open: boolean }) {
   const { language, setLanguage } = useLanguage()
-  const current = LANGUAGES.find(l => l.code === language) ?? LANGUAGES[0]
 
-  function cycle() {
+  if (!open) {
     const idx = LANGUAGES.findIndex(l => l.code === language)
     const next = LANGUAGES[(idx + 1) % LANGUAGES.length]
-    setLanguage(next.code)
+    return (
+      <button className="sb-lang-mini" onClick={() => setLanguage(next.code)} title={next.label}>
+        {langCode(language)}
+      </button>
+    )
   }
 
   return (
-    <button onClick={cycle} title={current.label} style={{
-      display: "flex", alignItems: "center", justifyContent: open ? "flex-start" : "center",
-      height: 36, width: "100%",
-      borderRadius: 11, padding: "0 12px", gap: 10,
-      border: "0.5px solid rgba(255,255,255,0.07)",
-      background: "rgba(255,255,255,0.03)", cursor: "pointer",
-      overflow: "hidden", flexShrink: 0,
-      transition: `background ${SPD}`,
-    }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
-    >
-      <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>{current.flag}</span>
-      <Label open={open} style={{ fontSize: 12.5, color: "#ABA7C6", fontWeight: 500 }}>
-        {current.label}
-      </Label>
-    </button>
+    <div className="sb-lang" role="group" aria-label="Language">
+      {LANGUAGES.map(l => (
+        <button key={l.code} title={l.label}
+          className={l.code === language ? "on" : ""}
+          onClick={() => setLanguage(l.code)}>
+          {langCode(l.code)}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -337,21 +298,21 @@ export function Sidebar() {
         position: "relative", zIndex: 2,
         display: "flex", flexDirection: "column",
         height: "100%",
-        padding: "20px 14px 16px",
+        padding: "16px 12px 14px",
         overflow: "hidden",
       }}>
 
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginBottom: 22, gap: 12, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginBottom: 18, gap: 11, overflow: "hidden", paddingLeft: 3 }}>
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
-              width: 40, height: 40, borderRadius: 12,
+              width: 38, height: 38, borderRadius: 11,
               overflow: "hidden",
               background: "#000",
               boxShadow: "0 0 0 1.5px rgba(232,0,42,0.42), 0 0 22px rgba(232,0,42,0.30), inset 0 1px 0 rgba(255,255,255,0.12)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               {!logoErr ? (
-                <Image src="/astrocore-logo.png" alt="AstroCore" width={40} height={40}
+                <Image src="/astrocore-logo.png" alt="AstroCore" width={38} height={38}
                   style={{ objectFit: "cover", objectPosition: "center 18%" }}
                   onError={() => setLogoErr(true)} />
               ) : (
@@ -359,13 +320,13 @@ export function Sidebar() {
               )}
             </div>
             <div className="astrocore-core-glow" style={{
-              position: "absolute", inset: -3, borderRadius: 15,
+              position: "absolute", inset: -3, borderRadius: 14,
               border: "1px solid rgba(232,0,42,0.5)",
               pointerEvents: "none",
             }} />
           </div>
           <Label open={open}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#EEE8FF", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#EEE8FF", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Astro<span style={{ color: "#E8002A" }}>Core</span>
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "#3A3A5E", fontWeight: 500, letterSpacing: "0.06em", marginTop: 2 }}>
@@ -374,34 +335,22 @@ export function Sidebar() {
           </Label>
         </div>
 
-        <div style={{ marginBottom: 14, flexShrink: 0 }}>
-          <LanguageSwitch open={open} />
-        </div>
-
         <nav
           className="astrocore-sidebar-nav"
           style={{
-            display: "flex", flexDirection: "column", gap: 7,
+            display: "flex", flexDirection: "column", gap: 2,
             flex: "1 1 auto", minHeight: 0,
             overflowY: "auto", overflowX: "hidden",
-            marginRight: -14, paddingRight: 14,
+            marginRight: -12, paddingRight: 12,
           }}
         >
           {NAV_GROUPS.map((group, gi) => (
-            <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {group.label && open && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  margin: "10px 2px 1px",
-                }}>
-                  <span style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 9.5, color: "#4A4A6A", letterSpacing: "0.06em",
-                    whiteSpace: "nowrap", flexShrink: 0,
-                  }}>
-                    {language === "uk" ? group.label.uk : group.label.en}
-                  </span>
-                  <span style={{ flex: 1, height: 0.5, background: "rgba(255,255,255,0.08)" }} />
+            <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {group.label && (
+                <div className="sb-group">
+                  {open
+                    ? <span>{language === "uk" ? group.label.uk : group.label.en}</span>
+                    : <i />}
                 </div>
               )}
               {group.items.map(item => (
@@ -411,10 +360,14 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <div style={{ position: "relative", flexShrink: 0, marginTop: 12, marginBottom: 12 }}>
+        <div style={{ flexShrink: 0, marginTop: 10, marginBottom: 8 }}>
+          <LanguageSwitch open={open} />
+        </div>
+
+        <div style={{ position: "relative", flexShrink: 0, marginBottom: 10 }}>
           <button onClick={() => setContact(v => !v)} style={{
-            display: "flex", alignItems: "center", height: 40, width: "100%",
-            borderRadius: 12, padding: "0 12px", gap: 10, border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", height: 36, width: "100%",
+            borderRadius: 10, padding: "0 13px", gap: 11, border: "none", cursor: "pointer",
             overflow: "hidden",
             background: contact ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.03)",
             outline: contact ? "0.5px solid rgba(232,0,42,0.35)" : "0.5px solid rgba(255,255,255,0.05)",
@@ -423,7 +376,7 @@ export function Sidebar() {
             onMouseEnter={e => { if (!contact) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
             onMouseLeave={e => { if (!contact) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
           >
-            <Send size={16} style={{ flexShrink: 0, color: contact ? "#FFFFFF" : "#ADA9C8" }} />
+            <Send size={15} style={{ flexShrink: 0, color: contact ? "#FFFFFF" : "#ADA9C8" }} />
             <Label open={open} style={{ fontSize: 13, color: contact ? "#F4F0FF" : "#ABA7C6" }}>{t.sidebar.contact}</Label>
           </button>
           {contact && open && <ContactPanel onClose={() => setContact(false)} />}
@@ -432,7 +385,7 @@ export function Sidebar() {
         {open && (
           <Link href="/account" style={{
             display: "flex", alignItems: "center", gap: 9,
-            height: 40, borderRadius: 12, padding: "0 12px", marginBottom: 12, flexShrink: 0,
+            height: 34, borderRadius: 10, padding: "0 12px", marginBottom: 10, flexShrink: 0,
             textDecoration: "none",
             background: "linear-gradient(160deg,rgba(232,0,42,0.10) 0%,rgba(20,10,16,0.6) 100%)",
             border: "0.5px solid rgba(232,0,42,0.20)",
@@ -455,7 +408,7 @@ export function Sidebar() {
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button onClick={() => open && setMenuOpen(v => !v)} style={{
             display: "flex", alignItems: "center", width: "100%",
-            gap: 10, padding: "8px 10px", borderRadius: 12, border: "none", cursor: "pointer",
+            gap: 10, padding: "6px 5px", borderRadius: 10, border: "none", cursor: "pointer",
             overflow: "hidden",
             background: menuOpen ? "rgba(255,255,255,0.06)" : "transparent",
             transition: `background ${SPD}`,
@@ -464,7 +417,7 @@ export function Sidebar() {
             onMouseLeave={e => { if (!menuOpen) (e.currentTarget as HTMLElement).style.background = "transparent" }}
           >
             <div style={{
-              width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+              width: 32, height: 32, borderRadius: 9, flexShrink: 0,
               background: account?.avatarUrl ? "#000" : "linear-gradient(135deg,#3A3A5C,#222238)",
               border: "0.5px solid rgba(255,255,255,0.15)",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -535,6 +488,62 @@ export function Sidebar() {
         .astrocore-sidebar-nav::-webkit-scrollbar-track { background: transparent; }
         .astrocore-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(232,0,42,0.35); border-radius: 4px; }
         .astrocore-sidebar-nav { scrollbar-width: thin; scrollbar-color: rgba(232,0,42,0.35) transparent; }
+
+        /* ── nav item ── */
+        .sb-link {
+          position: relative; display: flex; align-items: center; flex-shrink: 0;
+          height: 38px; padding: 0 13px; gap: 11px; border-radius: 10px;
+          text-decoration: none; overflow: hidden; cursor: pointer;
+          color: #A5A1C0; background: transparent;
+          border: 0.5px solid transparent;
+          transition: background ${SPD}, border-color ${SPD}, color ${SPD}, box-shadow ${SPD};
+        }
+        .sb-icon { flex-shrink: 0; color: #9A96B8; transition: color ${SPD}, filter ${SPD}, transform ${SPD}; }
+        .sb-bar {
+          position: absolute; left: 0; top: 50%; width: 2.5px; height: 0; border-radius: 0 3px 3px 0;
+          background: #E8002A; box-shadow: 0 0 8px rgba(232,0,42,.8);
+          transform: translateY(-50%); transition: height ${SPD}, opacity ${SPD}; opacity: 0;
+        }
+        .sb-link:hover {
+          color: #ECE8FF; background: linear-gradient(90deg, rgba(232,0,42,.10), rgba(255,255,255,.025) 60%);
+          border-color: rgba(232,0,42,.28);
+        }
+        .sb-link:hover .sb-icon { color: #fff; transform: translateX(1px); }
+        .sb-link:hover .sb-bar { height: 16px; opacity: .9; }
+
+        .sb-link.is-active {
+          color: #fff;
+          background: linear-gradient(90deg, rgba(232,0,42,.20), rgba(232,0,42,.05) 70%);
+          border-color: rgba(232,0,42,.40);
+          box-shadow: 0 4px 16px rgba(232,0,42,.14), inset 0 1px 0 rgba(255,255,255,.05);
+        }
+        .sb-link.is-active .sb-icon { color: #fff; filter: drop-shadow(0 0 5px rgba(232,0,42,.8)); }
+        .sb-link.is-active .sb-bar { height: 20px; opacity: 1; }
+
+        .sb-tip {
+          position: fixed; transform: translateY(-50%); z-index: 400; pointer-events: none; white-space: nowrap;
+          background: linear-gradient(160deg,#151524 0%,#0E0E1A 100%); border: 0.5px solid rgba(232,0,42,.25);
+          border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 500; color: #EAE6FF;
+          box-shadow: 0 8px 24px rgba(0,0,0,.6); animation: sbTip .14s ease-out;
+        }
+        @keyframes sbTip { from { opacity: 0; transform: translate(-4px,-50%); } to { opacity: 1; transform: translate(0,-50%); } }
+
+        .sb-group { height: 22px; display: flex; align-items: flex-end; padding: 0 6px 4px; margin-top: 8px; }
+        .sb-group span { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #4A4A6A; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+        .sb-group i { display: block; width: 18px; height: 0.5px; margin: 0 auto 6px; background: rgba(255,255,255,.12); }
+
+        /* ── language ── */
+        .sb-lang { display: flex; gap: 2px; padding: 2px; border-radius: 9px; width: fit-content;
+          background: rgba(255,255,255,.035); border: 0.5px solid rgba(255,255,255,.08); }
+        .sb-lang button { height: 24px; min-width: 36px; padding: 0 8px; border-radius: 7px; border: none; cursor: pointer;
+          font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+          background: transparent; color: #6A6890; transition: background ${SPD}, color ${SPD}; }
+        .sb-lang button:hover { color: #D6D2F0; }
+        .sb-lang button.on { background: #E8002A; color: #fff; box-shadow: 0 0 12px rgba(232,0,42,.4); }
+        .sb-lang-mini { display: block; margin: 0 auto; height: 24px; width: 36px; border-radius: 7px; cursor: pointer;
+          font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
+          color: #E8002A; background: rgba(232,0,42,.08); border: 0.5px solid rgba(232,0,42,.28); transition: background ${SPD}; }
+        .sb-lang-mini:hover { background: rgba(232,0,42,.16); color: #fff; }
 
         .astrocore-rail-sweep { animation: astrocoreRailSweep 2.4s linear infinite; }
         @keyframes astrocoreRailSweep {
