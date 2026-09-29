@@ -276,8 +276,16 @@ export function Sidebar() {
 
       <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 160, pointerEvents: "none", background: "radial-gradient(ellipse 140% 90% at 50% 100%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
 
-      <div aria-hidden style={{ position: "absolute", top: 60, right: 0, width: 1.5, height: 120, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.55),transparent)" }} />
-      <div aria-hidden style={{ position: "absolute", top: "60%", right: 0, width: 1, height: 90, pointerEvents: "none", background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.20),transparent)" }} />
+      {/* ── Red edge atmosphere (right side, behind everything) ── */}
+      <div aria-hidden className="sb-fx">
+        <div className="sb-aurora sb-aurora-1" />
+        <div className="sb-aurora sb-aurora-2" />
+        <div className="sb-hatch" />
+      </div>
+      <div aria-hidden className="sb-edge">
+        <div className="sb-edge-pulse" />
+        <div className="sb-edge-pulse sb-edge-pulse-2" />
+      </div>
 
       <div aria-hidden style={{
         position: "absolute", top: "18%", bottom: "18%", left: 9,
@@ -544,6 +552,33 @@ export function Sidebar() {
           font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: .05em;
           color: #E8002A; background: rgba(232,0,42,.08); border: 0.5px solid rgba(232,0,42,.28); transition: background ${SPD}; }
         .sb-lang-mini:hover { background: rgba(232,0,42,.16); color: #fff; }
+
+        /* ── edge atmosphere ── */
+        .sb-fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+        .sb-aurora { position: absolute; right: -70px; width: 150px; border-radius: 50%; filter: blur(38px); }
+        .sb-aurora-1 { top: 8%; height: 260px; background: radial-gradient(closest-side, rgba(232,0,42,.34), rgba(232,0,42,0));
+          animation: sbFloat1 14s ease-in-out infinite; }
+        .sb-aurora-2 { top: 55%; height: 200px; background: radial-gradient(closest-side, rgba(255,40,70,.22), rgba(232,0,42,0));
+          animation: sbFloat2 18s ease-in-out infinite; }
+        @keyframes sbFloat1 { 0%,100% { transform: translateY(0) scale(1); opacity: .9; } 50% { transform: translateY(120px) scale(1.15); opacity: .55; } }
+        @keyframes sbFloat2 { 0%,100% { transform: translateY(0) scale(1); opacity: .5; } 50% { transform: translateY(-140px) scale(1.2); opacity: .95; } }
+        .sb-hatch { position: absolute; top: 0; bottom: 0; right: 0; width: 46px;
+          background: repeating-linear-gradient(135deg, rgba(232,0,42,.07) 0 1px, transparent 1px 7px);
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 85%); mask-image: linear-gradient(90deg, transparent, #000 85%);
+          opacity: .8; }
+
+        .sb-edge { position: absolute; top: 0; bottom: 0; right: -0.5px; width: 1px; pointer-events: none; z-index: 1;
+          background: linear-gradient(180deg, rgba(232,0,42,.05), rgba(232,0,42,.38) 25%, rgba(232,0,42,.12) 55%, rgba(232,0,42,.32) 80%, rgba(232,0,42,.05));
+          box-shadow: 0 0 10px rgba(232,0,42,.25); }
+        .sb-edge-pulse { position: absolute; left: -1px; width: 3px; height: 90px; top: -90px; border-radius: 3px;
+          background: linear-gradient(180deg, transparent, #FF1A3E, transparent);
+          box-shadow: 0 0 14px 2px rgba(232,0,42,.8); animation: sbEdge 5.5s cubic-bezier(.45,0,.55,1) infinite; }
+        .sb-edge-pulse-2 { height: 50px; animation-duration: 8s; animation-delay: -3s; opacity: .6; }
+        @keyframes sbEdge { 0% { top: -90px; } 100% { top: 105%; } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .sb-aurora, .sb-edge-pulse, .astrocore-rail-sweep { animation: none; }
+        }
 
         .astrocore-rail-sweep { animation: astrocoreRailSweep 2.4s linear infinite; }
         @keyframes astrocoreRailSweep {
