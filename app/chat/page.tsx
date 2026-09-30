@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   MessageSquare, Plus, Bot, Clock, Search,
   Trash2, X, AlertCircle,
-  Edit3, ChevronDown, Zap,
+  Edit3, ChevronDown, Zap, ArrowRight, Loader2,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
@@ -65,28 +65,6 @@ function ago(iso: string, t: ReturnType<typeof useLanguage>["t"], lang: Language
   return new Date(iso).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })
 }
 
-function cut(s: string, n: number) {
-  return s && s.length > n ? s.slice(0, n) + "…" : (s || "")
-}
-
-// Thin impulse-line divider — same motif used on Sidebar/Dashboard/
-// Account, so section breaks look the same everywhere in the app.
-function SectionDivider({ delay = "0s" }: { delay?: string }) {
-  return (
-    <div aria-hidden style={{
-      position: "relative", height: 1.5,
-      background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
-    }}>
-      <div className="astrocore-hero-sweep" style={{
-        position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-        background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-        boxShadow: "0 0 8px rgba(232,0,42,0.75)",
-        animationDelay: delay,
-      }} />
-    </div>
-  )
-}
-
 // ─── Rename modal ─────────────────────────────────────────────────
 
 function RenameModal({ session, onClose, onRenamed, t }: {
@@ -112,19 +90,8 @@ function RenameModal({ session, onClose, onRenamed, t }: {
   }
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 200,
-        background: "rgba(0,0,0,0.78)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-      }}>
-      <div style={{
-        width: "100%", maxWidth: 400, borderRadius: 14,
-        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
-        border: "1px solid rgba(232,0,42,0.22)",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.85)",
-        padding: "20px",
-      }}>
+    <div className="ch-overlay" style={{ zIndex: 200 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ch-modal" style={{ maxWidth: 400, padding: 20 }}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, marginBottom: 14 }}>{t.chat.renameChat}</div>
         <input value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") onClose() }}
@@ -177,6 +144,12 @@ function NewChatModal({ onClose, onCreated, t }: {
     load()
   }, [])
 
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", fn)
+    return () => window.removeEventListener("keydown", fn)
+  }, [onClose])
+
   function getProv(id: string | null) { return providers.find(p => p.id === id) }
 
   async function handleCreate() {
@@ -198,15 +171,8 @@ function NewChatModal({ onClose, onCreated, t }: {
   const canCreate = !!selected && !!getProv(selAgent?.provider_id ?? null)
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.80)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{
-        width: "100%", maxWidth: 500, borderRadius: 16,
-        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
-        border: "1px solid rgba(232,0,42,0.22)",
-        boxShadow: "0 32px 80px rgba(0,0,0,0.85)",
-        overflow: "hidden", maxHeight: "88vh", display: "flex", flexDirection: "column",
-      }}>
+    <div className="ch-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ch-modal" style={{ maxWidth: 500, overflow: "hidden", maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 13px", borderBottom: "0.5px solid rgba(255,255,255,0.07)" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.chat.newChat}</div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: "none", background: "rgba(255,255,255,0.06)", cursor: "pointer", color: T.t4, lineHeight: 0 }}>
@@ -305,92 +271,40 @@ function NewChatModal({ onClose, onCreated, t }: {
   )
 }
 
-// ─── Session card ─────────────────────────────────────────────────
+// ─── Session row ──────────────────────────────────────────────────
 
-function SessionCard({ session, agent, provider, msgCount, onOpen, onDelete, onRename, t, lang }: {
+function SessionRow({ session, agent, provider, msgCount, onOpen, onDelete, onRename, t, lang, index }: {
   session: Session; agent?: Agent; provider?: Provider; msgCount: number
   onOpen: () => void
   onDelete: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
-  t: ReturnType<typeof useLanguage>["t"]; lang: Language
+  t: ReturnType<typeof useLanguage>["t"]; lang: Language; index: number
 }) {
+  const color = agent?.avatar_color ?? T.red
   return (
-    <div onClick={onOpen} style={{
-      position: "relative",
-      display: "flex", alignItems: "center", gap: 13, padding: "11px 14px 11px 17px", borderRadius: 12,
-      cursor: "pointer", background: "rgba(255,255,255,0.02)", border: "0.5px solid rgba(255,255,255,0.06)",
-      transition: "background 130ms ease, border-color 130ms ease, box-shadow 130ms ease",
-      overflow: "hidden",
-    }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "rgba(232,0,42,0.055)"
-        el.style.borderColor = "rgba(232,0,42,0.22)"
-        el.style.boxShadow = "0 4px 18px rgba(232,0,42,0.08)";
-        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "1");
-        (el.querySelector(".accent") as HTMLElement | null)?.style.setProperty("opacity", "1")
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = "rgba(255,255,255,0.02)"
-        el.style.borderColor = "rgba(255,255,255,0.06)"
-        el.style.boxShadow = "none";
-        (el.querySelector(".actions") as HTMLElement | null)?.style.setProperty("opacity", "0");
-        (el.querySelector(".accent") as HTMLElement | null)?.style.setProperty("opacity", "0")
-      }}
-    >
-      {/* red left accent bar, fades in on hover */}
-      <span className="accent" aria-hidden style={{
-        position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-        width: 2.5, height: 18, borderRadius: "0 3px 3px 0",
-        background: T.red, boxShadow: "0 0 8px rgba(232,0,42,0.9)",
-        opacity: 0, transition: "opacity 130ms ease",
-      }} />
-
-      <div style={{
-        width: 36, height: 36, borderRadius: 9, flexShrink: 0,
-        background: agent?.avatar_color ?? "rgba(232,0,42,0.12)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 14, fontWeight: 700, color: "#fff",
-      }}>
-        {agent ? agent.name.charAt(0).toUpperCase() : <MessageSquare size={15} style={{ color: T.red, opacity: 0.7 }} />}
+    <div role="button" tabIndex={0} className="ch-row" onClick={onOpen}
+      onKeyDown={e => { if (e.key === "Enter") onOpen() }}
+      style={{ ["--c" as string]: color, animationDelay: `${Math.min(index, 14) * 25}ms` } as React.CSSProperties}>
+      <div className="ch-av" style={{ background: agent ? color : "rgba(232,0,42,0.12)" }}>
+        {agent ? agent.name.charAt(0).toUpperCase() : <MessageSquare size={14} style={{ color: T.red }} />}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 3 }}>
-          {cut(session.title, 60)}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-          {agent && <span style={{ fontSize: 11, color: T.t4 }}>{agent.name}</span>}
-          {provider && <>
-            <span style={{ fontSize: 11, color: "#252540" }}>·</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: T.t4 }}>{provider.model}</span>
-          </>}
+        <div className="ch-title">{session.title}</div>
+        <div className="ch-sub">
+          {agent && <span style={{ color: T.t3 }}>{agent.name}</span>}
+          {provider && <><span className="ch-dot" /><span className="mono">{provider.model}</span></>}
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
-          <Clock size={10} />
-          {ago(session.updated_at ?? session.created_at, t, lang)}
+      <div className="ch-right">
+        {msgCount > 0 && <span className="ch-count"><MessageSquare size={9} /> {msgCount}</span>}
+        <span className="ch-time"><Clock size={10} />{ago(session.updated_at ?? session.created_at, t, lang)}</span>
+        <div className="ch-actions">
+          <button onClick={onRename} title={t.chat.rename} className="ch-icon"><Edit3 size={12} /></button>
+          <button onClick={onDelete} title={t.chat.delete} className="ch-icon del"><Trash2 size={12} /></button>
         </div>
-        {msgCount > 0 && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.07)", color: T.t4 }}>
-            {msgCount}
-          </span>
-        )}
-        <div className="actions" style={{ display: "flex", gap: 2, opacity: 0, transition: "opacity 130ms ease" }}>
-          <button onClick={onRename} title={t.chat.rename} style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t2 }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
-            <Edit3 size={12} />
-          </button>
-          <button onClick={onDelete} title={t.chat.delete} style={{ padding: 5, borderRadius: 6, border: "none", background: "none", cursor: "pointer", lineHeight: 0, color: T.t4 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}>
-            <Trash2 size={12} />
-          </button>
-        </div>
+        <ArrowRight size={14} className="ch-go" />
       </div>
     </div>
   )
@@ -404,6 +318,7 @@ type DateFilter = "all" | "today" | "week" | "month"
 export default function ChatPage() {
   const router = useRouter()
   const { t, language } = useLanguage()
+  const uk = language === "uk"
 
   const [sessions,     setSessions]     = useState<Session[]>([])
   const [agents,       setAgents]       = useState<Agent[]>([])
@@ -419,49 +334,29 @@ export default function ChatPage() {
 
   const [showModal,    setShowModal]    = useState(false)
   const [renameTarget, setRenameTarget] = useState<Session | null>(null)
+  const [starting,     setStarting]     = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     try {
       const sb = getSupabase()
-
-      // 1. Get user
       const { data: { user } } = await sb.auth.getUser()
       if (!user) return
-
-      // 2. Load all data in parallel with simple separate queries
-      const [
-        { data: sessData },
-        { data: agentsData },
-        { data: provsData },
-      ] = await Promise.all([
-        sb.from("chat_sessions")
-          .select("id,user_id,agent_id,title,created_at,updated_at")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false }),
-        sb.from("agents")
-          .select("id,name,avatar_color,provider_id")
-          .eq("user_id", user.id),
-        sb.from("providers")
-          .select("id,name,model,is_active")
-          .eq("user_id", user.id),
+      const [{ data: sessData }, { data: agentsData }, { data: provsData }] = await Promise.all([
+        sb.from("chat_sessions").select("id,user_id,agent_id,title,created_at,updated_at").eq("user_id", user.id).order("updated_at", { ascending: false }),
+        sb.from("agents").select("id,name,avatar_color,provider_id").eq("user_id", user.id),
+        sb.from("providers").select("id,name,model,is_active").eq("user_id", user.id),
       ])
-
       setSessions((sessData ?? []) as Session[])
       setAgents((agentsData ?? []) as Agent[])
       setProviders((provsData ?? []) as Provider[])
 
-      // 3. Load message counts per session (batch)
       if (sessData && sessData.length > 0) {
         const counts: Record<string, number> = {}
-        await Promise.all(
-          sessData.map(async s => {
-            const { count } = await sb
-              .from("chat_messages")
-              .select("id", { count: "exact", head: true })
-              .eq("session_id", s.id)
-            counts[s.id] = count ?? 0
-          })
-        )
+        await Promise.all(sessData.map(async s => {
+          const { count } = await sb.from("chat_messages").select("id", { count: "exact", head: true }).eq("session_id", s.id)
+          counts[s.id] = count ?? 0
+        }))
         setMsgCounts(counts)
       }
     } catch (err) {
@@ -473,18 +368,41 @@ export default function ChatPage() {
 
   useEffect(() => { load() }, [])
 
+  // "/" focuses search, "n" opens new chat
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+      if (e.key === "/") { e.preventDefault(); searchRef.current?.focus() }
+      if (e.key.toLowerCase() === "n" && !e.metaKey && !e.ctrlKey) { e.preventDefault(); setShowModal(true) }
+    }
+    window.addEventListener("keydown", fn)
+    return () => window.removeEventListener("keydown", fn)
+  }, [])
+
   function getAgent(id: string | null)    { return agents.find(a => a.id === id) }
   function getProvider(id: string | null) { return providers.find(p => p.id === id) }
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation()
     if (!window.confirm(t.chat.deleteSessionConfirm)) return
-    const sb = getSupabase()
-    await sb.from("chat_sessions").delete().eq("id", id)
+    await getSupabase().from("chat_sessions").delete().eq("id", id)
     setSessions(prev => prev.filter(s => s.id !== id))
   }
 
-  // ── Filtering + sorting ──
+  // one-click chat with an agent (same insert as NewChatModal)
+  async function quickStart(agent: Agent) {
+    if (starting) return
+    setStarting(agent.id)
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { setStarting(null); return }
+    const { data, error } = await sb.from("chat_sessions").insert({
+      user_id: user.id, agent_id: agent.id, title: `${t.chat.chatWithPrefix}${agent.name}`,
+    }).select().single()
+    if (error || !data) { setStarting(null); return }
+    router.push(`/chat/${data.id}`)
+  }
 
   const agentsWithSessions = useMemo(() => {
     const ids = new Set(sessions.map(s => s.agent_id).filter(Boolean))
@@ -492,74 +410,59 @@ export default function ChatPage() {
   }, [sessions, agents])
 
   const provsWithSessions = useMemo(() => {
-    const provIds = new Set(
-      sessions.map(s => getAgent(s.agent_id)?.provider_id).filter(Boolean)
-    )
+    const provIds = new Set(sessions.map(s => agents.find(a => a.id === s.agent_id)?.provider_id).filter(Boolean))
     return providers.filter(p => provIds.has(p.id))
   }, [sessions, agents, providers])
 
-  const now   = Date.now()
-  const DAY   = 86400000
-  const WEEK  = DAY * 7
-  const MONTH = DAY * 30
+  const readyAgents = useMemo(() => agents.filter(a => providers.some(p => p.id === a.provider_id)), [agents, providers])
+
+  const DAY = 86400000
 
   const filtered = useMemo(() => {
+    const now = Date.now()
     let result = [...sessions]
-
-    // search
     if (search) {
       const q = search.toLowerCase()
-      result = result.filter(s => {
-        const agent = getAgent(s.agent_id)
-        return s.title.toLowerCase().includes(q) ||
-          (agent?.name ?? "").toLowerCase().includes(q)
-      })
+      result = result.filter(s => s.title.toLowerCase().includes(q) || (agents.find(a => a.id === s.agent_id)?.name ?? "").toLowerCase().includes(q))
     }
-
-    // agent filter
-    if (agentFilter) {
-      result = result.filter(s => s.agent_id === agentFilter)
-    }
-
-    // provider filter
-    if (provFilter) {
-      result = result.filter(s => {
-        const agent = getAgent(s.agent_id)
-        return agent?.provider_id === provFilter
-      })
-    }
-
-    // date filter
+    if (agentFilter) result = result.filter(s => s.agent_id === agentFilter)
+    if (provFilter)  result = result.filter(s => agents.find(a => a.id === s.agent_id)?.provider_id === provFilter)
     if (dateFilter !== "all") {
-      result = result.filter(s => {
-        const tt = new Date(s.updated_at ?? s.created_at).getTime()
-        if (dateFilter === "today") return now - tt < DAY
-        if (dateFilter === "week")  return now - tt < WEEK
-        if (dateFilter === "month") return now - tt < MONTH
-        return true
-      })
+      const span = dateFilter === "today" ? DAY : dateFilter === "week" ? DAY * 7 : DAY * 30
+      result = result.filter(s => now - new Date(s.updated_at ?? s.created_at).getTime() < span)
     }
-
-    // sort
     const localeCode = language === "uk" ? "uk" : "en"
     result.sort((a, b) => {
       if (sort === "newest") return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       if (sort === "oldest") return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
-      if (sort === "title")  return a.title.localeCompare(b.title, localeCode)
-      return 0
+      return a.title.localeCompare(b.title, localeCode)
     })
-
     return result
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions, search, agentFilter, provFilter, dateFilter, sort, agents, language])
+
+  // group by date bucket (only for time-based sorting)
+  const groups = useMemo(() => {
+    if (sort === "title") return [{ key: "all", label: "", items: filtered }]
+    const start = new Date(); start.setHours(0, 0, 0, 0)
+    const today = start.getTime()
+    const buckets: { key: string; label: string; test: (t: number) => boolean }[] = [
+      { key: "today", label: uk ? "Сьогодні" : "Today",         test: x => x >= today },
+      { key: "yday",  label: uk ? "Вчора" : "Yesterday",        test: x => x >= today - DAY && x < today },
+      { key: "week",  label: uk ? "Цей тиждень" : "This week",  test: x => x >= today - DAY * 7 && x < today - DAY },
+      { key: "month", label: uk ? "Цей місяць" : "This month",  test: x => x >= today - DAY * 30 && x < today - DAY * 7 },
+      { key: "older", label: uk ? "Раніше" : "Earlier",         test: x => x < today - DAY * 30 },
+    ]
+    const out = buckets.map(b => ({ key: b.key, label: b.label, items: filtered.filter(s => b.test(new Date(s.updated_at ?? s.created_at).getTime())) }))
+      .filter(g => g.items.length > 0)
+    return sort === "oldest" ? out.reverse() : out
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, sort, uk])
 
   const hasFilters = !!search || !!agentFilter || !!provFilter || dateFilter !== "all"
 
   function clearFilters() {
-    setSearch("")
-    setAgentFilter(null)
-    setProvFilter(null)
-    setDateFilter("all")
-    setSort("newest")
+    setSearch(""); setAgentFilter(null); setProvFilter(null); setDateFilter("all"); setSort("newest")
   }
 
   function sessionCountLabel(n: number) {
@@ -568,26 +471,113 @@ export default function ChatPage() {
     return t.chat.sessionMany
   }
 
+  const totalMsgs = Object.values(msgCounts).reduce((a, b) => a + b, 0)
+  let rowIndex = 0
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-
-        @keyframes scanline {
-          0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0}
-        }
+        @keyframes scanline { 0%{transform:translateX(-100%);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(200%);opacity:0} }
         select option { background: #111118; }
-
         .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
-        @keyframes astrocoreHeroSweep {
-          0%   { left: -20%; }
-          100% { left: 100%; }
-        }
+        @keyframes astrocoreHeroSweep { 0% { left: -20%; } 100% { left: 100%; } }
         .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
-        @keyframes astrocoreBadgeSweep {
-          0%   { left: -40%; }
-          100% { left: 100%; }
-        }
+        @keyframes astrocoreBadgeSweep { 0% { left: -40%; } 100% { left: 100%; } }
+        @keyframes chIn   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        @keyframes chFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes chPop  { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+        @keyframes chShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+        @keyframes chSpin { to { transform: rotate(360deg); } }
+        .ch-spin { animation: chSpin 1s linear infinite; }
+
+        .ch-primary { display: flex; align-items: center; gap: 7px; background: ${T.red}; color: #fff; border: none; border-radius: 10px;
+          padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background .13s, box-shadow .13s, transform .13s; }
+        .ch-primary:hover { background: #FF1A3E; box-shadow: 0 0 20px rgba(232,0,42,.35); transform: translateY(-1px); }
+        .ch-kbd { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,.15); }
+
+        /* quick start strip */
+        .ch-quick { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; scrollbar-width: none; }
+        .ch-quick::-webkit-scrollbar { display: none; }
+        .ch-quick-l { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4}; text-transform: uppercase; letter-spacing: .08em; flex-shrink: 0; margin-right: 4px; }
+        .ch-agent { display: flex; align-items: center; gap: 9px; flex-shrink: 0; height: 40px; padding: 0 14px 0 5px; border-radius: 12px; cursor: pointer;
+          font-family: inherit; font-size: 12.5px; color: ${T.t2}; background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%);
+          border: 0.5px solid ${T.b1}; transition: transform .18s cubic-bezier(.3,1.4,.5,1), border-color .18s, box-shadow .18s, color .18s; }
+        .ch-agent:hover { transform: translateY(-2px); color: ${T.t1}; border-color: color-mix(in srgb, var(--c) 55%, transparent);
+          box-shadow: 0 8px 22px rgba(0,0,0,.4), 0 0 18px color-mix(in srgb, var(--c) 18%, transparent); }
+        .ch-agent i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 12.5px; color: #fff;
+          font-family: 'Space Grotesk', sans-serif; background: var(--c); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 40%, transparent); }
+        .ch-agent .ch-plus { color: ${T.t4}; transition: color .15s, transform .2s; }
+        .ch-agent:hover .ch-plus { color: var(--c); transform: rotate(90deg); }
+
+        /* toolbar */
+        .ch-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .ch-search { flex: 1 1 260px; display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 12px; border-radius: 10px;
+          background: ${T.s1}; border: 0.5px solid ${T.b1}; transition: border-color .15s, box-shadow .15s; }
+        .ch-search:focus-within { border-color: rgba(232,0,42,.45); box-shadow: 0 0 0 3px rgba(232,0,42,.1); }
+        .ch-search input { flex: 1; background: none; border: none; outline: none; font-size: 13px; color: ${T.t1}; font-family: inherit; }
+        .ch-seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: ${T.s1}; border: 0.5px solid ${T.b1}; }
+        .ch-seg button { height: 30px; padding: 0 11px; border-radius: 7px; border: none; cursor: pointer; font-size: 12px; font-family: inherit;
+          background: transparent; color: ${T.t3}; transition: background .15s, color .15s; }
+        .ch-seg button:hover { color: ${T.t1}; }
+        .ch-seg button.on { background: rgba(232,0,42,.14); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(232,0,42,.4); }
+        .ch-sel { position: relative; }
+        .ch-sel select { height: 38px; padding: 0 28px 0 12px; border-radius: 10px; font-size: 12px; font-family: inherit; outline: none; cursor: pointer; appearance: none;
+          background: ${T.s1}; border: 0.5px solid ${T.b1}; color: ${T.t3}; max-width: 170px; }
+        .ch-sel select.on { color: ${T.t1}; border-color: rgba(232,0,42,.35); background: rgba(232,0,42,.08); }
+        .ch-sel svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: ${T.t4}; pointer-events: none; }
+
+        .ch-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+        .ch-tag { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 6px; border-radius: 8px; cursor: pointer; font-size: 11.5px; font-family: inherit;
+          background: rgba(255,255,255,.03); border: 0.5px solid rgba(255,255,255,.07); color: ${T.t3}; transition: all .15s; }
+        .ch-tag:hover { color: ${T.t1}; border-color: rgba(255,255,255,.16); }
+        .ch-tag.on { color: #fff; background: color-mix(in srgb, var(--c) 18%, transparent); border-color: color-mix(in srgb, var(--c) 50%, transparent); }
+        .ch-tag span.d { width: 8px; height: 8px; border-radius: 3px; background: var(--c); }
+        .ch-tag b { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500; opacity: .55; }
+
+        /* list */
+        .ch-list { border-radius: 14px; overflow: hidden; background: linear-gradient(160deg,#0F0F1A 0%,#0C0C15 100%); border: 0.5px solid ${T.b1}; }
+        .ch-group { display: flex; align-items: center; gap: 10px; padding: 12px 16px 8px; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600;
+          color: ${T.t4}; text-transform: uppercase; letter-spacing: .09em; position: sticky; top: 0; background: #0E0E18; z-index: 1; }
+        .ch-group::after { content: ""; flex: 1; height: 0.5px; background: rgba(255,255,255,.06); }
+        .ch-group b { font-weight: 500; color: ${T.t4}; opacity: .7; }
+
+        .ch-row { position: relative; display: flex; align-items: center; gap: 13px; padding: 11px 16px; cursor: pointer; outline: none;
+          border-top: 0.5px solid rgba(255,255,255,.04); animation: chIn .35s cubic-bezier(.2,.8,.2,1) both; transition: background .15s; }
+        .ch-group + .ch-row { border-top: 0; }
+        .ch-row::before { content: ""; position: absolute; left: 0; top: 50%; width: 2.5px; height: 0; border-radius: 0 3px 3px 0; transform: translateY(-50%);
+          background: var(--c); box-shadow: 0 0 10px var(--c); transition: height .2s cubic-bezier(.3,1.4,.5,1); }
+        .ch-row:hover, .ch-row:focus-visible { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 60%); }
+        .ch-row:hover::before, .ch-row:focus-visible::before { height: 60%; }
+        .ch-av { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; font-family: 'Space Grotesk', sans-serif;
+          font-size: 14px; font-weight: 700; color: #fff; transition: transform .2s, box-shadow .2s; }
+        .ch-row:hover .ch-av { transform: scale(1.06); box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent); }
+        .ch-title { font-size: 13.5px; font-weight: 500; color: ${T.t1}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 3px; }
+        .ch-sub { display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${T.t4}; overflow: hidden; white-space: nowrap; }
+        .ch-sub .mono { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
+        .ch-dot { width: 3px; height: 3px; border-radius: 50%; background: #34344E; }
+        .ch-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .ch-count { display: inline-flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 7px; border-radius: 5px;
+          background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.07); color: ${T.t4}; }
+        .ch-time { display: inline-flex; align-items: center; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: ${T.t4}; min-width: 70px; justify-content: flex-end; }
+        .ch-actions { display: flex; gap: 2px; width: 0; overflow: hidden; opacity: 0; transition: opacity .15s, width .2s; }
+        .ch-row:hover .ch-actions, .ch-row:focus-within .ch-actions { width: 56px; opacity: 1; }
+        .ch-icon { padding: 6px; border-radius: 7px; border: none; background: rgba(255,255,255,.05); cursor: pointer; line-height: 0; color: ${T.t3}; transition: all .12s; }
+        .ch-icon:hover { color: ${T.t1}; background: rgba(255,255,255,.1); }
+        .ch-icon.del:hover { color: #FF4D6A; background: rgba(232,0,42,.14); }
+        .ch-go { color: ${T.t4}; opacity: 0; transform: translateX(-4px); transition: all .2s; }
+        .ch-row:hover .ch-go { opacity: 1; transform: none; color: var(--c); }
+
+        .ch-skel { height: 58px; border-top: 0.5px solid rgba(255,255,255,.04);
+          background: linear-gradient(90deg, transparent 0px, rgba(255,255,255,.035) 200px, transparent 400px); background-size: 800px 100%; animation: chShimmer 1.4s linear infinite; }
+
+        .ch-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px;
+          background: rgba(4,4,10,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: chFade .18s ease-out; }
+        .ch-modal { width: 100%; border-radius: 16px; background: linear-gradient(160deg,#111120 0%,#0C0C18 100%); border: 0.5px solid rgba(232,0,42,.28);
+          box-shadow: 0 30px 80px rgba(0,0,0,.8), 0 0 50px rgba(232,0,42,.07); animation: chPop .24s cubic-bezier(.2,.9,.3,1.2); }
+
+        @media (max-width: 760px) { .ch-count, .ch-go { display: none; } .ch-time { min-width: 0; } }
+        @media (prefers-reduced-motion: reduce) { .ch-row, .ch-modal { animation: none; } }
       `}</style>
 
       <div style={{ marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg, backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)", backgroundSize: "24px 24px" }}>
@@ -595,268 +585,175 @@ export default function ChatPage() {
 
         {/* ── Hero ── */}
         <div style={{ position: "relative", padding: "36px 48px 28px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
-          {/* One soft ambient glow instead of the old two-layer "rising
-              sun" (it had drifted back in here from an earlier version
-              of the Dashboard hero, before that got simplified). */}
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 180, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
-
-          <div aria-hidden style={{
-            position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5,
-            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
-          }}>
-            <div className="astrocore-hero-sweep" style={{
-              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-              boxShadow: "0 0 10px rgba(232,0,42,0.85)",
-            }} />
+          <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5, background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none" }}>
+            <div className="astrocore-hero-sweep" style={{ position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)", boxShadow: "0 0 10px rgba(232,0,42,0.85)" }} />
           </div>
 
           <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
-              {/* Badge — impulse line instead of a setInterval-driven
-                  dot, and a single clean phrase instead of a dot-joined
-                  "Chat Layer · N sessions" (the count already shows up
-                  in the stats row right below, no need to say it twice). */}
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14 }}>
-                <span aria-hidden style={{
-                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
-                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
-                }}>
-                  <span className="astrocore-badge-sweep" style={{
-                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
-                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                  }} />
+                <span aria-hidden style={{ position: "relative", width: 18, height: 1.5, borderRadius: 1, background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block" }}>
+                  <span className="astrocore-badge-sweep" style={{ position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)" }} />
                 </span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
-                  Chat Layer
-                </span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>Chat Layer</span>
               </div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{t.chat.title}</h1>
-              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{t.chat.subtitle}</p>
+              <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>
+                {loaded && sessions.length > 0
+                  ? <>{sessions.length} {sessionCountLabel(sessions.length)} · {agentsWithSessions.length} {t.chat.agentsLabel.toLowerCase()} · {totalMsgs} {t.chat.messagesLabel.toLowerCase()}</>
+                  : t.chat.subtitle}
+              </p>
             </div>
-            <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 500, cursor: "pointer", boxShadow: "0 4px 16px rgba(232,0,42,0.25)", transition: "background 140ms ease" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >
-              <Plus size={14} /> {t.chat.newChat}
+            <button onClick={() => setShowModal(true)} className="ch-primary">
+              <Plus size={14} /> {t.chat.newChat} <span className="ch-kbd">N</span>
             </button>
           </div>
         </div>
 
         {/* ── Body ── */}
-        {!loaded ? (
-          <div style={{ padding: "64px 48px", textAlign: "center" }}>
-            <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-              {[0,1,2].map(i => (
-                <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: T.red, opacity: 0.5, animation: "dot 1.2s ease infinite", animationDelay: `${i*0.2}s` }} />
-              ))}
-            </div>
-            <style>{`@keyframes dot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-          </div>
-        ) : sessions.length === 0 ? (
+        {loaded && sessions.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-            <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.08)" }}>
               <MessageSquare size={28} style={{ color: T.red, opacity: 0.7 }} />
             </div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.chat.noChatsYet}</div>
-            <div style={{ fontSize: 13, color: T.t3, maxWidth: 320, marginBottom: 24, lineHeight: 1.65 }}>
-              {t.chat.noChatsHint}
-            </div>
-            <button onClick={() => setShowModal(true)} style={{ display: "flex", alignItems: "center", gap: 7, background: T.red, color: "#fff", border: "none", borderRadius: 10, padding: "10px 22px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-            >
-              <Plus size={14} /> {t.chat.createNewChat}
-            </button>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.chat.noChatsYet}</div>
+            <div style={{ fontSize: 13, color: T.t3, maxWidth: 320, marginBottom: 24, lineHeight: 1.65 }}>{t.chat.noChatsHint}</div>
+            {readyAgents.length > 0 ? (
+              <div className="ch-quick" style={{ justifyContent: "center", flexWrap: "wrap", overflow: "visible" }}>
+                {readyAgents.slice(0, 6).map(a => (
+                  <button key={a.id} className="ch-agent" style={{ ["--c" as string]: a.avatar_color ?? T.red } as React.CSSProperties} onClick={() => quickStart(a)}>
+                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : a.name.charAt(0).toUpperCase()}</i>{a.name}<Plus size={13} className="ch-plus" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button onClick={() => setShowModal(true)} className="ch-primary"><Plus size={14} /> {t.chat.createNewChat}</button>
+            )}
           </div>
         ) : (
-          <div style={{ padding: "24px 48px 56px", maxWidth: 1500 }}>
+          <div style={{ padding: "22px 48px 60px", maxWidth: 1240 }}>
 
-            {/* Stats */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
-              {[
-                { label: t.chat.totalSessions,  value: sessions.length,                                   icon: MessageSquare },
-                { label: t.chat.agentsLabel,        value: agentsWithSessions.length,                         icon: Bot           },
-                { label: t.chat.messagesLabel,    value: Object.values(msgCounts).reduce((a,b)=>a+b,0),     icon: Zap           },
-              ].map(({ label, value, icon: Icon }) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 14px", borderRadius: 9, background: T.s1, border: `0.5px solid ${T.b1}` }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                    background: "rgba(232,0,42,0.12)", boxShadow: "0 0 8px rgba(232,0,42,0.18)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <Icon size={12} style={{ color: T.red, opacity: 0.9 }} />
-                  </div>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 600, color: T.t1 }}>{value}</span>
-                  <span style={{ fontSize: 11, color: T.t3 }}>{label}</span>
+            {/* Quick start */}
+            {readyAgents.length > 0 && (
+              <div className="ch-quick">
+                <span className="ch-quick-l"><Zap size={10} style={{ verticalAlign: -1, color: T.red }} /> {uk ? "Швидкий старт" : "Quick start"}</span>
+                {readyAgents.map(a => (
+                  <button key={a.id} className="ch-agent" style={{ ["--c" as string]: a.avatar_color ?? T.red } as React.CSSProperties}
+                    onClick={() => quickStart(a)} disabled={!!starting}>
+                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : a.name.charAt(0).toUpperCase()}</i>
+                    {a.name}
+                    <Plus size={13} className="ch-plus" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Toolbar */}
+            <div className="ch-bar">
+              <div className="ch-search">
+                <Search size={14} style={{ color: T.t4, flexShrink: 0 }} />
+                <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder={t.chat.searchPlaceholder} />
+                {search
+                  ? <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0 }}><X size={12} /></button>
+                  : <span className="ch-kbd" style={{ color: T.t4, background: "rgba(255,255,255,.06)" }}>/</span>}
+              </div>
+
+              <div className="ch-seg">
+                {([
+                  { v: "all",   l: uk ? "Все" : "All" },
+                  { v: "today", l: t.chat.periodToday },
+                  { v: "week",  l: t.chat.periodWeek },
+                  { v: "month", l: t.chat.periodMonth },
+                ] as const).map(o => (
+                  <button key={o.v} className={dateFilter === o.v ? "on" : ""} onClick={() => setDateFilter(o.v)}>{o.l}</button>
+                ))}
+              </div>
+
+              {provsWithSessions.length > 1 && (
+                <div className="ch-sel">
+                  <select value={provFilter ?? ""} onChange={e => setProvFilter(e.target.value || null)} className={provFilter ? "on" : ""}>
+                    <option value="">{t.chat.providerFilterLabel}</option>
+                    {provsWithSessions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <ChevronDown size={11} />
                 </div>
-              ))}
+              )}
+
+              <div className="ch-sel">
+                <select value={sort} onChange={e => setSort(e.target.value as SortOpt)}>
+                  <option value="newest">{t.chat.sortNewest}</option>
+                  <option value="oldest">{t.chat.sortOldest}</option>
+                  <option value="title">{t.chat.sortByTitle}</option>
+                </select>
+                <ChevronDown size={11} />
+              </div>
             </div>
 
-            <SectionDivider delay="0.3s" />
-            <div style={{ height: 18 }} />
-
-            {/* ── Filters bar ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: T.s1, border: `0.5px solid ${T.b1}` }}>
-
-              {/* Row 1: search + dropdowns */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-
-                {/* Search */}
-                <div style={{ flex: 1, minWidth: 160, display: "flex", alignItems: "center", gap: 8, background: "#09090F", border: "0.5px solid rgba(255,255,255,0.09)", borderRadius: 8, padding: "0 11px", height: 34 }}>
-                  <Search size={13} style={{ color: T.t4, flexShrink: 0 }} />
-                  <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder={t.chat.searchPlaceholder}
-                    style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 12.5, color: T.t1 }}
-                  />
-                  {search && (
-                    <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0, padding: 0 }}>
-                      <X size={11} />
+            {/* Agent tags */}
+            {agentsWithSessions.length > 1 && (
+              <div className="ch-tags">
+                {agentsWithSessions.map(agent => {
+                  const count = sessions.filter(s => s.agent_id === agent.id).length
+                  const on = agentFilter === agent.id
+                  return (
+                    <button key={agent.id} className={`ch-tag${on ? " on" : ""}`}
+                      style={{ ["--c" as string]: agent.avatar_color ?? T.red } as React.CSSProperties}
+                      onClick={() => setAgentFilter(on ? null : agent.id)}>
+                      <span className="d" />{agent.name} <b>{count}</b>
                     </button>
-                  )}
-                </div>
-
-                {/* Agent dropdown */}
-                <div style={{ position: "relative" }}>
-                  <select value={agentFilter ?? ""} onChange={e => setAgentFilter(e.target.value || null)} style={{
-                    background: agentFilter ? "rgba(232,0,42,0.10)" : "#09090F",
-                    border: `0.5px solid ${agentFilter ? "rgba(232,0,42,0.30)" : "rgba(255,255,255,0.09)"}`,
-                    borderRadius: 8, padding: "0 26px 0 10px", height: 34,
-                    fontSize: 12, color: agentFilter ? T.t1 : T.t3,
-                    outline: "none", cursor: "pointer", appearance: "none", maxWidth: 140,
-                  }}>
-                    <option value="">{t.chat.agentFilterLabel}</option>
-                    {agentsWithSessions.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({sessions.filter(s => s.agent_id === a.id).length})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
-                </div>
-
-                {/* Provider dropdown */}
-                <div style={{ position: "relative" }}>
-                  <select value={provFilter ?? ""} onChange={e => setProvFilter(e.target.value || null)} style={{
-                    background: provFilter ? "rgba(34,197,94,0.08)" : "#09090F",
-                    border: `0.5px solid ${provFilter ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.09)"}`,
-                    borderRadius: 8, padding: "0 26px 0 10px", height: 34,
-                    fontSize: 12, color: provFilter ? T.green : T.t3,
-                    outline: "none", cursor: "pointer", appearance: "none", maxWidth: 140,
-                  }}>
-                    <option value="">{t.chat.providerFilterLabel}</option>
-                    {provsWithSessions.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({sessions.filter(s => getAgent(s.agent_id)?.provider_id === p.id).length})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
-                </div>
-
-                {/* Period dropdown */}
-                <div style={{ position: "relative" }}>
-                  <select value={dateFilter} onChange={e => setDateFilter(e.target.value as DateFilter)} style={{
-                    background: dateFilter !== "all" ? "rgba(232,0,42,0.08)" : "#09090F",
-                    border: `0.5px solid ${dateFilter !== "all" ? "rgba(232,0,42,0.25)" : "rgba(255,255,255,0.09)"}`,
-                    borderRadius: 8, padding: "0 26px 0 10px", height: 34,
-                    fontSize: 12, color: dateFilter !== "all" ? T.t1 : T.t3,
-                    outline: "none", cursor: "pointer", appearance: "none",
-                  }}>
-                    <option value="all">{t.chat.periodLabel}</option>
-                    <option value="today">{t.chat.periodToday}</option>
-                    <option value="week">{t.chat.periodWeek}</option>
-                    <option value="month">{t.chat.periodMonth}</option>
-                  </select>
-                  <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
-                </div>
-
-                {/* Sort dropdown */}
-                <div style={{ position: "relative" }}>
-                  <select value={sort} onChange={e => setSort(e.target.value as SortOpt)} style={{
-                    background: "#09090F", border: "0.5px solid rgba(255,255,255,0.09)",
-                    borderRadius: 8, padding: "0 26px 0 10px", height: 34,
-                    fontSize: 12, color: T.t3, outline: "none", cursor: "pointer", appearance: "none",
-                  }}>
-                    <option value="newest">{t.chat.sortNewest}</option>
-                    <option value="oldest">{t.chat.sortOldest}</option>
-                    <option value="title">{t.chat.sortByTitle}</option>
-                  </select>
-                  <ChevronDown size={10} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: T.t4, pointerEvents: "none" }} />
-                </div>
-
+                  )
+                })}
                 {hasFilters && (
-                  <button onClick={clearFilters} style={{
-                    fontSize: 11, color: T.red, background: "none", border: "none",
-                    cursor: "pointer", display: "flex", alignItems: "center", gap: 3, marginLeft: "auto",
-                    whiteSpace: "nowrap",
-                  }}>
-                    <X size={10} /> {t.chat.clear}
+                  <button className="ch-tag" onClick={clearFilters} style={{ color: T.red, borderColor: "rgba(232,0,42,.25)" }}>
+                    <X size={11} style={{ marginLeft: 2 }} /> {t.chat.clear}
                   </button>
                 )}
               </div>
+            )}
 
-              {/* Row 2: compact hashtag agent chips */}
-              {agentsWithSessions.length > 0 && (
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ fontSize: 10, color: "#3A3A5A", flexShrink: 0 }}>{t.chat.agentsColonLabel}</span>
-                  {agentsWithSessions.map(agent => {
-                    const count    = sessions.filter(s => s.agent_id === agent.id).length
-                    const isActive = agentFilter === agent.id
-                    return (
-                      <button key={agent.id}
-                        onClick={() => setAgentFilter(isActive ? null : agent.id)}
-                        style={{
-                          fontSize: 10.5, padding: "2px 8px", borderRadius: 5, border: "none",
-                          cursor: "pointer",
-                          background: isActive ? `${agent.avatar_color}20` : "rgba(255,255,255,0.04)",
-                          color: isActive ? agent.avatar_color : T.t4,
-                          outline: isActive ? `1px solid ${agent.avatar_color}40` : "none",
-                        }}>
-                        #{agent.name.replace(/\s+/g, "")} <span style={{ opacity: 0.5 }}>{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            <SectionDivider delay="1.2s" />
-            <div style={{ height: 18 }} />
-
-            {/* Results */}
-            {filtered.length === 0 ? (
+            {/* List */}
+            {!loaded ? (
+              <div className="ch-list">{[0, 1, 2, 3, 4].map(i => <div key={i} className="ch-skel" style={{ animationDelay: `${i * 0.1}s` }} />)}</div>
+            ) : filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
                 <div style={{ fontSize: 13, color: T.t4, marginBottom: 10 }}>{t.chat.nothingFound}</div>
-                <button onClick={clearFilters} style={{ fontSize: 12, color: T.red, background: "none", border: "none", cursor: "pointer" }}>
-                  {t.chat.clearFilters}
-                </button>
+                <button onClick={clearFilters} style={{ fontSize: 12, color: T.red, background: "none", border: "none", cursor: "pointer" }}>{t.chat.clearFilters}</button>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ fontSize: 11, color: T.t4, marginBottom: 8 }}>
-                  {filtered.length} {sessionCountLabel(filtered.length)}
-                  {hasFilters && ` (${t.chat.filtered})`}
+              <>
+                {hasFilters && (
+                  <div style={{ fontSize: 11.5, color: T.t4, marginBottom: 10 }}>
+                    {filtered.length} {sessionCountLabel(filtered.length)} ({t.chat.filtered})
+                  </div>
+                )}
+                <div className="ch-list">
+                  {groups.map(g => (
+                    <div key={g.key}>
+                      {g.label && <div className="ch-group">{g.label} <b>{g.items.length}</b></div>}
+                      {g.items.map(session => {
+                        const agent    = getAgent(session.agent_id)
+                        const provider = agent ? getProvider(agent.provider_id) : undefined
+                        return (
+                          <SessionRow
+                            key={session.id}
+                            index={rowIndex++}
+                            session={session}
+                            agent={agent}
+                            provider={provider}
+                            msgCount={msgCounts[session.id] ?? 0}
+                            onOpen={() => router.push(`/chat/${session.id}`)}
+                            onDelete={e => handleDelete(e, session.id)}
+                            onRename={e => { e.stopPropagation(); setRenameTarget(session) }}
+                            t={t}
+                            lang={language}
+                          />
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
-                {filtered.map(session => {
-                  const agent    = getAgent(session.agent_id)
-                  const provider = agent ? getProvider(agent.provider_id) : undefined
-                  return (
-                    <SessionCard
-                      key={session.id}
-                      session={session}
-                      agent={agent}
-                      provider={provider}
-                      msgCount={msgCounts[session.id] ?? 0}
-                      onOpen={() => router.push(`/chat/${session.id}`)}
-                      onDelete={e => handleDelete(e, session.id)}
-                      onRename={e => { e.stopPropagation(); setRenameTarget(session) }}
-                      t={t}
-                      lang={language}
-                    />
-                  )
-                })}
-              </div>
+              </>
             )}
           </div>
         )}
