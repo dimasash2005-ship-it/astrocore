@@ -228,7 +228,7 @@ function LeftPanel({ t, landed }: { t: ReturnType<typeof useLanguage>["t"]; land
   )
 }
 
-function LoginForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
+function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; language: Language }) {
   const searchParams = useSearchParams()
   const nextPath = searchParams.get("next") ?? "/"
 
@@ -345,6 +345,19 @@ function LoginForm({ t }: { t: ReturnType<typeof useLanguage>["t"] }) {
           {t.loginPage.signUp}
         </Link>
       </div>
+
+      {/* Legal: Terms + Privacy */}
+      <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: T.t4, lineHeight: 1.6 }}>
+        {language === "en" ? "By signing in, you agree to our" : "Входячи, ви погоджуєтесь з"}{" "}
+        <Link href="/terms" target="_blank" style={{ color: T.t3, textDecoration: "underline" }}>
+          {language === "en" ? "Terms of Service" : "Умовами використання"}
+        </Link>{" "}
+        {language === "en" ? "and" : "та"}{" "}
+        <Link href="/privacy-policy" target="_blank" style={{ color: T.t3, textDecoration: "underline" }}>
+          {language === "en" ? "Privacy Policy" : "Політикою конфіденційності"}
+        </Link>
+        .
+      </div>
     </div>
   )
 }
@@ -392,7 +405,7 @@ function LoginPage() {
           </div>
           <IntroReveal phase={phase}>
             <Suspense fallback={null}>
-              <LoginForm t={t} />
+              <LoginForm t={t} language={language} />
             </Suspense>
           </IntroReveal>
         </div>

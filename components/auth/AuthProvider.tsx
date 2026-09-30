@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { getSupabase } from "@/lib/supabase/client"
 
 const PUBLIC_ROUTES = new Set(["/login", "/register"])
+// Pages open to everyone (logged in or not) — no redirects at all
+const OPEN_ROUTES = new Set(["/terms", "/privacy-policy"])
 
 function Spinner() {
   return (
@@ -31,8 +33,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready,  setReady]  = useState(false)
   const [authed, setAuthed] = useState(false)
 
+  const isOpen      = OPEN_ROUTES.has(pathname)
   const isPublic    = PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/auth/")
-  const showSidebar = authed && !isPublic
+  const showSidebar = authed && !isPublic && !isOpen
 
   useEffect(() => {
     const sb = getSupabase()
@@ -41,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const loggedIn = !!session?.user
       setAuthed(loggedIn)
       setReady(true)
+      if (isOpen) return
       if (loggedIn && isPublic) router.replace("/")
       else if (!loggedIn && !isPublic) router.replace("/login")
     })
@@ -49,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const loggedIn = !!session?.user
       setAuthed(loggedIn)
       setReady(true)
+      if (isOpen) return
       if (loggedIn && isPublic) router.replace("/")
       else if (!loggedIn && !isPublic) router.replace("/login")
     })
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ready && !isPublic) return <Spinner />
+  if (!ready && !isPublic && !isOpen) return <Spinner />
 
   return (
     <>

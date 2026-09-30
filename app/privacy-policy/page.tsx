@@ -1,143 +1,187 @@
-/**
- * WHERE TO PUT THIS FILE:
- *   app/privacy-policy/page.tsx
- *
- * This makes the policy available at: yourdomain.com/privacy-policy
- * (matches the link used inside CookieConsent.tsx)
- *
- * Content below is copied from privacy-policy.md — edit the [BRACKETED]
- * placeholders with your real company details before publishing.
- * Adjust the className props if your project uses Tailwind/shadcn (components.json
- * in your repo suggests it does) — swap `style={{...}}` for utility classes as needed.
- */
+// Куди вставити: app/privacy-policy/page.tsx
+// ЗАМІНИ весь старий вміст цього файлу на цей код.
+// Сторінка відкривається за адресою https://astrocore.one/privacy-policy
+// (саме на неї веде посилання з CookieConsent.tsx)
 
-export const metadata = {
-    title: "Privacy Policy",
-    description: "How Astcor collects, uses, and protects your personal data.",
-  };
-  
-  export default function PrivacyPolicyPage() {
-    return (
-      <main style={{ maxWidth: 780, margin: "0 auto", padding: "48px 24px", lineHeight: 1.6 }}>
-        <h1>Privacy Policy</h1>
-        <p style={{ color: "#666" }}>
-          <em>Last updated: [DATE]</em>
-        </p>
-  
-        <h2>1. Who We Are</h2>
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — AstroCore AI",
+  description: "How AstroCore AI collects, uses and protects your data.",
+};
+
+const CONTACT_EMAIL = "astrocore.one@outlook.cz";
+// TODO: впиши своє повне ім'я — за GDPR має бути вказано, хто відповідає за дані
+const OPERATOR_NAME = "[Your full name]";
+const LAST_UPDATED = "30 September 2026";
+
+export default function PrivacyPage() {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-12 leading-relaxed">
+      <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
+      <p className="opacity-70 mb-8">Last updated: {LAST_UPDATED}</p>
+
+      <Section title="1. Who we are">
         <p>
-          This Privacy Policy explains how <strong>AstroCore</strong> ("we," "us," or "our"),
-          [operated by legal entity / FOP name — fill in once registered],
-          collects, uses, discloses, and protects personal information when you use our website
-          and AI workspace platform (the "Service"). Contact us at{" "}
-          <strong>gbtauent21@outlook.com</strong> or via{" "}
-          <a href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener">
-            Telegram
+          AstroCore AI (&quot;AstroCore&quot;, &quot;we&quot;, &quot;us&quot;) is a workspace
+          for AI agents available at astrocore.one. It is operated by {OPERATOR_NAME}, an
+          individual based in the Czech Republic, who acts as the data controller for the
+          personal data described in this policy.
+        </p>
+        <p>
+          Contact for any privacy question or request:{" "}
+          <a className="underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a> or
+          Telegram{" "}
+          <a className="underline" href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener">
+            @AstroCore_Manager
           </a>
-          .
         </p>
-  
-        <h2>2. Information We Collect</h2>
-        <h3>2.1 Information You Provide</h3>
-        <ul>
-          <li>Account information: name, email, hashed password, company name</li>
-          <li>Contact form data: name, email, message content</li>
-          <li>Payment information: billing name/address, last 4 digits of card, transaction history</li>
-          <li>Support communications</li>
+      </Section>
+
+      <Section title="2. What data we collect">
+        <ul className="list-disc pl-6 space-y-2">
+          <li>
+            <b>Account data:</b> when you sign in (for example with GitHub), we receive your
+            name, username, email address and profile picture.
+          </li>
+          <li>
+            <b>Content you create:</b> chats, agents, memory entries, reports, files in
+            Storage and Gallery, forum posts, settings and anything else you enter into the
+            platform.
+          </li>
+          <li>
+            <b>Provider API keys:</b> if you connect your own AI provider keys, we store
+            them encrypted and use them only to send your requests to that provider.
+          </li>
+          <li>
+            <b>Technical data:</b> IP address, browser and device type, logs and basic usage
+            and performance statistics needed to run and secure the service.
+          </li>
+          <li>
+            <b>Analytics data:</b> if you allow analytics cookies, Google Analytics collects
+            information about how you use the site (pages visited, approximate location,
+            device and browser) so we can improve AstroCore.
+          </li>
         </ul>
-        <p>We do not store full card numbers — payments are processed by a third-party processor.</p>
-  
-        <h3>2.2 Information Collected Automatically</h3>
-        <ul>
-          <li>Device &amp; usage data: IP address, browser, OS, pages visited</li>
-          <li>Cookies (see Section 4 and our cookie settings tool)</li>
-          <li>Analytics data via [Google Analytics / other tool]</li>
+      </Section>
+
+      <Section title="3. Why we use it (legal basis)">
+        <ul className="list-disc pl-6 space-y-2">
+          <li>
+            <b>To provide the service</b> — create your account, run your agents, store your
+            content (performance of a contract, GDPR Art. 6(1)(b)).
+          </li>
+          <li>
+            <b>To keep the platform secure and working</b> — prevent abuse and fix bugs
+            (legitimate interest, Art. 6(1)(f)).
+          </li>
+          <li>
+            <b>To understand how the site is used</b> through Google Analytics — only if you
+            accept analytics cookies (consent, Art. 6(1)(a)).
+          </li>
+          <li>
+            <b>To contact you</b> about important changes to the service or these terms
+            (legitimate interest / contract).
+          </li>
+          <li>
+            <b>To meet legal obligations</b>, including future billing and accounting once
+            paid plans are introduced (Art. 6(1)(c)).
+          </li>
         </ul>
-  
-        <h2>3. How We Use Your Information</h2>
-        <ul>
-          <li>Provide and maintain the Service, including your account</li>
-          <li>Process payments and manage subscriptions</li>
-          <li>Respond to support and contact requests</li>
-          <li>Send transactional emails and, if opted in, marketing emails</li>
-          <li>Improve the Service via analytics</li>
-          <li>Detect and prevent fraud or abuse</li>
-          <li>Comply with legal obligations</li>
+        <p>We do not sell your personal data and do not use it for advertising.</p>
+      </Section>
+
+      <Section title="4. AI providers">
+        <p>
+          When you use an agent or chat, the content of your request is sent to the AI
+          provider you selected (for example Anthropic, OpenAI or others) so it can generate
+          a response. That provider processes your data under its own terms and privacy
+          policy. Please do not submit sensitive personal data (health, financial, ID
+          numbers, etc.) unless you are comfortable with it being processed by that provider.
+        </p>
+      </Section>
+
+      <Section title="5. Service providers we use">
+        <ul className="list-disc pl-6 space-y-2">
+          <li><b>Vercel</b> — hosting, domain and performance analytics.</li>
+          <li><b>Supabase</b> — database, authentication and file storage.</li>
+          <li><b>GitHub</b> — sign-in (OAuth).</li>
+          <li><b>Google Analytics</b> (Google Ireland Ltd.) — website usage statistics, only with your consent.</li>
+          <li><b>The AI providers</b> you connect (see section 4).</li>
         </ul>
-  
-        <h2>4. Cookies</h2>
         <p>
-          We use strictly necessary cookies (login, security), analytics cookies, and — if
-          applicable — marketing cookies. You can manage these anytime via Cookie Settings.
+          Some of these providers are located in the United States. Where data is transferred
+          outside the EU/EEA, it is protected by the providers&apos; safeguards such as the
+          EU Standard Contractual Clauses or the EU–US Data Privacy Framework.
         </p>
-  
-        <h2>5. How We Share Your Information</h2>
-        <p>We do not sell your personal information. We share it only with:</p>
-        <ul>
-          <li>Payment processor: [e.g., Stripe]</li>
-          <li>Hosting: [e.g., AWS/Google Cloud]</li>
-          <li>Analytics: [e.g., Google Analytics]</li>
-          <li>Email delivery: [e.g., SendGrid/Postmark]</li>
-          <li>Legal authorities, where required by law</li>
+      </Section>
+
+      <Section title="6. Cookies">
+        <p>
+          We use cookies that are strictly necessary for the platform to work, such as keeping
+          you signed in. Analytics cookies from Google Analytics are used only if you
+          allow them in the cookie banner, and you can change your choice at any time via
+          Cookie Settings. We do not use advertising cookies.
+        </p>
+      </Section>
+
+      <Section title="7. How long we keep data">
+        <p>
+          We keep your account and content while your account is active. If you delete your
+          account or ask us to delete your data, we delete it within 30 days, except where we
+          must keep certain records by law. Technical logs are kept only for a limited period.
+        </p>
+      </Section>
+
+      <Section title="8. Your rights">
+        <p>Under the GDPR you have the right to:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>access the personal data we hold about you;</li>
+          <li>correct inaccurate data;</li>
+          <li>have your data deleted;</li>
+          <li>receive your data in a portable format;</li>
+          <li>object to or restrict certain processing;</li>
+          <li>withdraw consent where processing is based on consent.</li>
         </ul>
-  
-        <h2>6. International Data Transfers</h2>
         <p>
-          Data may be transferred to and processed in countries other than your own, including the
-          United States. Transfers of EU/EEA/UK data rely on Standard Contractual Clauses or an
-          equivalent safeguard.
+          To use any of these rights, email{" "}
+          <a className="underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. You
+          can also file a complaint with the Czech data protection authority, the Office for
+          Personal Data Protection (ÚOOÚ, uoou.gov.cz), or the authority in your own country.
         </p>
-  
-        <h2>7. Data Retention</h2>
+      </Section>
+
+      <Section title="9. Security">
         <p>
-          We retain personal data as long as your account is active or as needed to provide the
-          Service and meet legal obligations, then delete or anonymize it.
+          We use encryption in transit (HTTPS), encrypt stored provider API keys and limit
+          access to data. No system is 100% secure, so please use a strong password for your
+          sign-in account and enable two-factor authentication.
         </p>
-  
-        <h2>8. Your Privacy Rights</h2>
-        <h3>8.1 EU / EEA / UK / Switzerland (GDPR)</h3>
+      </Section>
+
+      <Section title="10. Children">
         <p>
-          You may access, rectify, erase, restrict, or object to processing of your data, request
-          portability, withdraw consent, and lodge a complaint with your local supervisory
-          authority.
+          AstroCore is not intended for anyone under 16. We do not knowingly collect data
+          from children.
         </p>
-  
-        <h3>8.2 California Residents (CCPA/CPRA)</h3>
+      </Section>
+
+      <Section title="11. Changes">
         <p>
-          You may know, delete, and correct your personal information, opt out of "sale/sharing"
-          (we do not sell or share data), limit use of sensitive personal information, and will not
-          be discriminated against for exercising these rights.
+          We may update this policy as the platform grows. If changes are significant, we
+          will notify you in the app or by email. The date at the top shows the latest
+          version.
         </p>
-        <p>
-          To exercise any right, email <strong>gbtauent21@outlook.com</strong>. We may verify your
-          identity first.
-        </p>
-  
-        <h2>9. Data Security</h2>
-        <p>
-          We use encryption in transit, access controls, and hashed passwords, though no method is
-          100% secure.
-        </p>
-  
-        <h2>10. Children's Privacy</h2>
-        <p>The Service is not directed to children under 16.</p>
-  
-        <h2>11. Third-Party Links</h2>
-        <p>We are not responsible for the privacy practices of linked third-party sites.</p>
-  
-        <h2>12. Changes to This Policy</h2>
-        <p>We will update the "Last updated" date and, where required, notify you of material changes.</p>
-  
-        <h2>13. Contact Us</h2>
-        <p>
-          AstroCore
-          <br />
-          [Registered legal address — add once you register as FOP / a legal entity]
-          <br />
-          Email: gbtauent21@outlook.com
-          <br />
-          Telegram: @AstroCore_Manager
-        </p>
-      </main>
-    );
-  }
+      </Section>
+    </main>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mb-8 space-y-3">
+      <h2 className="text-xl font-semibold">{title}</h2>
+      {children}
+    </section>
+  );
+}
