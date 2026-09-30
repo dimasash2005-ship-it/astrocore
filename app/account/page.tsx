@@ -1,12 +1,10 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import {
-  User, Shield, LogOut, Key, Mail,
-  Edit3, Check, X, Eye, EyeOff,
-  Activity, ChevronRight, AlertCircle,
-  Camera, Loader2,
+  User, Shield, LogOut, Mail,
+  Edit3, Check, Eye, EyeOff,
+  AlertCircle, Camera, Loader2, Copy, Clock, CalendarDays, Fingerprint, Lock,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
@@ -15,9 +13,7 @@ import { useLanguage } from "@/lib/useLanguage"
 const T = {
   bg:    "#08080F",
   s1:    "#11111C",
-  s2:    "#16162A",
   b1:    "rgba(255,255,255,0.10)",
-  b2:    "rgba(255,255,255,0.16)",
   bRed:  "rgba(232,0,42,0.30)",
   t1:    "#F0EDF8",
   t2:    "#C8C4D8",
@@ -25,177 +21,84 @@ const T = {
   t4:    "#585878",
   red:   "#E8002A",
   green: "#22C55E",
+  amber: "#F59E0B",
 }
 
-const inp: React.CSSProperties = {
-  background: "#09090F",
-  border: "0.5px solid rgba(255,255,255,0.10)",
-  borderRadius: 9, padding: "9px 12px",
-  fontSize: 13, color: T.t1, outline: "none", width: "100%",
-}
-
-// ─── Section card ─────────────────────────────────────────────────
-// `variant="system"` switches to the same grid-textured, mono-caps
-// treatment used for Dashboard's system panels (Providers, Activity) —
-// reserved here for Account Info, since that card shows genuine raw
-// backend data (user id, auth provider). Everything else (Profile,
-// Security, Quick Access) is content/settings, not a data readout, so
-// it keeps a normal-case Space Grotesk title instead of the tracked
-// uppercase eyebrow the whole page used to have on every single card.
-
-function Card({ title, icon: Icon, children, accent, variant = "content" }: {
-  title: string; icon: React.ElementType; children: React.ReactNode; accent?: boolean
-  variant?: "content" | "system"
-}) {
-  const isSystem = variant === "system"
-  return (
-    <div style={{
-      position: "relative",
-      background: isSystem ? "#0A0A10" : "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-      backgroundImage: isSystem
-        ? "linear-gradient(rgba(255,255,255,0.045) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.045) 0.5px, transparent 0.5px)"
-        : undefined,
-      backgroundSize: isSystem ? "14px 14px" : undefined,
-      border: `0.5px solid ${accent ? "rgba(232,0,42,0.20)" : T.b1}`,
-      borderRadius: isSystem ? 10 : 14,
-      overflow: "hidden",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: isSystem ? "11px 16px 10px" : "13px 18px 11px",
-        borderBottom: `0.5px solid ${T.b1}`,
-        background: accent ? "rgba(232,0,42,0.04)" : isSystem ? "rgba(10,10,16,0.55)" : "transparent",
-      }}>
-        <Icon size={isSystem ? 12 : 13} style={{ color: accent ? T.red : T.t4, opacity: 0.9 }} />
-        <span style={{
-          fontFamily: isSystem ? "'JetBrains Mono', monospace" : "'Space Grotesk', sans-serif",
-          fontSize: isSystem ? 10 : 13,
-          fontWeight: 600,
-          color: isSystem ? T.t4 : T.t2,
-          textTransform: isSystem ? "uppercase" : "none",
-          letterSpacing: isSystem ? "0.07em" : "-0.005em",
-        }}>
-          {title}
-        </span>
-      </div>
-      <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <span style={{ fontSize: 12, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 13, color: T.t2, fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit" }}>{value}</span>
-    </div>
-  )
-}
-
-function Divider() {
-  return <div style={{ height: "0.5px", background: "rgba(255,255,255,0.06)", margin: "2px 0" }} />
-}
-
-// Thin impulse-line divider between major blocks — same motif as
-// Sidebar's rail and Dashboard's stat-card frame, so the whole app
-// reads as one consistent visual language rather than each page
-// inventing its own way to separate sections.
-function SectionDivider({ delay = "0s" }: { delay?: string }) {
-  return (
-    <div aria-hidden style={{
-      position: "relative", height: 1.5,
-      background: "rgba(255,255,255,0.06)", overflow: "hidden", borderRadius: 1,
-    }}>
-      <div className="astrocore-hero-sweep" style={{
-        position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-        background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-        boxShadow: "0 0 8px rgba(232,0,42,0.75)",
-        animationDelay: delay,
-      }} />
-    </div>
-  )
-}
+type Tone = "green" | "red" | "amber"
 
 // ─── Inline editable field ────────────────────────────────────────
 
 function EditableField({
-  label, value, onSave, type = "text", editLabel, cancelLabel, saveLabel,
+  icon: Icon, label, value, onSave, type = "text", editLabel, cancelLabel, saveLabel, hint,
 }: {
-  label: string; value: string; onSave: (v: string) => void; type?: string
-  editLabel: string; cancelLabel: string; saveLabel: string
+  icon: React.ElementType
+  label: string; value: string; onSave: (v: string) => Promise<boolean> | boolean | void; type?: string
+  editLabel: string; cancelLabel: string; saveLabel: string; hint?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [val,     setVal]     = useState(value)
   const [show,    setShow]    = useState(false)
+  const [busy,    setBusy]    = useState(false)
 
-  function save() {
-    if (val.trim()) { onSave(val.trim()); setEditing(false) }
+  useEffect(() => { if (!editing) setVal(value) }, [value, editing])
+
+  async function save() {
+    if (!val.trim() || busy) return
+    setBusy(true)
+    const ok = await onSave(val.trim())
+    setBusy(false)
+    if (ok !== false) { setEditing(false); if (type === "password") setVal("") }
   }
 
-  if (!editing) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div>
-          <div style={{ fontSize: 10.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, marginBottom: 3 }}>{label}</div>
-          <div style={{ fontSize: 13, color: T.t2 }}>
-            {type === "password" ? "••••••••••" : value || "—"}
-          </div>
-        </div>
-        <button onClick={() => setEditing(true)} style={{
-          display: "flex", alignItems: "center", gap: 5,
-          padding: "5px 10px", borderRadius: 7, border: "none", cursor: "pointer",
-          background: "rgba(255,255,255,0.05)", color: T.t3, fontSize: 11,
-        }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}
-        >
-          <Edit3 size={11} /> {editLabel}
-        </button>
-      </div>
-    )
-  }
+  // password strength (0..4)
+  const strength = type === "password" && val
+    ? [val.length >= 8, /[A-Z]/.test(val) && /[a-z]/.test(val), /\d/.test(val), /[^A-Za-z0-9]/.test(val)].filter(Boolean).length
+    : 0
+  const sColor = strength <= 1 ? "#FF4D6A" : strength === 2 ? T.amber : T.green
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <label style={{ fontSize: 10.5, color: T.t4, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600 }}>{label}</label>
-      <div style={{ position: "relative" }}>
-        <input
-          value={val}
-          onChange={e => setVal(e.target.value)}
-          type={type === "password" ? (show ? "text" : "password") : type}
-          onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false) }}
-          autoFocus
-          style={{ ...inp, paddingRight: type === "password" ? 40 : 12 }}
-          onFocus={e => { e.currentTarget.style.borderColor = "rgba(232,0,42,0.4)" }}
-          onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)" }}
-        />
-        {type === "password" && (
-          <button onClick={() => setShow(v => !v)} style={{
-            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-            background: "none", border: "none", cursor: "pointer", color: T.t4, lineHeight: 0,
-          }}>
-            {show ? <EyeOff size={13} /> : <Eye size={13} />}
-          </button>
+    <div className={`ac-field${editing ? " editing" : ""}`}>
+      <span className="ac-fico"><Icon size={14} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="ac-flabel">{label}</div>
+        {!editing ? (
+          <div className="ac-fval">{type === "password" ? "••••••••••" : value || "—"}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+            <div style={{ position: "relative" }}>
+              <input
+                className="ac-input"
+                value={val}
+                onChange={e => setVal(e.target.value)}
+                type={type === "password" ? (show ? "text" : "password") : type}
+                onKeyDown={e => { if (e.key === "Enter") save(); if (e.key === "Escape") { setEditing(false); setVal(value) } }}
+                autoFocus
+                style={{ paddingRight: type === "password" ? 40 : 12 }}
+              />
+              {type === "password" && (
+                <button onClick={() => setShow(v => !v)} className="ac-eye">{show ? <EyeOff size={13} /> : <Eye size={13} />}</button>
+              )}
+            </div>
+            {type === "password" && val && (
+              <div style={{ display: "flex", gap: 4 }}>
+                {[0, 1, 2, 3].map(i => (
+                  <span key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < strength ? sColor : "rgba(255,255,255,.08)", transition: "background .2s" }} />
+                ))}
+              </div>
+            )}
+            {hint && <div style={{ fontSize: 11, color: T.t4, lineHeight: 1.5 }}>{hint}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setEditing(false); setVal(value) }} className="ac-btn">{cancelLabel}</button>
+              <button onClick={save} disabled={busy || !val.trim()} className="ac-btn primary">
+                {busy ? <Loader2 size={12} className="ac-spin" /> : <Check size={12} />} {saveLabel}
+              </button>
+            </div>
+          </div>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => { setEditing(false); setVal(value) }} style={{
-          flex: 1, padding: "7px", borderRadius: 8, fontSize: 12, cursor: "pointer",
-          background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`, color: T.t3,
-        }}>{cancelLabel}</button>
-        <button onClick={save} style={{
-          flex: 1, padding: "7px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
-          background: T.red, border: "none", color: "#fff",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-        }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FF1A3E" }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = T.red }}
-        >
-          <Check size={12} /> {saveLabel}
-        </button>
-      </div>
+      {!editing && (
+        <button onClick={() => setEditing(true)} className="ac-btn ghost"><Edit3 size={11} /> {editLabel}</button>
+      )}
     </div>
   )
 }
@@ -203,40 +106,23 @@ function EditableField({
 // ─── Logout confirm ───────────────────────────────────────────────
 
 function LogoutModal({ onConfirm, onClose, t }: { onConfirm: () => void; onClose: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", fn)
+    return () => window.removeEventListener("keydown", fn)
+  }, [onClose])
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 100,
-        background: "rgba(0,0,0,0.78)",
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-      }}>
-      <div style={{
-        width: "100%", maxWidth: 380, borderRadius: 14,
-        background: "linear-gradient(160deg,#111120 0%,#0C0C18 100%)",
-        border: "1px solid rgba(232,0,42,0.25)",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.85)",
-        padding: "22px 22px 18px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-          <LogOut size={17} style={{ color: T.red, flexShrink: 0 }} />
-          <span style={{ fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.account.logoutTitle}</span>
+    <div className="ac-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ac-modal">
+        <div style={{ width: 42, height: 42, borderRadius: 12, marginBottom: 14, display: "grid", placeItems: "center",
+          background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.3)", boxShadow: "0 0 24px rgba(232,0,42,0.18)" }}>
+          <LogOut size={18} style={{ color: T.red }} />
         </div>
-        <p style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, marginBottom: 18 }}>
-          {t.account.logoutDesc}
-        </p>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.account.logoutTitle}</div>
+        <p style={{ fontSize: 13, color: T.t3, lineHeight: 1.6, margin: "0 0 20px" }}>{t.account.logoutDesc}</p>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onClose} style={{
-            flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, cursor: "pointer",
-            background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t2,
-          }}>{t.common.cancel}</button>
-          <button onClick={() => { onConfirm(); onClose() }} style={{
-            flex: 1, padding: "9px", borderRadius: 9, fontSize: 13, fontWeight: 500, cursor: "pointer",
-            background: "rgba(232,0,42,0.14)", border: "0.5px solid rgba(232,0,42,0.28)",
-            color: "#FF4D6A", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.24)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.14)" }}
-          >
+          <button onClick={onClose} className="ac-btn" style={{ flex: 1, height: 38 }}>{t.common.cancel}</button>
+          <button onClick={() => { onConfirm(); onClose() }} className="ac-btn danger-solid" style={{ flex: 1, height: 38 }}>
             <LogOut size={13} /> {t.account.signOut}
           </button>
         </div>
@@ -248,28 +134,35 @@ function LogoutModal({ onConfirm, onClose, t }: { onConfirm: () => void; onClose
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function AccountPage() {
-  const router = useRouter()
   const { t, language } = useLanguage()
+  const uk = language === "uk"
 
   const [showLogout,   setShowLogout]   = useState(false)
   const [displayName,  setDisplayName]  = useState("")
   const [email,        setEmail]        = useState("")
-  const [savedName,    setSavedName]    = useState(false)
-  const [user,         setUser]         = useState<{ email: string; id: string } | null>(null)
+  const [user,         setUser]         = useState<{ email: string; id: string; created_at?: string; last_sign_in_at?: string; provider?: string } | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [avatarError,     setAvatarError]     = useState("")
+  const [toast,        setToast]        = useState<{ msg: string; tone: Tone } | null>(null)
+  const [idCopied,     setIdCopied]     = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load user from Supabase
+  const notify = useCallback((msg: string, tone: Tone = "green") => {
+    setToast({ msg, tone })
+    setTimeout(() => setToast(null), 3200)
+  }, [])
+
   useEffect(() => {
     async function load() {
       try {
-        const sb = getSupabase()
-        const { data: { user: u } } = await sb.auth.getUser()
+        const { data: { user: u } } = await getSupabase().auth.getUser()
         if (u) {
-          setUser({ email: u.email ?? "", id: u.id })
+          setUser({
+            email: u.email ?? "", id: u.id,
+            created_at: u.created_at, last_sign_in_at: u.last_sign_in_at ?? undefined,
+            provider: (u.app_metadata?.provider as string | undefined) ?? "email",
+          })
           setEmail(u.email ?? "")
           setDisplayName(u.user_metadata?.full_name ?? "")
           setAvatarUrl((u.user_metadata?.avatar_url as string | undefined) ?? null)
@@ -280,526 +173,327 @@ export default function AccountPage() {
     load()
   }, [])
 
-  function saveName(name: string) {
+  // Name is now stored in Supabase user_metadata (the sidebar reads it from
+  // there), not only in localStorage as before.
+  async function saveName(name: string) {
+    const { error } = await getSupabase().auth.updateUser({ data: { full_name: name } })
+    if (error) { notify(error.message, "red"); return false }
     setDisplayName(name)
-    const current = JSON.parse(localStorage.getItem("astrocore_profile") ?? "{}")
-    localStorage.setItem("astrocore_profile", JSON.stringify({ ...current, name, email }))
-    setSavedName(true)
-    setTimeout(() => setSavedName(false), 2000)
-  }
-
-  function saveEmail(e: string) {
-    setEmail(e)
-    const current = JSON.parse(localStorage.getItem("astrocore_profile") ?? "{}")
-    localStorage.setItem("astrocore_profile", JSON.stringify({ ...current, name: displayName, email: e }))
-  }
-
-  async function handleLogout() {
     try {
-      const sb = getSupabase()
-      await sb.auth.signOut()
+      const current = JSON.parse(localStorage.getItem("astrocore_profile") ?? "{}")
+      localStorage.setItem("astrocore_profile", JSON.stringify({ ...current, name, email }))
     } catch {}
+    notify(t.account.savedIndicator)
+    return true
+  }
 
-    const keys = [
-      "astro:providers", "astro:agents", "astro:chats",
-      "astro:vault", "astro:gallery", "astrocore_profile",
-    ]
-    keys.forEach(k => localStorage.removeItem(k))
-
-    window.location.href = "/login"
+  // Supabase sends a confirmation link to the new address; the email only
+  // changes after the user clicks it.
+  async function saveEmail(next: string) {
+    if (next === email) return true
+    const { error } = await getSupabase().auth.updateUser({ email: next })
+    if (error) { notify(error.message, "red"); return false }
+    notify(uk ? `Лист з підтвердженням надіслано на ${next}` : `Confirmation sent to ${next}`, "amber")
+    return true
   }
 
   async function handlePasswordChange(newPassword: string) {
-    try {
-      const sb = getSupabase()
-      await sb.auth.updateUser({ password: newPassword })
-    } catch {}
+    if (newPassword.length < 6) { notify(uk ? "Мінімум 6 символів" : "At least 6 characters", "red"); return false }
+    const { error } = await getSupabase().auth.updateUser({ password: newPassword })
+    if (error) { notify(error.message, "red"); return false }
+    notify(uk ? "Пароль змінено" : "Password updated")
+    return true
+  }
+
+  async function handleLogout() {
+    try { await getSupabase().auth.signOut() } catch {}
+    ;["astro:providers", "astro:agents", "astro:chats", "astro:vault", "astro:gallery", "astrocore_profile"].forEach(k => localStorage.removeItem(k))
+    window.location.href = "/login"
   }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !user) return
+    if (!file.type.startsWith("image/")) { notify(uk ? "Файл має бути зображенням." : "File must be an image.", "red"); return }
+    if (file.size > 5 * 1024 * 1024)    { notify(uk ? "Максимальний розмір — 5MB." : "Max size is 5MB.", "red"); return }
 
-    if (!file.type.startsWith("image/")) {
-      setAvatarError(language === "uk" ? "Файл має бути зображенням." : "File must be an image.")
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setAvatarError(language === "uk" ? "Максимальний розмір — 5MB." : "Max size is 5MB.")
-      return
-    }
-
-    setAvatarError("")
     setUploadingAvatar(true)
     try {
       const sb = getSupabase()
       const ext = file.name.split(".").pop() || "jpg"
       const path = `${user.id}/avatar.${ext}`
-
-      const { error: uploadError } = await sb.storage
-        .from("avatars")
-        .upload(path, file, { upsert: true, cacheControl: "3600" })
+      const { error: uploadError } = await sb.storage.from("avatars").upload(path, file, { upsert: true, cacheControl: "3600" })
       if (uploadError) throw uploadError
-
       const { data: urlData } = sb.storage.from("avatars").getPublicUrl(path)
-      // Cache-bust so the new image shows immediately instead of a
-      // browser-cached copy of whatever used to be at that path.
       const bustedUrl = `${urlData.publicUrl}?t=${Date.now()}`
-
       const { error: updateError } = await sb.auth.updateUser({ data: { avatar_url: bustedUrl } })
       if (updateError) throw updateError
-
       setAvatarUrl(bustedUrl)
+      notify(uk ? "Аватар оновлено" : "Avatar updated")
     } catch (err) {
-      setAvatarError(err instanceof Error ? err.message : (language === "uk" ? "Не вдалося завантажити аватар." : "Failed to upload avatar."))
+      notify(err instanceof Error ? err.message : (uk ? "Не вдалося завантажити аватар." : "Failed to upload avatar."), "red")
     } finally {
       setUploadingAvatar(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
+  function fmt(iso?: string) {
+    if (!iso) return "—"
+    return new Date(iso).toLocaleDateString(uk ? "uk-UA" : "en-US", { day: "numeric", month: "short", year: "numeric" })
+  }
+  function fmtFull(iso?: string) {
+    if (!iso) return "—"
+    return new Date(iso).toLocaleString(uk ? "uk-UA" : "en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  }
+
   const initials = displayName
     ? displayName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
-    : email
-    ? email[0].toUpperCase()
-    : "?"
+    : email ? email[0].toUpperCase() : "?"
+
+  const toastColor = toast?.tone === "red" ? "#FF4D6A" : toast?.tone === "amber" ? T.amber : T.green
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
-
-        @keyframes scanline {
-          0%   { transform: translateX(-100%); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { transform: translateX(200%); opacity: 0; }
-        }
-        /* fixes a skeleton loader that previously referenced this
-           keyframe by name without it existing anywhere — it was
-           silently doing nothing while "loading" */
-        @keyframes pulse {
-          0%, 100% { opacity: 0.5; }
-          50%      { opacity: 1; }
-        }
+        @keyframes scanline { 0% { transform: translateX(-100%); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(200%); opacity: 0; } }
         .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
-        @keyframes astrocoreBadgeSweep {
-          0%   { left: -40%; }
-          100% { left: 100%; }
-        }
+        @keyframes astrocoreBadgeSweep { 0% { left: -40%; } 100% { left: 100%; } }
         .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
-        @keyframes astrocoreHeroSweep {
-          0%   { left: -20%; }
-          100% { left: 100%; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
+        @keyframes astrocoreHeroSweep { 0% { left: -20%; } 100% { left: 100%; } }
+        @keyframes acSpin { to { transform: rotate(360deg); } }
+        .ac-spin { animation: acSpin 1s linear infinite; }
+        @keyframes acIn   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes acFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes acPop  { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+        @keyframes acRing { to { transform: rotate(360deg); } }
+        @keyframes acPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
+        @keyframes acShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 
-        /* two columns on wide screens, one column once it gets tight */
-        .astrocore-account-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 340px;
-          gap: 20px;
-          align-items: start;
-        }
-        @media (max-width: 880px) {
-          .astrocore-account-grid { grid-template-columns: 1fr; }
-        }
+        /* avatar with spinning red ring */
+        .ac-av-wrap { position: relative; width: 92px; height: 92px; flex-shrink: 0; cursor: pointer; }
+        .ac-av-ring { position: absolute; inset: -4px; border-radius: 28px; padding: 1.5px;
+          background: conic-gradient(from 0deg, transparent 0 55%, rgba(232,0,42,.9) 75%, transparent 95%);
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+          animation: acRing 4s linear infinite; }
+        .ac-av { position: absolute; inset: 0; border-radius: 24px; overflow: hidden; display: grid; place-items: center;
+          font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; color: #fff;
+          background: linear-gradient(145deg,#C2001A 0%,#760012 100%); box-shadow: 0 0 0 1px rgba(232,0,42,.35), 0 10px 40px rgba(232,0,42,.25); }
+        .ac-av img { width: 100%; height: 100%; object-fit: cover; }
+        .ac-av-over { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.55); opacity: 0; transition: opacity .15s; color: #fff; }
+        .ac-av-wrap:hover .ac-av-over { opacity: 1; }
+        .ac-av-cam { position: absolute; right: -4px; bottom: -4px; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+          background: ${T.red}; color: #fff; border: 2px solid ${T.bg}; box-shadow: 0 4px 12px rgba(232,0,42,.4); }
+
+        .ac-badge { display: inline-flex; align-items: center; gap: 5px; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600;
+          padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .06em; }
+        .ac-live { width: 6px; height: 6px; border-radius: 50%; background: ${T.green}; animation: acPulse 2s infinite; }
+
+        .ac-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+        .ac-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
+        @media (max-width: 1050px) { .ac-grid { grid-template-columns: 1fr; } .ac-side { position: static; } }
+        .ac-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .ac-head span { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1}; }
+
+        .ac-card { border-radius: 14px; overflow: hidden; background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1}; animation: acIn .4s ease both; }
+        .ac-field { display: flex; align-items: flex-start; gap: 13px; padding: 15px 16px; border-bottom: 0.5px solid rgba(255,255,255,.06); transition: background .15s; }
+        .ac-field:last-child { border-bottom: 0; }
+        .ac-field:hover { background: rgba(255,255,255,.015); }
+        .ac-field.editing { background: rgba(232,0,42,.035); }
+        .ac-fico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; color: ${T.t3};
+          background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.08); }
+        .ac-field.editing .ac-fico { color: ${T.red}; background: rgba(232,0,42,.1); border-color: rgba(232,0,42,.3); }
+        .ac-flabel { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4}; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px; }
+        .ac-fval { font-size: 14px; color: ${T.t1}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ac-input { width: 100%; padding: 10px 12px; border-radius: 10px; outline: none; font-size: 13.5px; font-family: inherit; color: ${T.t1};
+          background: #07070D; border: 0.5px solid ${T.b1}; transition: border-color .15s, box-shadow .15s; }
+        .ac-input:focus { border-color: rgba(232,0,42,.5); box-shadow: 0 0 0 3px rgba(232,0,42,.12); }
+        .ac-eye { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: ${T.t4}; line-height: 0; }
+
+        .ac-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+          font-size: 12px; font-weight: 500; font-family: inherit; flex: 1; flex-shrink: 0;
+          background: rgba(255,255,255,.05); border: 0.5px solid ${T.b1}; color: ${T.t2}; transition: all .15s; }
+        .ac-btn:hover:not(:disabled) { background: rgba(255,255,255,.09); color: ${T.t1}; }
+        .ac-btn:disabled { opacity: .5; cursor: default; }
+        .ac-btn.ghost { flex: 0 0 auto; height: 28px; font-size: 11px; }
+        .ac-btn.primary { background: ${T.red}; border-color: ${T.red}; color: #fff; }
+        .ac-btn.primary:hover:not(:disabled) { background: #FF1A3E; color: #fff; box-shadow: 0 0 16px rgba(232,0,42,.35); }
+        .ac-btn.danger { color: #FF4D6A; background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.28); }
+        .ac-btn.danger:hover { background: rgba(232,0,42,.18); color: #FF6B84; }
+        .ac-btn.danger-solid { background: ${T.red}; border-color: ${T.red}; color: #fff; }
+        .ac-btn.danger-solid:hover { background: #FF1A3E; color: #fff; box-shadow: 0 0 18px rgba(232,0,42,.4); }
+
+        .ac-panel { border-radius: 13px; overflow: hidden; background: #0D0D15; border: 0.5px solid rgba(255,255,255,.07); }
+        .ac-kv { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; border-bottom: 0.5px solid rgba(255,255,255,.05); }
+        .ac-kv:last-child { border-bottom: 0; }
+        .ac-kv > span:first-child { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: ${T.t3}; }
+        .ac-kv > span:last-child { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: ${T.t2}; display: flex; align-items: center; gap: 6px; }
+        .ac-copy { padding: 4px; border-radius: 6px; border: none; cursor: pointer; line-height: 0; background: rgba(255,255,255,.05); color: ${T.t4}; }
+        .ac-copy:hover { color: ${T.t1}; }
+
+        .ac-danger { border-radius: 14px; padding: 16px; position: relative; overflow: hidden;
+          background: repeating-linear-gradient(135deg, rgba(232,0,42,.05) 0 1px, transparent 1px 8px), #110C12; border: 0.5px solid rgba(232,0,42,.22); }
+
+        .ac-skel { border-radius: 14px; border: 0.5px solid ${T.b1};
+          background: linear-gradient(90deg, #0F0F19 0px, #16162A 200px, #0F0F19 400px); background-size: 800px 100%; animation: acShimmer 1.4s linear infinite; }
+
+        .ac-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px;
+          background: rgba(4,4,10,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: acFade .18s ease-out; }
+        .ac-modal { width: 100%; max-width: 390px; border-radius: 16px; padding: 22px; background: linear-gradient(160deg,#111120 0%,#0C0C18 100%);
+          border: 0.5px solid rgba(232,0,42,.3); box-shadow: 0 30px 80px rgba(0,0,0,.8), 0 0 50px rgba(232,0,42,.08); animation: acPop .24s cubic-bezier(.2,.9,.3,1.2); }
+        .ac-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; align-items: center; gap: 8px; max-width: 90vw;
+          padding: 10px 16px; border-radius: 11px; font-size: 13px; background: #0F0F1E; border: 0.5px solid; box-shadow: 0 14px 40px rgba(0,0,0,.6); animation: acPop .24s ease-out; }
+        @media (prefers-reduced-motion: reduce) { .ac-av-ring, .ac-card, .ac-modal { animation: none; } }
       `}</style>
 
       <div style={{
-        marginLeft: SIDEBAR_W,
-        minHeight: "100vh",
-        background: T.bg,
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)",
-        backgroundSize: "24px 24px",
+        marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg,
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.038) 1px,transparent 1px)", backgroundSize: "24px 24px",
       }}>
+        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10 }} />
 
-        {/* scan line */}
-        <div aria-hidden style={{
-          position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1,
-          background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)",
-          animation: "scanline 6s linear infinite",
-          pointerEvents: "none", zIndex: 10,
-        }} />
-
-        {/* ── Hero ── */}
-        <div style={{
-          position: "relative", padding: "36px 48px 28px",
-          borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden",
-        }}>
-          <div aria-hidden style={{
-            position: "absolute", bottom: -1, left: 0, right: 0, height: 1.5,
-            background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none",
-          }}>
-            <div className="astrocore-hero-sweep" style={{
-              position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%",
-              background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-              boxShadow: "0 0 8px rgba(232,0,42,0.75)",
-            }} />
+        {/* ── Hero = profile ── */}
+        <div style={{ position: "relative", padding: "36px 48px 30px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+          <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5, background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none" }}>
+            <div className="astrocore-hero-sweep" style={{ position: "absolute", top: 0, left: "-20%", width: "20%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)", boxShadow: "0 0 10px rgba(232,0,42,0.85)" }} />
           </div>
-          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 300, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
+          <div aria-hidden style={{ position: "absolute", top: -80, left: -40, width: 420, height: 300, pointerEvents: "none", background: "radial-gradient(ellipse at 30% 40%,rgba(232,0,42,0.12) 0%,transparent 65%)" }} />
+          <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 320, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.06) 0%,transparent 70%)" }} />
 
-          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              {/* Session badge — impulse line instead of a JS-timer
-                  blinking dot, same motif as Sidebar/Dashboard. Text
-                  simplified to one fact instead of a dot-joined list. */}
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`,
-                borderRadius: 20, padding: "4px 12px 4px 10px", marginBottom: 14,
-              }}>
-                <span aria-hidden style={{
-                  position: "relative", width: 18, height: 1.5, borderRadius: 1,
-                  background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block",
-                }}>
-                  <span className="astrocore-badge-sweep" style={{
-                    position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%",
-                    background: "linear-gradient(90deg, transparent, #E8002A, transparent)",
-                  }} />
-                </span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>
-                  Session Active
-                </span>
+          <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 22, minWidth: 0 }}>
+              {loading ? (
+                <div className="ac-skel" style={{ width: 92, height: 92, borderRadius: 24 }} />
+              ) : (
+                <div className="ac-av-wrap" onClick={() => !uploadingAvatar && fileInputRef.current?.click()} title={uk ? "Змінити фото" : "Change photo"}>
+                  <div className="ac-av-ring" />
+                  <div className="ac-av">
+                    {avatarUrl ? <img src={avatarUrl} alt="" /> : initials}
+                    <div className="ac-av-over">{uploadingAvatar ? <Loader2 size={20} className="ac-spin" /> : <Camera size={20} />}</div>
+                  </div>
+                  <span className="ac-av-cam"><Camera size={13} /></span>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+                </div>
+              )}
+
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(232,0,42,0.08)", border: `0.5px solid ${T.bRed}`, borderRadius: 20, padding: "3px 11px 3px 9px", marginBottom: 10 }}>
+                  <span aria-hidden style={{ position: "relative", width: 16, height: 1.5, borderRadius: 1, background: "rgba(232,0,42,0.25)", overflow: "hidden", display: "inline-block" }}>
+                    <span className="astrocore-badge-sweep" style={{ position: "absolute", top: 0, left: "-40%", width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, #E8002A, transparent)" }} />
+                  </span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.red, fontWeight: 600, letterSpacing: "0.06em" }}>Session Active</span>
+                </div>
+                <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {loading ? "…" : displayName || t.account.operatorFallback}
+                </h1>
+                <div style={{ fontSize: 13, color: T.t3, marginTop: 4 }}>{email || t.account.emailNotSet}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                  <span className="ac-badge" style={{ background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.25)", color: T.green }}><span className="ac-live" />{t.account.activeBadge}</span>
+                  <span className="ac-badge" style={{ background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, color: T.t3 }}>{t.account.operatorTag}</span>
+                </div>
               </div>
-              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>
-                {t.account.title}
-              </h1>
             </div>
 
-            <button onClick={() => setShowLogout(true)} style={{
-              display: "flex", alignItems: "center", gap: 7,
-              background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)",
-              color: "#FF4D6A", borderRadius: 9, padding: "9px 16px",
-              fontSize: 13, fontWeight: 500, cursor: "pointer",
-              transition: "background 130ms ease",
-            }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.16)" }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.08)" }}
-            >
+            <button onClick={() => setShowLogout(true)} className="ac-btn danger" style={{ flex: "0 0 auto", height: 38, padding: "0 16px", fontSize: 13 }}>
               <LogOut size={14} /> {t.account.signOut}
             </button>
           </div>
         </div>
 
-        {/* ── Body — now a wide, responsive two-column layout instead
-            of a single 780px column stranded on the left. Main column:
-            profile identity + settings. Side column: navigation +
-            danger zone, narrower and fixed-width like a utility rail. ── */}
-        <div style={{ padding: "24px 48px 56px", maxWidth: 1360, margin: "0 auto" }}>
-
-          {/* Loading */}
-          {loading && (
-            <div className="astrocore-account-grid">
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {[1, 2, 3].map(i => (
-                  <div key={i} style={{
-                    height: 100, borderRadius: 14, background: T.s1,
-                    border: `0.5px solid ${T.b1}`,
-                    animation: "pulse 2s ease infinite",
-                  }} />
-                ))}
-              </div>
-              <div style={{
-                height: 220, borderRadius: 14, background: T.s1,
-                border: `0.5px solid ${T.b1}`,
-                animation: "pulse 2s ease infinite",
-              }} />
-            </div>
-          )}
-
-          {!loading && (
-            <div className="astrocore-account-grid">
-
-              {/* ── Main column ── */}
+        {/* ── Body ── */}
+        <div style={{ padding: "26px 48px 60px" }}>
+          {loading ? (
+            <div className="ac-grid">
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div className="ac-skel" style={{ height: 150 }} /><div className="ac-skel" style={{ height: 110 }} />
+              </div>
+              <div className="ac-skel" style={{ height: 220 }} />
+            </div>
+          ) : (
+            <div className="ac-grid">
+              {/* Main */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 28, minWidth: 0 }}>
+                <section>
+                  <div className="ac-head"><User size={13} style={{ color: T.red }} /><span>{t.account.profileCard}</span></div>
+                  <div className="ac-card">
+                    <EditableField icon={User} label={t.account.nameLabel} value={displayName} onSave={saveName}
+                      editLabel={t.account.edit} cancelLabel={t.common.cancel} saveLabel={t.common.save} />
+                    <EditableField icon={Mail} label={t.account.emailLabel} value={email} onSave={saveEmail} type="email"
+                      editLabel={t.account.edit} cancelLabel={t.common.cancel} saveLabel={t.common.save}
+                      hint={uk ? "На нову адресу прийде лист — пошта зміниться після підтвердження." : "We'll send a confirmation link — the email changes after you confirm."} />
+                  </div>
+                </section>
 
-                {/* ── Profile card ── */}
-                <div style={{
-                  background: "linear-gradient(160deg,#11111C 0%,#0E0E18 100%)",
-                  border: `0.5px solid ${T.b1}`,
-                  borderRadius: 14, padding: "20px 20px",
-                  display: "flex", alignItems: "center", gap: 18,
-                  position: "relative", overflow: "hidden", flexWrap: "wrap",
-                }}>
-                  {/* ambient glow */}
-                  <div aria-hidden style={{
-                    position: "absolute", top: 0, left: 0, width: 200, height: 120, pointerEvents: "none",
-                    background: "radial-gradient(ellipse at 0% 0%,rgba(232,0,42,0.07) 0%,transparent 70%)",
-                  }} />
-
-                  {/* Avatar — click to upload. Shows the real photo
-                      once one exists, falls back to initials. */}
-                  <div
-                    onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
-                    onMouseEnter={e => {
-                      const overlay = e.currentTarget.querySelector(".astrocore-avatar-overlay") as HTMLElement | null
-                      if (overlay) overlay.style.opacity = "1"
-                    }}
-                    onMouseLeave={e => {
-                      const overlay = e.currentTarget.querySelector(".astrocore-avatar-overlay") as HTMLElement | null
-                      if (overlay) overlay.style.opacity = "0"
-                    }}
-                    style={{
-                      position: "relative",
-                      width: 64, height: 64, borderRadius: 18, flexShrink: 0,
-                      background: avatarUrl ? "#000" : "linear-gradient(145deg,#C2001A 0%,#760012 100%)",
-                      boxShadow: "0 0 0 2px rgba(232,0,42,0.30), 0 0 24px rgba(232,0,42,0.20)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 22, fontWeight: 700, color: "#fff",
-                      cursor: "pointer", overflow: "hidden",
-                    }}
-                  >
-                    {avatarUrl ? (
-                      // Externally hosted (Supabase Storage), uploaded
-                      // at runtime — a plain <img> avoids having to add
-                      // the storage domain to next.config's image
-                      // allowlist just for this.
-                      <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <section>
+                  <div className="ac-head"><Shield size={13} style={{ color: T.red }} /><span>{t.account.securityCard}</span></div>
+                  <div className="ac-card" style={{ animationDelay: "60ms" }}>
+                    {user ? (
+                      <EditableField icon={Lock} label={t.account.passwordLabel} value="" onSave={handlePasswordChange} type="password"
+                        editLabel={t.account.edit} cancelLabel={t.common.cancel} saveLabel={t.common.save}
+                        hint={uk ? "Мінімум 6 символів. Краще — 8+, з великими літерами, цифрами і символами." : "At least 6 characters. Better: 8+, with upper case, digits and symbols."} />
                     ) : (
-                      initials
+                      <div className="ac-field">
+                        <span className="ac-fico"><AlertCircle size={14} /></span>
+                        <span style={{ fontSize: 12, color: T.t4, lineHeight: 1.55 }}>{t.account.supabaseNotConfigured}</span>
+                      </div>
                     )}
-
-                    <div className="astrocore-avatar-overlay" style={{
-                      position: "absolute", inset: 0,
-                      background: "rgba(0,0,0,0.55)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      opacity: 0, transition: "opacity 140ms ease",
-                    }}>
-                      {uploadingAvatar ? (
-                        <Loader2 size={18} style={{ color: "#fff", animation: "spin 1s linear infinite" }} />
-                      ) : (
-                        <Camera size={18} style={{ color: "#fff" }} />
-                      )}
+                    <div className="ac-field" style={{ alignItems: "center" }}>
+                      <span className="ac-fico" style={{ color: T.green, background: "rgba(34,197,94,.08)", borderColor: "rgba(34,197,94,.22)" }}><Shield size={14} /></span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 2 }}>{t.account.dataStorageTitle}</div>
+                        <div style={{ fontSize: 11.5, color: T.t4 }}>{t.account.dataStorageDesc}</div>
+                      </div>
+                      <span className="ac-badge" style={{ background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.22)", color: T.green }}>{t.account.secureBadge}</span>
                     </div>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      style={{ display: "none" }}
-                    />
                   </div>
+                </section>
+              </div>
 
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 4 }}>
-                      {displayName || t.account.operatorFallback}
-                    </div>
-                    <div style={{ fontSize: 13, color: T.t3, marginBottom: 8 }}>
-                      {email || t.account.emailNotSet}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{
-                        fontSize: 10, padding: "2px 8px", borderRadius: 5,
-                        background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.24)",
-                        color: T.green, fontWeight: 500,
-                      }}>
-                        {t.account.activeBadge}
-                      </span>
-                      <span style={{
-                        fontSize: 10, padding: "2px 8px", borderRadius: 5,
-                        background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`,
-                        color: T.t4,
-                      }}>
-                        {t.account.operatorTag}
-                      </span>
-                      {user && (
-                        <span style={{
-                          fontSize: 10, padding: "2px 8px", borderRadius: 5,
-                          background: "rgba(255,255,255,0.04)", border: `0.5px solid ${T.b1}`,
-                          color: T.t4, display: "flex", alignItems: "center", gap: 4,
-                        }}>
-                          <Activity size={8} /> {t.account.supabaseAuthTag}
+              {/* Side */}
+              <aside className="ac-side">
+                {user && (
+                  <section>
+                    <div className="ac-head"><Fingerprint size={13} style={{ color: T.red }} /><span>{t.account.accountInfoCard}</span></div>
+                    <div className="ac-panel">
+                      <div className="ac-kv">
+                        <span><Fingerprint size={12} style={{ color: T.t4 }} />{t.account.userId}</span>
+                        <span>
+                          {user.id.slice(0, 8)}…{user.id.slice(-4)}
+                          <button className="ac-copy" onClick={() => { navigator.clipboard.writeText(user.id); setIdCopied(true); setTimeout(() => setIdCopied(false), 1500) }}>
+                            {idCopied ? <Check size={11} style={{ color: T.green }} /> : <Copy size={11} />}
+                          </button>
                         </span>
-                      )}
+                      </div>
+                      <div className="ac-kv"><span><Mail size={12} style={{ color: T.t4 }} />{t.account.providerLabel}</span><span>{user.provider === "email" ? t.account.emailPasswordProvider : user.provider}</span></div>
+                      <div className="ac-kv"><span><CalendarDays size={12} style={{ color: T.t4 }} />{uk ? "З нами з" : "Member since"}</span><span>{fmt(user.created_at)}</span></div>
+                      <div className="ac-kv"><span><Clock size={12} style={{ color: T.t4 }} />{uk ? "Останній вхід" : "Last sign-in"}</span><span>{fmtFull(user.last_sign_in_at)}</span></div>
                     </div>
-                  </div>
-
-                  {savedName && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "5px 10px", borderRadius: 7,
-                      background: "rgba(34,197,94,0.10)", border: "0.5px solid rgba(34,197,94,0.24)",
-                      color: T.green, fontSize: 12,
-                    }}>
-                      <Check size={12} /> {t.account.savedIndicator}
-                    </div>
-                  )}
-                </div>
-
-                {avatarError && (
-                  <div style={{ fontSize: 12, color: "#FF4D6A", padding: "7px 10px", borderRadius: 7, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.2)" }}>
-                    {avatarError}
-                  </div>
+                  </section>
                 )}
 
-                {/* ── Profile info + Account info side by side once
-                    there's room, since the main column is wide enough
-                    now to hold two cards abreast instead of always
-                    stacking everything vertically. ── */}
-                <SectionDivider delay="0.2s" />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="astrocore-account-subgrid">
-                  <Card title={t.account.profileCard} icon={User}>
-                    <EditableField
-                      label={t.account.nameLabel}
-                      value={displayName}
-                      onSave={saveName}
-                      editLabel={t.account.edit}
-                      cancelLabel={t.common.cancel}
-                      saveLabel={t.common.save}
-                    />
-                    <Divider />
-                    <EditableField
-                      label={t.account.emailLabel}
-                      value={email}
-                      onSave={saveEmail}
-                      type="email"
-                      editLabel={t.account.edit}
-                      cancelLabel={t.common.cancel}
-                      saveLabel={t.common.save}
-                    />
-                  </Card>
-
-                  {user && (
-                    <Card title={t.account.accountInfoCard} icon={Mail} variant="system">
-                      <Row label={t.account.userId}  value={user.id.slice(0, 16) + "..."} mono />
-                      <Divider />
-                      <Row label={t.account.emailLabel}    value={user.email} />
-                      <Divider />
-                      <Row label={t.account.providerLabel} value={t.account.emailPasswordProvider} />
-                    </Card>
-                  )}
-                </div>
-
-                <SectionDivider delay="1.4s" />
-
-                {/* ── Security ── */}
-                <Card title={t.account.securityCard} icon={Shield}>
-                  {user ? (
-                    <EditableField
-                      label={t.account.passwordLabel}
-                      value=""
-                      onSave={handlePasswordChange}
-                      type="password"
-                      editLabel={t.account.edit}
-                      cancelLabel={t.common.cancel}
-                      saveLabel={t.common.save}
-                    />
-                  ) : (
-                    <div style={{
-                      display: "flex", alignItems: "flex-start", gap: 9,
-                      padding: "10px 12px", borderRadius: 9,
-                      background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)",
-                    }}>
-                      <AlertCircle size={13} style={{ color: T.t4, flexShrink: 0, marginTop: 1 }} />
-                      <span style={{ fontSize: 12, color: T.t4, lineHeight: 1.55 }}>
-                        {t.account.supabaseNotConfigured}
-                      </span>
-                    </div>
-                  )}
-                  <Divider />
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 2 }}>{t.account.dataStorageTitle}</div>
-                      <div style={{ fontSize: 11.5, color: T.t4 }}>{t.account.dataStorageDesc}</div>
-                    </div>
-                    <span style={{
-                      fontSize: 11, padding: "2px 9px", borderRadius: 5,
-                      background: "rgba(34,197,94,0.09)", border: "0.5px solid rgba(34,197,94,0.22)",
-                      color: T.green,
-                    }}>
-                      {t.account.secureBadge}
-                    </span>
+                <section>
+                  <div className="ac-head"><LogOut size={13} style={{ color: T.red }} /><span>{t.account.dangerZoneTitle}</span></div>
+                  <div className="ac-danger">
+                    <div style={{ fontSize: 12.5, color: T.t3, lineHeight: 1.55, marginBottom: 12 }}>{t.account.dangerZoneDesc}</div>
+                    <button onClick={() => setShowLogout(true)} className="ac-btn danger-solid" style={{ width: "100%", height: 36 }}>
+                      <LogOut size={13} /> {t.account.signOut}
+                    </button>
                   </div>
-                </Card>
-              </div>
-
-              {/* ── Side column: navigation + danger zone ── */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-                <Card title={t.account.quickAccessCard} icon={Key}>
-                  {[
-                    { label: t.sidebar.providers,  desc: t.account.quickProvidersDesc,  href: "/providers", icon: Key      },
-                    { label: t.sidebar.agents,      desc: t.account.quickAgentsDesc,     href: "/agents",   icon: User     },
-                    { label: t.sidebar.settings,    desc: t.account.quickSettingsDesc,   href: "/settings", icon: Shield   },
-                  ].map(({ label, desc, href, icon: Icon }, i) => (
-                    <React.Fragment key={href}>
-                      {i > 0 && <Divider />}
-                      <div key={href} onClick={() => router.push(href)} style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "4px 0", cursor: "pointer", borderRadius: 8,
-                        transition: "opacity 130ms ease",
-                      }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.7" }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1" }}
-                      >
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                          background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                        }}>
-                          <Icon size={14} style={{ color: T.t3 }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: T.t1 }}>{label}</div>
-                          <div style={{ fontSize: 11.5, color: T.t4, marginTop: 1 }}>{desc}</div>
-                        </div>
-                        <ChevronRight size={14} style={{ color: T.t4, flexShrink: 0 }} />
-                      </div>
-                    </React.Fragment>
-                  ))}
-                </Card>
-
-                <SectionDivider delay="0.8s" />
-
-                {/* ── Logout danger zone ── */}
-                <div style={{
-                  background: "rgba(232,0,42,0.04)",
-                  border: "0.5px solid rgba(232,0,42,0.18)",
-                  borderRadius: 14, padding: "16px 18px",
-                  display: "flex", flexDirection: "column", gap: 12,
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: T.t1, marginBottom: 3 }}>{t.account.dangerZoneTitle}</div>
-                    <div style={{ fontSize: 12, color: T.t4 }}>{t.account.dangerZoneDesc}</div>
-                  </div>
-                  <button onClick={() => setShowLogout(true)} style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                    background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.28)",
-                    color: "#FF4D6A", borderRadius: 9, padding: "9px 16px",
-                    fontSize: 13, fontWeight: 500, cursor: "pointer",
-                    transition: "background 130ms ease",
-                  }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.20)" }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.10)" }}
-                  >
-                    <LogOut size={14} /> {t.account.signOut}
-                  </button>
-                </div>
-              </div>
-
+                </section>
+              </aside>
             </div>
           )}
         </div>
       </div>
 
-      <style>{`
-        @media (max-width: 700px) {
-          .astrocore-account-subgrid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-
-      {showLogout && (
-        <LogoutModal
-          onConfirm={handleLogout}
-          onClose={() => setShowLogout(false)}
-          t={t}
-        />
+      {toast && (
+        <div className="ac-toast" style={{ color: toastColor, borderColor: `${toastColor}59` }}>
+          {toast.tone === "red" ? <AlertCircle size={14} /> : toast.tone === "amber" ? <Mail size={14} /> : <Check size={14} />} {toast.msg}
+        </div>
       )}
+
+      {showLogout && <LogoutModal onConfirm={handleLogout} onClose={() => setShowLogout(false)} t={t} />}
     </>
   )
 }
