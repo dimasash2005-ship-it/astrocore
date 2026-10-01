@@ -5,9 +5,30 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
 import CookieConsent from "@/components/CookieConsent";
 
+const SITE_TITLE = "AstroCore — робочий простір для AI-агента";
+const SITE_DESC  = "Памʼять, звіти і галерея для агента OpenClaw. Підключення однією командою.";
+
 export const metadata: Metadata = {
-  title: "AstroCore",
-  description: "AI Agent Workspace",
+  metadataBase: new URL("https://astrocore.one"),
+  title: {
+    default: SITE_TITLE,
+    template: "%s · AstroCore",
+  },
+  description: SITE_DESC,
+  applicationName: "AstroCore",
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESC,
+    url: "https://astrocore.one",
+    siteName: "AstroCore",
+    locale: "uk_UA",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESC,
+  },
 };
 
 const GA_MEASUREMENT_ID = "G-KGL6PT3NNK";
