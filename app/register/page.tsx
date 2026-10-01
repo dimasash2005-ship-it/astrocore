@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe, Check, Mail } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
+import GoogleButton from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/lib/useLanguage";
 import { LANGUAGES, type Language } from "@/lib/language";
 import { useAuthIntro, hasLanded, AuthBrandIntro, LightningWeb, IntroReveal, AuthIntroStyles } from "@/components/auth/AuthIntro";
@@ -401,6 +402,8 @@ function RegisterForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"];
           {loading && <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />}
           {loading ? t.registerPage.registering : t.registerPage.join}
         </button>
+
+        <GoogleButton language={language} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 20, padding: "9px 12px", borderRadius: 9, background: "rgba(255,255,255,0.025)", border: "0.5px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: T.t4 }}>

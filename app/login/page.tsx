@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, Loader2, Bot, Brain, Zap, Shield, Globe } from "lucide-react";
 import { getSupabase } from "@/lib/supabase/client";
+import GoogleButton from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/lib/useLanguage";
 import { LANGUAGES, type Language } from "@/lib/language";
 import { useAuthIntro, hasLanded, AuthBrandIntro, LightningWeb, IntroReveal, AuthIntroStyles } from "@/components/auth/AuthIntro";
@@ -236,7 +237,10 @@ function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; la
   const [password,setPassword]= useState("")
   const [showPw,  setShowPw]  = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState("")
+  // /auth/callback sends ?error=auth_failed when a Google / email link didn't work.
+  const [error,   setError]   = useState(searchParams.get("error") === "auth_failed"
+    ? (language === "en" ? "Sign-in didn't complete. Please try again." : "Вхід не завершився. Спробуйте ще раз.")
+    : "")
 
   async function login() {
     if (!email.trim() || !password.trim()) { setError(t.loginPage.fillFieldsError); return }
@@ -333,6 +337,8 @@ function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; la
           {loading && <Loader2 size={14} style={{ animation: "spin 0.8s linear infinite" }} />}
           {loading ? t.loginPage.signingIn : t.loginPage.signIn}
         </button>
+
+        <GoogleButton language={language} next={nextPath} />
       </div>
 
       {/* Security note */}
