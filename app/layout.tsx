@@ -5,29 +5,27 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
 import CookieConsent from "@/components/CookieConsent";
 
-const SITE_TITLE = "AstroCore — робочий простір для AI-агента";
-const SITE_DESC  = "Памʼять, звіти і галерея для агента OpenClaw. Підключення однією командою.";
-
 export const metadata: Metadata = {
   metadataBase: new URL("https://astrocore.one"),
   title: {
-    default: SITE_TITLE,
-    template: "%s · AstroCore",
+    default: "AstroCore AI — The Workspace for AI Agents",
+    template: "%s — AstroCore AI",
   },
-  description: SITE_DESC,
-  applicationName: "AstroCore",
+  description:
+    "AstroCore AI is an all-in-one workspace for AI agents: chat, agents, memory, reports, storage and integrations with Claude, OpenAI, Gemini and custom providers — in one place.",
+  applicationName: "AstroCore AI",
+  keywords: ["AstroCore", "AstroCore AI", "AI agents", "AI workspace", "Claude", "OpenAI", "Gemini", "AI reports"],
   openGraph: {
-    title: SITE_TITLE,
-    description: SITE_DESC,
-    url: "https://astrocore.one",
-    siteName: "AstroCore",
-    locale: "uk_UA",
     type: "website",
+    url: "https://astrocore.one",
+    siteName: "AstroCore AI",
+    title: "AstroCore AI — The Workspace for AI Agents",
+    description: "Chat, agents, memory, reports and integrations — everything for AI agents in one environment.",
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_TITLE,
-    description: SITE_DESC,
+    title: "AstroCore AI — The Workspace for AI Agents",
+    description: "Chat, agents, memory, reports and integrations — everything for AI agents in one environment.",
   },
 };
 
