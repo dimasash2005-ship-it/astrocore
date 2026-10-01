@@ -10,12 +10,14 @@ import {
   Activity, RotateCcw, Copy, Check,
   ChevronDown, AlertCircle, Paperclip,
   Image as ImageIcon, X, BookOpen, Plus,
-  Mic, MicOff, Smile, FileText,
+  Mic, Smile, FileText,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import VoiceComposer, { fmtDuration, type VoiceDraft } from "@/components/chat/VoiceComposer"
+import VoiceMessage, { type VoiceInfo } from "@/components/chat/VoiceMessage"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -46,6 +48,8 @@ type Message = {
   // Reply is being produced by an OpenClaw agent in the background
   // (chat_messages.status = "pending"). It's filled in via Realtime.
   jobPending?: boolean
+  // Voice message (Telegram-style). content = its transcript.
+  voice?: VoiceInfo
 }
 
 type DBMessage = {
@@ -55,6 +59,16 @@ type DBMessage = {
   content: string
   created_at: string
   status?: string | null
+  audio_path?: string | null
+  audio_duration?: number | null
+  audio_peaks?: number[] | null
+}
+
+// What the model sees for a voice message: a short marker + the transcript.
+function historyContent(m: Message, lang: Language): string {
+  if (!m.voice) return m.content
+  const label = lang === "uk" ? "Голосове повідомлення" : "Voice message"
+  return `[🎤 ${label}, ${fmtDuration(m.voice.duration)}]\n${m.content}`
 }
 
 type Session = {
@@ -86,23 +100,6 @@ type Provider = {
   // "push" / missing = old HTTPS + stream setup.
   transport?: string | null
   last_seen_at?: string | null
-}
-
-type SpeechRecognitionConstructor = new () => {
-  lang: string
-  interimResults: boolean
-  continuous: boolean
-  maxAlternatives: number
-  start: () => void
-  stop: () => void
-  onresult: ((event: any) => void) | null
-  onerror:  ((event: Event) => void) | null
-  onend:    (() => void) | null
-}
-
-type SpeechWindow = Window & typeof globalThis & {
-  SpeechRecognition?:       SpeechRecognitionConstructor
-  webkitSpeechRecognition?: SpeechRecognitionConstructor
 }
 
 const TEXT_EXTENSIONS = new Set([
@@ -513,7 +510,9 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
             boxShadow: "0 4px 16px rgba(232,0,42,0.10), inset 0 1px 0 rgba(255,255,255,0.05)",
             fontSize: 14, lineHeight: 1.7, color: T.t1, wordBreak: "break-word",
           }}>
-            <Markdown content={msg.content} />
+            {msg.voice
+              ? <VoiceMessage voice={msg.voice} text={msg.content} lang={lang === "uk" ? "uk" : "en"} />
+              : <Markdown content={msg.content} />}
           </div>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
         </div>
@@ -662,6 +661,39 @@ function RoundBtn({ active, title, onClick, children }: { active: boolean; title
       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = T.t3 }}
     >
       {children}
+    </button>
+  )
+}
+
+// Mic: tap = locked recording, hold & release = send (like Telegram).
+function MicBtn({ onStart, title, disabled }: { onStart: (pressedAt: number) => void; title: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onPointerDown={e => {
+        if (disabled || e.button !== 0) return
+        e.preventDefault()
+        onStart(Date.now())
+      }}
+      onKeyDown={e => {
+        if (disabled) return
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onStart(0) }
+      }}
+      onContextMenu={e => e.preventDefault()}
+      style={{
+        userSelect: "none", WebkitUserSelect: "none",
+        width: 30, height: 30, borderRadius: 8, border: "none", background: "transparent",
+        cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: T.t4, flexShrink: 0, touchAction: "none",
+        transition: "background 120ms ease, color 120ms ease",
+      }}
+      onMouseEnter={e => { if (!disabled) { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.12)"; (e.currentTarget as HTMLElement).style.color = T.red } }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = T.t4 }}
+    >
+      <Mic size={15} />
     </button>
   )
 }
@@ -830,9 +862,10 @@ export default function SessionPage() {
 
   const [attachments, setAttachments] = useState<{ name: string; content?: string; imageDataUrl?: string }[]>([])
 
-  const [isListening, setIsListening] = useState(false)
+  // Voice recorder open above the composer (pressedAt = for hold-to-send).
+  const [voiceOpen,   setVoiceOpen]   = useState<null | { pressedAt: number }>(null)
+  const [voiceNote,   setVoiceNote]   = useState("")
   const [micError,    setMicError]    = useState("")
-  const recognitionRef = useRef<{ stop: () => void } | null>(null)
 
   // which popover is open above the composer: "+" menu or emoji picker
   const [menu, setMenu] = useState<null | "attach" | "emoji">(null)
@@ -867,6 +900,11 @@ export default function SessionPage() {
       createdAt:  m.created_at,
       streaming:  m.status === "pending",
       jobPending: m.status === "pending",
+      voice: m.audio_path ? {
+        path:     m.audio_path,
+        duration: Number(m.audio_duration) || 0,
+        peaks:    Array.isArray(m.audio_peaks) ? m.audio_peaks : [],
+      } : undefined,
     }))
     setMessages(msgs)
 
@@ -974,51 +1012,128 @@ export default function SessionPage() {
     })
   }
 
-  // ── Microphone ───────────────────────────────────────────────────
+  // ── Voice messages ───────────────────────────────────────────
 
-  function toggleMic() {
+  const uk = language === "uk"
+
+  function openRecorder(pressedAt: number) {
+    if (voiceOpen) return
     setMicError("")
+    setMenu(null)
+    setVoiceOpen({ pressedAt })
+  }
 
-    const SpeechRecognitionClass = typeof window !== "undefined"
-      ? (window as SpeechWindow).SpeechRecognition ?? (window as SpeechWindow).webkitSpeechRecognition
-      : undefined
+  // Upload the recording to Storage: voice/<user>/<session>/<uuid>.<ext>
+  async function uploadVoice(draft: VoiceDraft, userId: string): Promise<string> {
+    const ext = draft.mimeType.includes("mp4") ? "m4a" : draft.mimeType.includes("ogg") ? "ogg" : "webm"
+    const path = `${userId}/${sessionId}/${crypto.randomUUID()}.${ext}`
+    const { error } = await getSupabase().storage.from("voice").upload(path, draft.blob, {
+      contentType: draft.mimeType.split(";")[0] || "audio/webm",
+      upsert: false,
+    })
+    if (error) throw new Error(error.message)
+    return path
+  }
 
-    if (!SpeechRecognitionClass) {
-      setMicError(t.chatSession.micNotSupported)
+  // Server Whisper if configured, otherwise the browser's live text.
+  async function transcribeVoice(path: string, liveText: string): Promise<string> {
+    try {
+      const res = await fetch("/api/voice/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, lang: language }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && typeof data?.text === "string" && data.text.trim()) return data.text.trim()
+    } catch {}
+    return liveText.trim()
+  }
+
+  async function sendVoice(draft: VoiceDraft) {
+    setVoiceOpen(null)
+    if (sendingRef.current || loading || hasPendingJob || !session) return
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return
+    sendingRef.current = true
+
+    const localUrl = URL.createObjectURL(draft.blob)
+    const tempId = `voice-${crypto.randomUUID()}`
+    setMessages(prev => [...prev, {
+      id: tempId, role: "user", content: "", createdAt: new Date().toISOString(),
+      voice: { localUrl, duration: draft.duration, peaks: draft.peaks, transcribing: true },
+    }])
+    setJustAddedId(tempId)
+    setLoading(true)
+
+    let path: string | null = null
+    try {
+      path = await uploadVoice(draft, user.id)
+    } catch (e) {
+      // Don't lose what was said: put the live text into the box.
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+      if (draft.liveText) inputApi.current?.append(draft.liveText, " ")
+      setMicError((uk ? "Не вдалося завантажити голосове" : "Couldn't upload the voice message")
+        + (e instanceof Error && e.message ? `: ${e.message}` : "")
+        + (draft.liveText ? (uk ? " — текст вставлено в поле." : " — the text is in the box.") : ""))
+      setLoading(false)
+      sendingRef.current = false
       return
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
+    const text = await transcribeVoice(path, draft.liveText)
+    if (!text) {
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+      await sb.storage.from("voice").remove([path]).catch(() => {})
+      setMicError(uk
+        ? "Не вдалося розпізнати мовлення. Спробуйте ще раз або в Chrome / Safari (або додайте GROQ_API_KEY на сервері)."
+        : "Couldn't recognise speech. Try again, or use Chrome / Safari (or add GROQ_API_KEY on the server).")
+      setLoading(false)
+      sendingRef.current = false
       return
     }
 
-    const rec = new SpeechRecognitionClass()
-    rec.lang = language === "uk" ? "uk-UA" : "en-US"
-    rec.interimResults = false
-    rec.maxAlternatives = 1
-    rec.onresult = (ev: any) => {
-      const transcript = ev.results[0]?.[0]?.transcript ?? ""
-      if (transcript) inputApi.current?.append(transcript, " ")
+    sendingRef.current = false
+    await handleSend(text, { path, localUrl, duration: draft.duration, peaks: draft.peaks })
+  }
+
+  // "Aa" in the recorder: just put the words into the box to edit.
+  async function voiceToText(draft: VoiceDraft) {
+    setVoiceOpen(null)
+    if (draft.liveText) {
+      inputApi.current?.append(draft.liveText, " ")
+      inputApi.current?.focus()
+      return
     }
-    rec.onerror = () => { setIsListening(false) }
-    rec.onend   = () => { setIsListening(false) }
-    rec.start()
-    recognitionRef.current = rec
-    setIsListening(true)
+    const sb = getSupabase()
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return
+    setVoiceNote(uk ? "Розпізнаю…" : "Transcribing…")
+    try {
+      const path = await uploadVoice(draft, user.id)
+      const text = await transcribeVoice(path, "")
+      sb.storage.from("voice").remove([path]).catch(() => {})
+      if (text) { inputApi.current?.append(text, " "); inputApi.current?.focus() }
+      else setMicError(uk ? "Не вдалося розпізнати мовлення." : "Couldn't recognise speech.")
+    } catch {
+      setMicError(uk ? "Не вдалося розпізнати мовлення." : "Couldn't recognise speech.")
+    } finally {
+      setVoiceNote("")
+    }
   }
 
   // ── Send ─────────────────────────────────────────────────────────
 
-  async function handleSend(rawText: string) {
+  async function handleSend(rawText: string, voice?: VoiceInfo) {
     if (sendingRef.current) return
     const text = rawText.trim()
-    const hasAttachments = attachments.length > 0
+    // A voice message goes alone; attachments stay for the next message.
+    const usedAttachments = voice ? [] : attachments
+    const hasAttachments = usedAttachments.length > 0
     if ((!text && !hasAttachments) || loading || hasPendingJob || !session) return
     sendingRef.current = true
 
-    const attachmentLines = attachments.map(a => {
+    const attachmentLines = usedAttachments.map(a => {
       if (a.imageDataUrl) return `![${a.name}](${a.imageDataUrl})`
       if (a.content !== undefined) return `${t.chatSession.fileLabel}: ${a.name}\n${a.content}`
       return `${t.chatSession.attachedFileLabel}: ${a.name}`
@@ -1035,6 +1150,11 @@ export default function SessionPage() {
       session_id: sessionId,
       role:       "user",
       content:    fullText,
+      ...(voice ? {
+        audio_path:     voice.path,
+        audio_duration: Math.round(voice.duration * 10) / 10,
+        audio_peaks:    voice.peaks,
+      } : {}),
     }).select().single()
 
     const userMsg: Message = {
@@ -1042,23 +1162,26 @@ export default function SessionPage() {
       role:      "user",
       content:   fullText,
       createdAt: userMsgData?.created_at ?? new Date().toISOString(),
+      voice,
     }
 
     const updatedWithUser = [...messages, userMsg]
     // History sent to the model: never include replies that are still in progress.
     const history = updatedWithUser
       .filter(m => !m.streaming)
-      .map(m => ({ role: m.role, content: m.content }))
+      .map(m => ({ role: m.role, content: historyContent(m, language) }))
 
     setMessages(updatedWithUser)
-    setJustAddedId(userMsg.id)
-    inputApi.current?.clear()
-    setAttachments([])
+    if (!voice) {
+      setJustAddedId(userMsg.id)
+      inputApi.current?.clear()
+      setAttachments([])
+    }
     setLoading(true)
 
     if (messages.length === 0) {
       await sb.from("chat_sessions").update({
-        title:      (text || attachments[0]?.name || t.chatSession.newChatFallback).slice(0, 60),
+        title:      ((voice ? "🎤 " : "") + (text || usedAttachments[0]?.name || t.chatSession.newChatFallback)).slice(0, 60),
         updated_at: new Date().toISOString(),
       }).eq("id", sessionId)
     }
@@ -1278,9 +1401,7 @@ export default function SessionPage() {
   }
 
   const busy = loading || hasPendingJob
-  const placeholder = isListening
-    ? t.chatSession.listeningPlaceholder
-    : busy ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder
+  const placeholder = busy ? t.chatSession.aiRespondingPlaceholder : t.chatSession.messagePlaceholder
 
   return (
     <>
@@ -1380,10 +1501,10 @@ export default function SessionPage() {
               </div>
             )}
 
-            {isListening && (
+            {voiceNote && (
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, padding: "6px 12px", borderRadius: 8, background: "rgba(232,0,42,0.08)", border: "0.5px solid rgba(232,0,42,0.22)", fontSize: 11.5, color: T.red }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.red, display: "inline-block", animation: "redpulse 1.2s ease infinite" }} />
-                {t.chatSession.listening}
+                <RotateCcw size={11} style={{ animation: "spin 0.9s linear infinite" }} />
+                {voiceNote}
               </div>
             )}
 
@@ -1416,6 +1537,19 @@ export default function SessionPage() {
               <EmojiPicker onPick={e => inputApi.current?.insert(e)} />
             )}
 
+            {voiceOpen && (
+              <VoiceComposer
+                lang={uk ? "uk" : "en"}
+                pressedAt={voiceOpen.pressedAt}
+                onSend={sendVoice}
+                onToText={voiceToText}
+                onCancel={() => setVoiceOpen(null)}
+                onError={msg => { setVoiceOpen(null); setMicError(msg) }}
+              />
+            )}
+
+            {/* Kept mounted while recording so typed text isn't lost. */}
+            <div style={{ display: voiceOpen ? "none" : "block" }}>
             <ComposerInput
               ref={inputApi}
               onSend={handleSend}
@@ -1442,15 +1576,14 @@ export default function SessionPage() {
                 </RoundBtn>
               }
               rightSlot={
-                <IconBtn
-                  icon={isListening ? MicOff : Mic}
-                  title={isListening ? t.chatSession.stopRecording : t.chatSession.voiceInput}
-                  active={isListening}
-                  pulse={isListening}
-                  onClick={toggleMic}
+                <MicBtn
+                  disabled={busy}
+                  title={uk ? "Голосове повідомлення — натисніть, або утримуйте і відпустіть, щоб одразу надіслати" : "Voice message — tap, or hold and release to send right away"}
+                  onStart={openRecorder}
                 />
               }
             />
+            </div>
 
             <input
               ref={fileRef}
