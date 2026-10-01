@@ -280,14 +280,9 @@ function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; la
         </div>
 
         <div>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 7 }}>
-            <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em" }}>
-              {t.loginPage.password}
-            </label>
-            <Link href="/forgot-password" style={{ fontSize: 12, color: T.red, textDecoration: "none", fontWeight: 500 }}>
-              {language === "en" ? "Forgot password?" : "Забули пароль?"}
-            </Link>
-          </div>
+          <label style={{ fontSize: 10.5, fontWeight: 600, color: T.t3, textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: 7 }}>
+            {t.loginPage.password}
+          </label>
           <div style={{ position: "relative" }}>
             <input type={showPw ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••••"
@@ -307,6 +302,14 @@ function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; la
             }}>
               {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 9 }}>
+            <Link href="/forgot-password" style={{ fontSize: 12.5, color: T.t3, textDecoration: "none", fontWeight: 500, transition: "color 130ms ease" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.red }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}
+            >
+              {language === "en" ? "Forgot password?" : "Забули пароль?"}
+            </Link>
           </div>
         </div>
 

@@ -7,7 +7,9 @@ import { getSupabase } from "@/lib/supabase/client"
 
 const PUBLIC_ROUTES = new Set(["/login", "/register"])
 // Pages open to everyone (logged in or not) — no redirects at all
-const OPEN_ROUTES = new Set(["/terms", "/privacy-policy"])
+// /forgot-password and /reset-password: reachable logged out (forgot) and
+// right after the email link logs the user in (reset) — so never redirect.
+const OPEN_ROUTES = new Set(["/terms", "/privacy-policy", "/forgot-password", "/reset-password"])
 
 function Spinner() {
   return (
