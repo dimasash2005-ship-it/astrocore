@@ -18,7 +18,8 @@ import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import VoiceComposer, { fmtDuration, type VoiceDraft } from "@/components/chat/VoiceComposer"
 import VoiceMessage, { type VoiceInfo } from "@/components/chat/VoiceMessage"
-import ReactMarkdown from "react-markdown"
+import { PhotoGrid, splitImages, compressImage } from "@/components/chat/Photos"
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 const T = {
@@ -415,11 +416,16 @@ const mdComponents: Record<string, (props: any) => React.ReactElement> = {
   },
 }
 
+// react-markdown drops data: URLs by default — keep inline images.
+function keepImageUrls(url: string): string {
+  return url.startsWith("data:image/") ? url : defaultUrlTransform(url)
+}
+
 // PERF: memo — markdown is only re-parsed when the text itself changes,
 // not on every render of the parent.
 const Markdown = memo(function Markdown({ content }: { content: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents} urlTransform={keepImageUrls}>
       {content}
     </ReactMarkdown>
   )
@@ -497,6 +503,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
   )
 
   if (isUser) {
+    const { text: userText, images: userImages } = msg.voice ? { text: msg.content, images: [] } : splitImages(msg.content)
     return (
       <div className="astrocore-msg" style={{
         display: "flex", flexDirection: "row-reverse",
@@ -505,7 +512,8 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
         animation: isNew ? "msgIn 240ms ease-out" : undefined,
       }}>
         <div style={{ maxWidth: "68%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <div style={{
+          {userImages.length > 0 && <PhotoGrid images={userImages} />}
+          {(msg.voice || userText) && <div style={{
             padding: "10px 15px",
             borderRadius: "16px 16px 4px 16px",
             background: "linear-gradient(135deg,rgba(232,0,42,0.22) 0%,rgba(232,0,42,0.12) 100%)",
@@ -515,8 +523,8 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
           }}>
             {msg.voice
               ? <VoiceMessage voice={msg.voice} text={msg.content} lang={lang === "uk" ? "uk" : "en"} />
-              : <Markdown content={msg.content} />}
-          </div>
+              : <Markdown content={userText} />}
+          </div>}
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
         </div>
       </div>
@@ -989,16 +997,41 @@ export default function SessionPage() {
 
   // ── File attachment ──────────────────────────────────────────────
 
+  // Paste a screenshot (Cmd/Ctrl+V) or drop photos/files anywhere on the chat.
+  const handleFilesRef = useRef<(f: FileList | null) => void>(() => {})
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const files = e.clipboardData?.files
+      if (files && files.length > 0 && Array.from(files).some(f => f.type.startsWith("image/"))) {
+        e.preventDefault()
+        handleFilesRef.current(files)
+      }
+    }
+    function onDragOver(e: DragEvent) {
+      if (e.dataTransfer?.types?.includes("Files")) e.preventDefault()
+    }
+    function onDrop(e: DragEvent) {
+      if (!e.dataTransfer?.files?.length) return
+      e.preventDefault()
+      handleFilesRef.current(e.dataTransfer.files)
+    }
+    window.addEventListener("paste", onPaste)
+    window.addEventListener("dragover", onDragOver)
+    window.addEventListener("drop", onDrop)
+    return () => {
+      window.removeEventListener("paste", onPaste)
+      window.removeEventListener("dragover", onDragOver)
+      window.removeEventListener("drop", onDrop)
+    }
+  }, [])
+
   function handleFiles(files: FileList | null) {
     if (!files) return
     Array.from(files).forEach(file => {
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader()
-        reader.onload = ev => {
-          const dataUrl = ev.target?.result as string
-          setAttachments(prev => [...prev, { name: file.name, imageDataUrl: dataUrl }])
-        }
-        reader.readAsDataURL(file)
+        compressImage(file)
+          .then(dataUrl => setAttachments(prev => [...prev, { name: file.name || "photo.jpg", imageDataUrl: dataUrl }]))
+          .catch(() => {})
         return
       }
       const ext = getExt(file.name)
@@ -1014,6 +1047,8 @@ export default function SessionPage() {
       }
     })
   }
+  handleFilesRef.current = handleFiles
+
 
   // ── Voice messages ───────────────────────────────────────────
 
@@ -1137,7 +1172,7 @@ export default function SessionPage() {
     sendingRef.current = true
 
     const attachmentLines = usedAttachments.map(a => {
-      if (a.imageDataUrl) return `![${a.name}](${a.imageDataUrl})`
+      if (a.imageDataUrl) return `![${a.name.replace(/[\[\]()]/g, "")}](${a.imageDataUrl})`
       if (a.content !== undefined) return `${t.chatSession.fileLabel}: ${a.name}\n${a.content}`
       return `${t.chatSession.attachedFileLabel}: ${a.name}`
     })
@@ -1533,7 +1568,16 @@ export default function SessionPage() {
 
             {attachments.length > 0 && (
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 8 }}>
-                {attachments.map((a, i) => (
+                {attachments.map((a, i) => a.imageDataUrl ? (
+                  <div key={i} style={{ position: "relative", width: 64, height: 64, borderRadius: 10, overflow: "hidden", border: `0.5px solid ${T.b1}`, flexShrink: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.imageDataUrl} alt={a.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))} title={language === "uk" ? "Прибрати" : "Remove"} style={{
+                      position: "absolute", top: 3, right: 3, width: 20, height: 20, borderRadius: "50%", border: "none", cursor: "pointer",
+                      background: "rgba(0,0,0,0.65)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+                    }}><X size={11} /></button>
+                  </div>
+                ) : (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, fontSize: 11.5, color: T.t2, maxWidth: 220 }}>
                     {a.imageDataUrl ? (
                       <img src={a.imageDataUrl} alt={a.name} style={{ width: 18, height: 18, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
