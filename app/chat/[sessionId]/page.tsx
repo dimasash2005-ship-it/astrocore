@@ -64,6 +64,9 @@ type DBMessage = {
   audio_peaks?: number[] | null
 }
 
+// Max characters of Memory sent to the agent with each message (newest first).
+const MEMORY_CHAR_BUDGET = 12_000
+
 // What the model sees for a voice message: a short marker + the transcript.
 function historyContent(m: Message, lang: Language): string {
   if (!m.voice) return m.content
@@ -1204,11 +1207,31 @@ export default function SessionPage() {
         return // `finally` below resets loading / focus
       }
 
-      const memoryRaw     = localStorage.getItem("astrocore_memory")
-      const memoryItems   = memoryRaw ? JSON.parse(memoryRaw) : []
-      const memoryContext = memoryItems.length > 0
-        ? memoryItems.map((m: { title: string; content: string }) => `[${m.title}]: ${m.content}`).join("\n\n")
-        : null
+      // Memory lives in the database (the Memory page), so the agent sees the
+      // same context on every device. Shared items (no agent) + this agent's own.
+      let memoryContext: string | null = null
+      try {
+        let memQuery = sb.from("memory_items")
+          .select("title, content")
+          .eq("user_id", user!.id)
+          .order("updated_at", { ascending: false })
+          .limit(40)
+        memQuery = currentAgent?.id
+          ? memQuery.or(`agent_id.is.null,agent_id.eq.${currentAgent.id}`)
+          : memQuery.is("agent_id", null)
+        const { data: memRows } = await memQuery
+        const parts: string[] = []
+        let used = 0
+        for (const m of (memRows ?? []) as { title: string | null; content: string | null }[]) {
+          const block = `[${m.title || "—"}]: ${m.content ?? ""}`.trim()
+          if (used + block.length > MEMORY_CHAR_BUDGET) break
+          parts.push(block)
+          used += block.length + 2
+        }
+        if (parts.length) memoryContext = parts.join("\n\n")
+      } catch {
+        memoryContext = null // memory is a bonus — never block the reply
+      }
 
       const systemPrompt = [
         currentAgent?.system_prompt || "",
