@@ -122,13 +122,18 @@ function getExt(name: string) {
 }
 
 // Merges a chat_messages row (from Realtime or polling) into a local message.
-function applyDbRow(m: Message, row: { content?: string | null; status?: string | null }): Message {
+function applyDbRow(m: Message, row: { content?: string | null; status?: string | null; audio_path?: string | null; audio_duration?: number | null; audio_peaks?: number[] | null }): Message {
   const pending = row.status === "pending"
+  // An agent can attach a voice reply (connector → /api/agent/voice).
+  const voice = row.audio_path && row.audio_path !== m.voice?.path
+    ? { path: row.audio_path, duration: Number(row.audio_duration) || 0, peaks: Array.isArray(row.audio_peaks) ? row.audio_peaks : [] }
+    : m.voice
   return {
     ...m,
     content:    typeof row.content === "string" ? row.content : m.content,
     streaming:  pending,
     jobPending: pending,
+    voice,
   }
 }
 
@@ -547,7 +552,15 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
       </div>
 
       <div style={{ maxWidth: 960, minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-        {isStreamingEmpty ? (
+        {msg.voice && (
+          <div style={{
+            alignSelf: "flex-start", padding: "10px 14px", borderRadius: "16px 16px 16px 4px",
+            background: "rgba(255,255,255,0.04)", border: "0.5px solid rgba(255,255,255,0.10)",
+          }}>
+            <VoiceMessage voice={msg.voice} text="" lang={lang === "uk" ? "uk" : "en"} />
+          </div>
+        )}
+        {msg.voice && !msg.content.trim() && !msg.streaming ? null : isStreamingEmpty ? (
           <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 1px" }}>
             <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
               {[0,1,2].map(i => (
@@ -958,7 +971,7 @@ export default function SessionPage() {
     if (!pendingKey) return
     const ids = pendingKey.split(",")
     const timer = setInterval(async () => {
-      const { data } = await getSupabase().from("chat_messages").select("id, content, status").in("id", ids)
+      const { data } = await getSupabase().from("chat_messages").select("id, content, status, audio_path, audio_duration, audio_peaks").in("id", ids)
       if (!data) return
       setMessages(prev => prev.map(m => {
         const row = data.find((r: { id: string }) => r.id === m.id)

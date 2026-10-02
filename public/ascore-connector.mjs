@@ -11,14 +11,23 @@
 //            (+ keep-alive every 20s while the agent is silent, e.g. using tools)
 //          → agent_report "done" / "error"
 //
+// Voice replies: if the agent's answer points to an audio file — a line like
+//   MEDIA: /tmp/tts/reply.mp3      (or a URL / [voice](file.ogg) link)
+// — the connector uploads that file to AsCore and the reply shows up in the
+// chat as a voice message. The owner sets up the voice (e.g. ElevenLabs) in
+// OpenClaw itself; AsCore only delivers the audio.
+//
 // One job at a time. A job may run up to 30 minutes.
 // Needs Node 18+ (global fetch). No npm dependencies.
 
 import { execFile } from "node:child_process"
+import { readFile, stat } from "node:fs/promises"
+import { basename } from "node:path"
 
 const env = process.env
 const CFG = {
   supabaseUrl:  (env.SUPABASE_URL || "").replace(/\/+$/, ""),
+  ascoreUrl:    (env.ASTROCORE_URL || "https://astrocore.one").replace(/\/+$/, ""),
   supabaseKey:  env.SUPABASE_KEY || "",
   apiKey:       env.ASTROCORE_API_KEY || "",
   gatewayUrl:   `http://127.0.0.1:${env.GATEWAY_PORT || 18789}/v1/chat/completions`,
@@ -159,6 +168,64 @@ async function askGateway(payload, signal, onText) {
   }
 }
 
+// ── Voice replies ────────────────────────────────────────────────
+
+const AUDIO_EXT = "mp3|ogg|opus|oga|m4a|aac|wav|webm"
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024
+const AUDIO_PATTERNS = [
+  // MEDIA: /path/file.mp3   or   MEDIA:https://…/file.ogg
+  new RegExp(`^[ \\t]*MEDIA:[ \\t]*\\\`?([^\\s\\\`]+\\.(?:${AUDIO_EXT}))\\\`?[ \\t]*$`, "im"),
+  // [voice](/path/file.mp3)  or  ![](https://…/file.ogg)
+  new RegExp(`!?\\[[^\\]]*\\]\\(([^)\\s]+\\.(?:${AUDIO_EXT}))\\)`, "i"),
+  // a bare absolute path or URL on its own line
+  new RegExp(`^[ \\t]*((?:\\/|https?:\\/\\/)[^\\s]+\\.(?:${AUDIO_EXT}))[ \\t]*$`, "im"),
+]
+
+function findAudio(text) {
+  for (const re of AUDIO_PATTERNS) {
+    const m = re.exec(text)
+    if (m) return { ref: m[1], match: m[0] }
+  }
+  return null
+}
+
+async function loadAudio(ref) {
+  if (/^https?:\/\//i.test(ref)) {
+    const res = await fetch(ref, { signal: AbortSignal.timeout(60_000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const buf = new Uint8Array(await res.arrayBuffer())
+    return { buf, name: basename(new URL(ref).pathname) || "voice.mp3" }
+  }
+  const info = await stat(ref)
+  if (info.size > MAX_AUDIO_BYTES) throw new Error(`файл завеликий (${Math.round(info.size / 1024)} КБ, макс. 4 МБ)`)
+  return { buf: await readFile(ref), name: basename(ref) }
+}
+
+// Returns the text without the audio reference if the upload worked.
+async function deliverVoice(jobId, text) {
+  const found = findAudio(text)
+  if (!found) return text
+  try {
+    const { buf, name } = await loadAudio(found.ref)
+    if (buf.length > MAX_AUDIO_BYTES) throw new Error("файл завеликий (макс. 4 МБ)")
+    const form = new FormData()
+    form.append("job_id", String(jobId))
+    form.append("file", new Blob([buf]), name)
+    const res = await fetch(`${CFG.ascoreUrl}/api/agent/voice`, {
+      method: "POST",
+      headers: { "X-Api-Key": CFG.apiKey },
+      body: form,
+      signal: AbortSignal.timeout(90_000),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`)
+    log(`задача ${jobId}: голосове надіслано (${Math.round(buf.length / 1024)} КБ)`)
+    return text.replace(found.match, "").replace(/\n{3,}/g, "\n\n").trim()
+  } catch (e) {
+    log(`задача ${jobId}: голосове не надіслано: ${e?.message || e}`)
+    return text // keep the text as is, nothing is lost
+  }
+}
+
 // ── One job ──────────────────────────────────────────────────────
 
 async function runJob(job) {
@@ -207,6 +274,7 @@ async function runJob(job) {
   if (cancelled) { log(`задача ${job.id}: скасована в AsCore (${secs} с)`); return }
 
   if (!failure) {
+    text = await deliverVoice(job.id, text)
     await reportFinal(job.id, "done", text)
     log(`задача ${job.id}: готово за ${secs} с, ${text.length} символів`)
   } else if (text.trim()) {

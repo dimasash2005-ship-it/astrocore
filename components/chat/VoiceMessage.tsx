@@ -37,9 +37,13 @@ export default function VoiceMessage({ voice, text, lang }: { voice: VoiceInfo; 
   const [rate,     setRate]     = useState(1)
   const [showText, setShowText] = useState(false)
 
-  const duration = voice.duration > 0 ? voice.duration : 1
+  // Agent voice replies arrive without length/waveform: read the length from
+  // the file once it loads, and draw a stable pseudo-waveform meanwhile.
+  const [metaDur, setMetaDur] = useState(0)
+  const knownDur = voice.duration > 0 ? voice.duration : metaDur
+  const duration = knownDur > 0 ? knownDur : 1
   const progress = Math.min(1, pos / duration)
-  const peaks = voice.peaks?.length ? voice.peaks : Array(40).fill(0.2)
+  const peaks = voice.peaks?.length ? voice.peaks : fakePeaks(voice.path || voice.localUrl || "voice")
 
   useEffect(() => () => {
     cancelAnimationFrame(rafRef.current)
@@ -60,6 +64,7 @@ export default function VoiceMessage({ voice, text, lang }: { voice: VoiceInfo; 
     const a = new Audio(src)
     a.preload = "auto"
     a.playbackRate = rate
+    a.onloadedmetadata = () => { if (Number.isFinite(a.duration) && a.duration > 0) setMetaDur(a.duration) }
     a.onended = () => { setPlaying(false); setPos(0); cancelAnimationFrame(rafRef.current) }
     a.onpause = () => setPlaying(false)
     a.onplay  = () => setPlaying(true)
@@ -150,7 +155,7 @@ export default function VoiceMessage({ voice, text, lang }: { voice: VoiceInfo; 
             })}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#A8A4BC" }}>
-            <span>{playing || pos > 0 ? fmtDuration(pos) : fmtDuration(voice.duration)}</span>
+            <span>{playing || pos > 0 ? fmtDuration(pos) : knownDur > 0 ? fmtDuration(knownDur) : "🔊"}</span>
             {voice.transcribing && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#C8C4D8" }}>
                 <RotateCcw size={10} style={{ animation: "spin 0.9s linear infinite" }} />
@@ -191,4 +196,17 @@ function pill(active: boolean): React.CSSProperties {
     border: "0.5px solid rgba(255,255,255,0.12)",
     color: active ? "#F0EDF8" : "#A8A4BC",
   }
+}
+
+// Same input → same bars, so a message doesn't "change shape" between renders.
+function fakePeaks(seed: string, n = 44): number[] {
+  let h = 2166136261
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619) }
+  const out: number[] = []
+  for (let i = 0; i < n; i++) {
+    h ^= h << 13; h ^= h >>> 17; h ^= h << 5
+    const r = ((h >>> 0) % 1000) / 1000
+    out.push(Math.round((0.25 + 0.75 * r * (0.6 + 0.4 * Math.sin(i / 3))) * 100) / 100)
+  }
+  return out
 }
