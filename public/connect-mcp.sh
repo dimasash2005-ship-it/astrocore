@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-ASTROCORE_URL="${ASTROCORE_URL:-https://astrocore-eight.vercel.app}"
+ASTROCORE_URL="${ASTROCORE_URL:-https://astrocore.one}"
 ASTROCORE_URL="${ASTROCORE_URL%/}"
 ASTROCORE_API_KEY="${ASTROCORE_API_KEY:-}"
 ENV_FILE="/etc/ascore-agent/agent.env"

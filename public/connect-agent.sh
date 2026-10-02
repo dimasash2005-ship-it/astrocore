@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-ASTROCORE_URL="${ASTROCORE_URL:-https://astrocore-eight.vercel.app}"
+ASTROCORE_URL="${ASTROCORE_URL:-https://astrocore.one}"
 ASTROCORE_URL="${ASTROCORE_URL%/}"
 ASTROCORE_API_KEY="${ASTROCORE_API_KEY:-}"
 OPENCLAW_CONFIG="${ASCORE_OPENCLAW_CONFIG:-$HOME/.openclaw/openclaw.json}"
@@ -156,7 +156,7 @@ install_connector() {
   step 5 "AsCore конектор"
 
   local cfg sb_url sb_key
-  cfg="$(curl -fsS --max-time 20 "${ASTROCORE_URL}/api/agents/config" 2>/dev/null)" \
+  cfg="$(curl -fsSL --max-time 20 "${ASTROCORE_URL}/api/agents/config" 2>/dev/null)" \
     || die "Не вдалося отримати налаштування з ${ASTROCORE_URL}/api/agents/config"
   sb_url="$(printf '%s' "$cfg" | json_field supabaseUrl)" || die "AsCore повернув некоректні налаштування."
   sb_key="$(printf '%s' "$cfg" | json_field supabaseKey)" || die "AsCore повернув некоректні налаштування."

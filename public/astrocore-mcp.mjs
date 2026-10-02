@@ -8,7 +8,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const BASE_URL = (process.env.ASTROCORE_BASE_URL || "https://astrocore-eight.vercel.app").replace(/\/+$/, "")
+const BASE_URL = (process.env.ASTROCORE_BASE_URL || "https://astrocore.one").replace(/\/+$/, "")
 const API_KEY = process.env.ASTROCORE_API_KEY
 
 if (!API_KEY) {
