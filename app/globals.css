@@ -107,3 +107,37 @@
     }
   }
 }
+/* ───────────── Responsive (phones & small tablets) ─────────────
+   Desktop: pages reserve var(--sb-w) on the left for the sidebar rail.
+   ≤767px: the sidebar becomes a slide-out drawer (see Sidebar.tsx), so the
+   margin drops to 0 and pages leave room for the 52px top bar instead.   */
+:root { --sb-w: 68px; }
+
+@media (max-width: 767px) {
+  :root { --sb-w: 0px; }
+
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* Page roots (they all use marginLeft: SIDEBAR_W): clear the top bar,
+     use the real visible height on mobile browsers, no sideways scroll.
+     (Matched without spaces: server HTML writes "margin-left:var(--sb-w)".) */
+  [style*="margin-left"][style*="var(--sb-w)"] {
+    padding-top: 52px;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  [style*="margin-left"][style*="var(--sb-w)"][style*="100vh"]:not([style*="min-height"]) { height: 100dvh !important; }
+  [style*="margin-left"][style*="var(--sb-w)"][style*="min-height"] { min-height: 100dvh !important; }
+
+  /* Media never wider than the screen */
+  img, video, canvas, svg, iframe { max-width: 100%; }
+  pre, code { white-space: pre-wrap; word-break: break-word; }
+  table { display: block; max-width: 100%; overflow-x: auto; }
+
+  /* Bigger text in inputs = iOS doesn't zoom the page on focus */
+  input, textarea, select { font-size: 16px !important; }
+
+  /* Login / register: hide the big left showcase, form full width */
+  .auth-left  { display: none !important; }
+  .auth-right { flex: 1; min-width: 0 !important; padding: 72px 16px 40px !important; }
+}

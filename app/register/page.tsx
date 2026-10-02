@@ -231,7 +231,7 @@ function ConfirmEmailPanel({ email, language, onBack }: { email: string; languag
   }
 
   return (
-    <div style={{ width: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
+    <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
       <div style={{
         width: 56, height: 56, borderRadius: 16, marginBottom: 24,
         background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.25)",
@@ -335,7 +335,7 @@ function RegisterForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"];
   }
 
   return (
-    <div style={{ width: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
+    <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", padding: "0 8px" }}>
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 24, fontWeight: 700, color: T.t1, letterSpacing: "-0.03em", marginBottom: 6 }}>
           {t.registerPage.title}
@@ -429,15 +429,15 @@ export default function RegisterPage() {
 
       <LanguageBadge language={language} setLanguage={setLanguage} />
 
-      <div style={{ display: "flex", flex: 1 }}>
+      <div style={{ display: "flex", flex: 1 }} className="auth-left">
         <LeftPanel t={t} landed={hasLanded(phase)} />
       </div>
 
-      <div style={{
+      <div className="auth-right" style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "48px 32px",
         background: "linear-gradient(180deg,#0D0D1A 0%,#08080F 100%)",
-        minWidth: 480, position: "relative",
+        minWidth: "min(480px, 100%)", position: "relative",
         overflow: "hidden", // keeps the logo's flight path from causing a scrollbar
       }}>
         <div aria-hidden style={{
@@ -445,9 +445,9 @@ export default function RegisterPage() {
           background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.35),transparent)",
           pointerEvents: "none",
         }} />
-        <div style={{ display: "flex", flexDirection: "column", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", position: "relative", zIndex: 1, width: "100%", maxWidth: 420 }}>
           {/* Logo flies in on an orbit, lands here, then ASTROCORE AI appears */}
-          <div style={{ width: 420, padding: "0 8px" }}>
+          <div style={{ width: "100%", maxWidth: 420, padding: "0 8px" }}>
             <AuthBrandIntro phase={phase} />
           </div>
           <IntroReveal phase={phase}>

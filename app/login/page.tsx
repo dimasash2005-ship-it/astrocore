@@ -253,7 +253,7 @@ function LoginForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"]; la
 
   return (
     <div style={{
-      width: 420, display: "flex", flexDirection: "column",
+      width: "100%", maxWidth: 420, display: "flex", flexDirection: "column",
       padding: "0 8px",
     }}>
       {/* Header */}
@@ -398,11 +398,11 @@ function LoginPage() {
       </div>
 
       {/* Right side — form */}
-      <div style={{
+      <div className="auth-right" style={{
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "48px 32px",
         background: "linear-gradient(180deg,#0D0D1A 0%,#08080F 100%)",
-        minWidth: 480,
+        minWidth: "min(480px, 100%)",
         position: "relative",
         overflow: "hidden", // keeps the logo's flight path from causing a scrollbar
       }}>
@@ -412,9 +412,9 @@ function LoginPage() {
           background: "linear-gradient(180deg,transparent,rgba(232,0,42,0.35),transparent)",
           pointerEvents: "none",
         }} />
-        <div style={{ display: "flex", flexDirection: "column", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", position: "relative", zIndex: 1, width: "100%", maxWidth: 420 }}>
           {/* Logo flies in on an orbit, lands here, then ASTROCORE AI appears */}
-          <div style={{ width: 420, padding: "0 8px" }}>
+          <div style={{ width: "100%", maxWidth: 420, padding: "0 8px" }}>
             <AuthBrandIntro phase={phase} />
           </div>
           <IntroReveal phase={phase}>

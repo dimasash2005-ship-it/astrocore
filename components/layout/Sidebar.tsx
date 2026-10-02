@@ -8,14 +8,17 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut, BarChart3,
+  ChevronDown, LogOut, BarChart3, Menu,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
 import { LANGUAGES, translations } from "@/lib/language"
 
-// Collapsed (rail) width — this is what other pages reserve as margin.
-export const SIDEBAR_W = 68
+// Collapsed (rail) width on desktop.
+const RAIL_W = 68
+// What other pages reserve as left margin. A CSS variable so it can drop
+// to 0 on phones, where the sidebar becomes a slide-out drawer (globals.css).
+export const SIDEBAR_W = "var(--sb-w)"
 // Expanded width on hover, per the design reference (~270px).
 const EXP_W = 232
 
@@ -160,7 +163,7 @@ function NavLink({ href, icon: Icon, label, active, open }: {
       </Link>
 
       {hov && !open && (
-        <div aria-hidden className="sb-tip" style={{ top: tipY, left: SIDEBAR_W + 10 }}>
+        <div aria-hidden className="sb-tip" style={{ top: tipY, left: RAIL_W + 10 }}>
           {label}
         </div>
       )}
@@ -257,11 +260,28 @@ export function Sidebar() {
 
   const avatarLetter = (account?.name?.charAt(0) || "U").toUpperCase()
 
+  // Phone: close the drawer after navigating.
+  useEffect(() => { setOpen(false); setContact(false); setMenuOpen(false) }, [pathname])
+
+  const closeAll = () => { setOpen(false); setContact(false); setMenuOpen(false) }
+
   return (
-    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} style={{
+    <>
+    {/* Phone only (CSS): top bar with the menu button + dimmed backdrop */}
+    <div className="sb-mobilebar">
+      <button type="button" aria-label={language === "en" ? "Open menu" : "Відкрити меню"} onClick={() => setOpen(true)} className="sb-burger">
+        <Menu size={20} />
+      </button>
+      <span style={{ fontSize: 16, fontWeight: 700, color: "#F0EDF8", letterSpacing: "-0.03em" }}>
+        Astro<span style={{ color: "#E8002A" }}>Core</span>
+      </span>
+    </div>
+    <div className={`sb-backdrop${open ? " show" : ""}`} onClick={closeAll} aria-hidden />
+
+    <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} className={`sb-root${open ? " sb-open" : ""}`} style={{
       position: "fixed", top: 0, left: 0,
       height: "100vh", zIndex: 50,
-      width: open ? EXP_W : SIDEBAR_W,
+      width: open ? EXP_W : RAIL_W,
       transition: `width ${SPD}`,
       display: "flex", flexDirection: "column",
       overflow: "visible",
@@ -490,6 +510,26 @@ export function Sidebar() {
       </div>
 
       <style jsx global>{`
+        /* ── phone: rail → slide-out drawer ── */
+        .sb-mobilebar { display: none; }
+        .sb-backdrop  { display: none; }
+        @media (max-width: 767px) {
+          .sb-root { width: 260px !important; transform: translateX(-102%); transition: transform 220ms cubic-bezier(0.4,0,0.2,1) !important; }
+          .sb-root.sb-open { transform: none; }
+          .sb-mobilebar {
+            display: flex; align-items: center; gap: 12px;
+            position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 45; padding: 0 12px;
+            background: rgba(8,8,15,0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-bottom: 0.5px solid rgba(255,255,255,0.09);
+          }
+          .sb-burger {
+            width: 38px; height: 38px; border-radius: 10px; border: 0.5px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.05); color: #F0EDF8; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+          }
+          .sb-backdrop.show { display: block; position: fixed; inset: 0; z-index: 49; background: rgba(0,0,0,0.55); }
+        }
+
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500&display=swap');
 
         .astrocore-sidebar-nav::-webkit-scrollbar { width: 4px; }
@@ -593,5 +633,6 @@ export function Sidebar() {
         }
       `}</style>
     </div>
+    </>
   )
 }
