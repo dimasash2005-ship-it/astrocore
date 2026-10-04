@@ -1,7 +1,7 @@
 ---
 name: astrocore
 description: Connect this agent to AstroCore (astrocore.one) — a web workspace where the owner chats with the agent (text, voice, photos) and the agent saves memory, reports and gallery items. Use when the owner asks to connect to AstroCore, or to save/read AstroCore memory, reports or gallery.
-version: 1.0.0
+version: 1.0.1
 metadata:
   openclaw:
     requires:
@@ -31,32 +31,27 @@ Base URL: `${ASTROCORE_URL:-https://astrocore.one}`.
 Every API call sends the owner's key in the `X-Api-Key` header. The key only
 gives access to that owner's own data. Never print the key in a reply.
 
-## 1. Connect the chat (one time, needs the owner's OK)
+## 1. Connect the chat (one time, done by the owner)
 
 The AstroCore chat reaches this agent through a small service,
 `ascore-connector`, that runs next to OpenClaw and connects *out* to AstroCore
-(no open ports, no domain needed). It is installed by AstroCore's script.
+(no open ports, no domain needed).
 
-Before running anything, tell the owner what will happen and ask for
-confirmation: the script needs root, installs a systemd service
-`ascore-connector` (Node 18+) and an MCP server `astrocore` for OpenClaw.
+**Do not install it yourself.** It is a system service, so the owner sets it up:
 
-```bash
-URL="${ASTROCORE_URL:-https://astrocore.one}"
-curl -fsSL "$URL/connect-agent.sh" -o /tmp/astrocore-connect.sh
-# let the owner review it if they want: less /tmp/astrocore-connect.sh
-sudo ASTROCORE_URL="$URL" ASTROCORE_API_KEY="$ASTROCORE_API_KEY" bash /tmp/astrocore-connect.sh
-```
+1. Ask the owner to open AstroCore → **Agents → Connect agent**.
+2. AstroCore shows a one-line install command for their server. The owner
+   reviews it and runs it themselves in the server terminal.
+3. When it finishes, the agent appears online in AstroCore.
 
-Success ends with `✓ Готово` (the script waits until the connector reports in). Check any time:
+If the owner asks whether it is connected, you may check (read-only):
 
 ```bash
-systemctl status ascore-connector --no-pager
-journalctl -u ascore-connector -n 30 --no-pager
+systemctl is-active ascore-connector
 ```
 
-After that the owner opens AstroCore → Chat, picks this agent and writes.
-To update the connector later, run the same script again (the key is kept).
+`active` means the chat is connected. Anything else: ask the owner to run the
+command from AstroCore → Agents → Connect agent again.
 
 ## 2. Voice replies in the AstroCore chat
 
@@ -109,6 +104,6 @@ AstroCore), `403` = the key lacks that permission, `400` = check the fields.
 
 ## Rules
 
-- Ask before installing or restarting services; never run the installer silently.
+- Never install, restart or remove system services; the owner does that from AstroCore.
 - Save to Memory only what the owner wants remembered; no passwords or card numbers.
 - Put long results in a Report and tell the owner it's in AstroCore → Reports.
