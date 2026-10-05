@@ -415,6 +415,19 @@ function RegisterForm({ t, language }: { t: ReturnType<typeof useLanguage>["t"];
         {t.registerPage.alreadyHaveAccount}{" "}
         <Link href="/login" style={{ color: T.red, textDecoration: "none", fontWeight: 600 }}>{t.registerPage.signIn}</Link>
       </div>
+
+      {/* Legal: Terms + Privacy */}
+      <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: T.t4, lineHeight: 1.6 }}>
+        {language === "uk" ? "Реєструючись, ви погоджуєтесь з" : "By creating an account, you agree to our"}{" "}
+        <Link href="/terms" target="_blank" style={{ color: T.t3, textDecoration: "underline" }}>
+          {language === "uk" ? "Умовами використання" : "Terms of Service"}
+        </Link>{" "}
+        {language === "uk" ? "та" : "and"}{" "}
+        <Link href="/privacy-policy" target="_blank" style={{ color: T.t3, textDecoration: "underline" }}>
+          {language === "uk" ? "Політикою конфіденційності" : "Privacy Policy"}
+        </Link>
+        .
+      </div>
     </div>
   )
 }
