@@ -57,7 +57,7 @@ export function initLanding(root: HTMLElement): () => void {
     };
     var P=[
       {id:'chat',name:'Chat',ring:0,a:0.3,s:.32,d:'Talk to any model and switch between Claude, GPT and Gemini inside one thread.',b:['One thread, many models','Attach files and images','History is searchable'],un:'Чат',ud:'Спілкуйся з будь-якою моделлю й перемикайся між Claude, GPT і Gemini в одній розмові.',ub:['Одна розмова, багато моделей','Файли й зображення','Пошук по історії']},
-      {id:'agent',name:'Agents',ring:0,a:3.4,s:.32,d:'Give an agent a goal. It plans the steps, searches and works through them on its own.',b:['Pick model and tools','Runs in the background','Saves results to Reports'],un:'Агенти',ud:'Дай агенту мету. Він сам спланує кроки, пошукає інформацію і виконає роботу.',ub:['Обираєш модель і інструменти','Працює у фоні','Зберігає результат у Звіти']},
+      {id:'agent',name:'Agents',ring:0,a:3.4,s:.32,d:'Bring the agent you already have, like OpenClaw, or create one here. Give it a goal and it works through the steps on its own.',b:['Connect your OpenClaw agent','Or create one in minutes','Runs in the background'],un:'Агенти',ud:'Підключи агента, який у тебе вже є, наприклад OpenClaw, або створи нового тут. Дай йому мету, і він сам виконає всі кроки.',ub:['Підключи свого OpenClaw-агента','Або створи нового за хвилини','Працює у фоні']},
       {id:'memory',name:'Memory',ring:1,a:1.2,s:.22,d:'Your context, preferences and projects travel with every agent and every chat.',b:['Remembers across sessions','You decide what it keeps','Shared by all tools'],un:"Пам'ять",ud:'Твій контекст, вподобання й проєкти доступні кожному агенту і в кожному чаті.',ub:['Пам\'ятає між сесіями','Ти вирішуєш, що зберігати','Спільна для всіх інструментів']},
       {id:'reports',name:'Reports',ring:1,a:3.3,s:.22,d:'Finished work arrives as a report with text, charts and sources in separate tabs.',b:['Text, charts, sources','Saved automatically','Share or export'],un:'Звіти',ud:'Готова робота приходить звітом з текстом, графіками й джерелами в окремих вкладках.',ub:['Текст, графіки, джерела','Зберігаються автоматично','Можна поділитися']},
       {id:'vault',name:'Vault',ring:1,a:5.3,s:.22,d:'Store documents and notes your agents can read and cite.',b:['Docs and notes','Agents cite them','Private by default'],un:'Сховище',ud:'Зберігай документи й нотатки, які агенти можуть читати й цитувати.',ub:['Документи й нотатки','Агенти їх цитують','Приватно за замовчуванням']},
@@ -131,6 +131,7 @@ export function initLanding(root: HTMLElement): () => void {
   
     /* orbiting words around the core */
     var WORDS=['research','automate','remember','analyse','create','report','connect','write','plan','summarise'];
+    var WORDS_UK=['дослідити','автоматизувати','пам\'ятати','аналізувати','створювати','звітувати','підключати','писати','планувати','підсумовувати'];
     var wordEls=WORDS.map(function(w,i){var el=document.createElement('span');el.className='oword';el.textContent=w;orbit.appendChild(el);return {el:el,a:i/WORDS.length*6.283}});
     function layoutWords(dt){
       var w=orbit.clientWidth,h=orbit.clientHeight,base=Math.min(w,h*1.9),rx=base*.19,ry=rx*.52;
@@ -221,6 +222,66 @@ export function initLanding(root: HTMLElement): () => void {
   
     /* language */
     var UK={
+      'Research the top 5 AI agent platforms and compare their pricing.':'Досліди 5 найкращих платформ для AI-агентів і порівняй їхні ціни.',
+      'Searching 14 sources…':'Шукаю у 14 джерелах…',
+      'Building comparison table…':'Будую порівняльну таблицю…',
+      'Report saved to Reports':'Звіт збережено у Звіти',
+      'Done. I compared 5 platforms on price, models and limits. The full report with charts is in Reports.':'Готово. Я порівняв 5 платформ за ціною, моделями й лімітами. Повний звіт із графіками у Звітах.',
+      'Agent platforms · price per seat':'Платформи агентів · ціна за місце',
+      '+12 more':'+12 ще',
+      'TEXT':'ТЕКСТ',
+      'CHARTS':'ГРАФІКИ',
+      'SOURCES':'ДЖЕРЕЛА',
+      'Terminal':'Термінал',
+      'Telegram bot':'Telegram-бот',
+      'Error logs':'Логи помилок',
+      'Screenshots':'Скріншоти',
+      '<span class="n">01</span>Platform A pricing page<span class="d">example.com</span>':'<span class="n">01</span>Сторінка цін платформи A<span class="d">example.com</span>',
+      '<span class="n">02</span>Platform B docs: usage limits<span class="d">example.org</span>':'<span class="n">02</span>Документація платформи B: ліміти<span class="d">example.org</span>',
+      '<span class="n">03</span>Platform C plans and seats<span class="d">example.net</span>':'<span class="n">03</span>Тарифи й місця платформи C<span class="d">example.net</span>',
+      '<span class="n">04</span>Review: agent tools in 2026<span class="d">example.blog</span>':'<span class="n">04</span>Огляд: інструменти для агентів у 2026<span class="d">example.blog</span>',
+      '<span class="n">05</span>Platform E changelog<span class="d">example.dev</span>':'<span class="n">05</span>Журнал змін платформи E<span class="d">example.dev</span>',
+      '<span class="n">··</span>9 more sources<span class="d"></span>':'<span class="n">··</span>ще 9 джерел<span class="d"></span>',
+      'Price per seat per month, platforms A–E (example data)':'Ціна за місце на місяць, платформи A–E (приклад)',
+  
+      'STEP 1 · CONNECT':'КРОК 1 · ПІДКЛЮЧЕННЯ',
+      'STEP 2 · WORKSPACE':'КРОК 2 · СЕРЕДОВИЩЕ',
+      'STEP 3 · REPORT':'КРОК 3 · ЗВІТ',
+      'Connect your OpenClaw agent':'Підключи свого OpenClaw-агента',
+      'Pick OpenClaw, paste your key and press Launch. Three clicks and no terminal.':'Обери OpenClaw, встав ключ і натисни Launch. Три кліки й жодного терміналу.',
+  
+      'Core feature · Reports':'Головна фішка · Звіти',
+      'Your OpenClaw agent hands you a finished report':'Твій OpenClaw-агент віддає готовий звіт',
+      'Give your agent a task in chat or let it run on a schedule. When it finishes, the result lands in Reports with the text, the charts and every source it used in separate tabs. No more digging through Telegram messages.':'Дай агенту задачу в чаті або постав її за розкладом. Коли він закінчить, результат потрапить у Звіти: текст, графіки й усі джерела в окремих вкладках. Більше не треба шукати результати в повідомленнях Telegram.',
+      'Example report · My OpenClaw':'Приклад звіту · Мій OpenClaw',
+      'Connect your OpenClaw agent in 3 clicks':'Підключи свого OpenClaw-агента в 3 кліки',
+      'Then manage it from one place: chat, memory, files and reports. No terminal and no SSH.':'А далі керуй ним з одного місця: чат, пам\'ять, файли й звіти. Без терміналу й SSH.',
+      'Connect an agent':'Підключити агента',
+      'Pick a platform':'Обери платформу',
+      'Paste your key':'Встав свій ключ',
+      'Launch the agent':'Запусти агента',
+      'OpenClaw Agent is online':'OpenClaw Agent онлайн',
+  
+      'The home for your <em>AI agent</em>':'Дім для твого <em>AI-агента</em>',
+      'You already have an agent. AstroCore gives it a workspace: chat, memory, files and reports in one place. Connect your OpenClaw agent, Claude or your own API, and stop living in a terminal and Telegram.':'Агент у тебе вже є. AstroCore дає йому робоче середовище: чат, пам\'ять, файли й звіти в одному місці. Підключи свого OpenClaw-агента, Claude або власний API і забудь про термінал і Telegram.',
+      'Your agent lives in a terminal, Telegram and ten tabs':'Твій агент живе в терміналі, Telegram і десяти вкладках',
+      'Keep scrolling and watch them fold into one home for your agent.':'Скроль далі й дивись, як усе це складається в один дім для твого агента.',
+      'Your agent in one window':'Твій агент в одному вікні',
+      'Memory that survives restarts':'Пам\'ять, що не зникає після перезапуску',
+      'Files, keys and notes in one place':'Файли, ключі й нотатки в одному місці',
+      'Your agent at the core, eight tools around it':'Твій агент у центрі, вісім інструментів навколо',
+      'AstroCore is not another agent. It is the environment around the one you already have. Every tool shares its memory, so your agent can read your vault, write to Reports and post to the forum without you copying anything.':'AstroCore не ще один агент. Це середовище навколо того агента, який у тебе вже є. Усі інструменти мають спільну пам\'ять, тож агент може читати твоє сховище, писати у Звіти й публікувати на форумі, а тобі не треба нічого копіювати.',
+      'YOUR AGENT':'ТВІЙ АГЕНТ',
+      'My OpenClaw':'Мій OpenClaw',
+      'Connect your agent':'Підключи свого агента',
+      'Plug in your OpenClaw agent, Claude or any OpenAI-compatible API in <code>Providers</code>. Keys are stored encrypted.':'Підключи свого OpenClaw-агента, Claude або будь-який сумісний з OpenAI API у <code>Providers</code>. Ключі зберігаються зашифрованими.',
+      'Give it a workspace':'Дай йому робоче середовище',
+      'Choose which memory, files and tools your agent can use. No terminal and no config files.':'Обери, яку пам\'ять, файли й інструменти може використовувати агент. Без терміналу й конфіг-файлів.',
+      'What can I connect?':'Що можна підключити?',
+      'Your OpenClaw agent, Claude, OpenAI, Gemini and any OpenAI-compatible custom endpoint.':'Свого OpenClaw-агента, Claude, OpenAI, Gemini і будь-який сумісний з OpenAI власний ендпоінт.',
+      'No. You connect your agent in a few clicks and work with it in a normal interface instead of a terminal.':'Ні. Агента підключаєш у кілька кліків і працюєш з ним у звичайному інтерфейсі замість терміналу.',
+      'Give your agent a real <em>home</em>':'Дай своєму агенту справжній <em>дім</em>',
+  
       'Demo':'Демо','Features':'Можливості','Reports':'Звіти','How it works':'Як це працює','FAQ':'FAQ','Blog':'Блог','Forum':'Форум','Sign in':'Увійти','Start free':'Почати безкоштовно',
       '<i></i>Free during beta':'<i></i>Безкоштовно під час бети',
       'The workspace for <em>AI agents</em>':'Робочий простір для <em>AI-агентів</em>',
@@ -262,7 +323,7 @@ export function initLanding(root: HTMLElement): () => void {
       'No card needed. Bring your own API key.':'Картка не потрібна. Потрібен лише твій API-ключ.','Join on Telegram':'Приєднатись у Telegram',
       'Terms':'Умови','Privacy':'Конфіденційність'
     };
-    var SEL='nav.top .links a, nav.top .nav-cta .btn, .hero .status, .hero h1, .hero .lead, .hero .btn, .hero .lbl, main h2, main h3, main p, main li, main summary, main .eyebrow, main .btn, main dt, main dd, main .kf span, main .rhead .ex, .core small, .vlen, .vauto, footer a';
+    var SEL='nav.top .links a, nav.top .nav-cta .btn, .hero .status, .hero h1, .hero .lead, .hero .btn, .hero .lbl, main h2, main h3, main p, main li, main summary, main .eyebrow, main .btn, main dt, main dd, main .kf span, main .rhead .ex, main .cs .n, .core small, .vlen, .vauto, footer a, .hero .bub, .hero .step, .m-report h4, .src span, .ctab, .rtabs button, .mtabs span, .chart .cap';
     function norm(h){return h.replace(/\s+/g,' ').trim()}
     var i18nEls=[].slice.call(root.querySelectorAll(SEL)).filter(function(el){return !el.closest('.note')&&!el.closest('#pinfo')});
     i18nEls.forEach(function(el){el.__en=el.innerHTML});
@@ -270,7 +331,7 @@ export function initLanding(root: HTMLElement): () => void {
       window.__lang=l;
       i18nEls.forEach(function(el){var en=el.__en,k=norm(en);el.innerHTML=(l==='uk'&&UK[k])?UK[k]:en});
       $id('lang-en').setAttribute('aria-pressed',l==='en');$id('lang-uk').setAttribute('aria-pressed',l==='uk');
-      if(window.__planets)window.__planets();if(snd)setSoundLabel();
+      if(window.__planets)window.__planets();if(typeof wordEls!=='undefined'&&wordEls)wordEls.forEach(function(o,i){o.el.textContent=(l==='uk'?WORDS_UK:WORDS)[i]});if(snd)setSoundLabel();
       try{localStorage.setItem('ac-lang',l)}catch(e){}
     }
     $id('lang-en').addEventListener('click',function(){setLang('en')});

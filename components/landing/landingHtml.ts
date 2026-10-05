@@ -12,10 +12,11 @@ export const LANDING_HTML = `
 
 <header class="hero" id="top"><canvas id="floor" aria-hidden="true"></canvas><div class="wrap">
   <span class="status"><i></i>Free during beta</span>
-  <h1>The workspace for <em>AI agents</em></h1>
-  <p class="lead">Chat, agents, memory and reports in one place. Connect Claude, OpenAI or Gemini, give an agent a task, and get a finished report with sources and charts.</p>
+  <h1>The home for your <em>AI agent</em></h1>
+  <p class="lead">You already have an agent. AstroCore gives it a workspace: chat, memory, files and reports in one place. Connect your OpenClaw agent, Claude or your own API, and stop living in a terminal and Telegram.</p>
   <div class="ctas"><a class="btn btn-red" href="/register">Start free →</a><a class="btn btn-ghost" href="#demo" id="watch">▶ Watch the demo</a></div>
   <div class="chips"><span class="lbl">Works with</span>
+    <span class="chip" style="background:rgba(232,0,42,.12);color:#FF4D6A"><i style="background:#E8002A"></i>OpenClaw</span>
     <span class="chip" style="background:rgba(217,119,87,.12);color:var(--claude)"><i style="background:var(--claude)"></i>Claude</span>
     <span class="chip" style="background:rgba(16,163,127,.12);color:var(--openai)"><i style="background:var(--openai)"></i>OpenAI</span>
     <span class="chip" style="background:rgba(66,133,244,.12);color:var(--gemini)"><i style="background:var(--gemini)"></i>Gemini</span>
@@ -60,22 +61,22 @@ export const LANDING_HTML = `
 
 
 <section class="ac-collapse" id="problem"><div class="pin"><div class="wrap">
-  <div class="head"><span class="eyebrow">The problem</span><h2>Ten tabs and three subscriptions, or one workspace</h2><p>Keep scrolling and watch them fold into one.</p></div>
+  <div class="head"><span class="eyebrow">The problem</span><h2>Your agent lives in a terminal, Telegram and ten tabs</h2><p>Keep scrolling and watch them fold into one home for your agent.</p></div>
   <div class="cstage" id="cstage">
-    <span class="ctab" style="--x:8%;--y:12%;--r:-8deg">ChatGPT</span>
-    <span class="ctab" style="--x:30%;--y:4%;--r:5deg">Claude.ai</span>
-    <span class="ctab" style="--x:72%;--y:8%;--r:-4deg">Gemini</span>
-    <span class="ctab" style="--x:92%;--y:22%;--r:9deg">Notion</span>
-    <span class="ctab" style="--x:4%;--y:52%;--r:6deg">Google Docs</span>
-    <span class="ctab" style="--x:95%;--y:58%;--r:-7deg">Drive</span>
-    <span class="ctab" style="--x:12%;--y:90%;--r:-5deg">API keys.txt</span>
-    <span class="ctab" style="--x:38%;--y:96%;--r:7deg">Bookmarks</span>
-    <span class="ctab" style="--x:66%;--y:94%;--r:-9deg">Spreadsheet</span>
+    <span class="ctab" style="--x:8%;--y:12%;--r:-8deg">Terminal</span>
+    <span class="ctab" style="--x:30%;--y:4%;--r:5deg">SSH root@vps</span>
+    <span class="ctab" style="--x:72%;--y:8%;--r:-4deg">Telegram bot</span>
+    <span class="ctab" style="--x:92%;--y:22%;--r:9deg">config.yaml</span>
+    <span class="ctab" style="--x:4%;--y:52%;--r:6deg">.env</span>
+    <span class="ctab" style="--x:95%;--y:58%;--r:-7deg">API keys.txt</span>
+    <span class="ctab" style="--x:12%;--y:90%;--r:-5deg">Error logs</span>
+    <span class="ctab" style="--x:38%;--y:96%;--r:7deg">Notion</span>
+    <span class="ctab" style="--x:66%;--y:94%;--r:-9deg">Google Docs</span>
     <span class="ctab" style="--x:88%;--y:88%;--r:4deg">Screenshots</span>
     <div class="cwin" id="cwin">
       <div class="win-top"><i></i><i></i><i></i><span>astrocore.one</span></div>
       <h3>One <em>AstroCore</em></h3>
-      <ul><li>Every model in one chat</li><li>Agents that remember your context</li><li>Results land in Reports automatically</li><li>Files, images and notes in one vault</li></ul>
+      <ul><li>Your agent in one window</li><li>Memory that survives restarts</li><li>Results land in Reports automatically</li><li>Files, keys and notes in one place</li></ul>
     </div>
   </div>
 </div></div></section>
@@ -83,11 +84,11 @@ export const LANDING_HTML = `
 
 
 <section class="s sheet" id="features"><canvas id="space" aria-hidden="true"></canvas><span class="laser"></span><div class="wrap">
-  <div class="head"><span class="eyebrow">Everything in one environment</span><h2>Eight tools orbiting one core</h2><p>Every tool shares the same memory, so an agent can read your vault, write to Reports and post to the forum without you copying anything.</p></div>
+  <div class="head"><span class="eyebrow">Everything in one environment</span><h2>Your agent at the core, eight tools around it</h2><p>AstroCore is not another agent. It is the environment around the one you already have. Every tool shares its memory, so your agent can read your vault, write to Reports and post to the forum without you copying anything.</p></div>
   <div class="sys">
     <div class="orbit" id="orbit">
       <div class="orb-ring r1"></div><div class="orb-ring r2"></div><div class="orb-ring r3"></div>
-      <div class="core"><svg width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 20h5.5L12 13l2.2 4.2H11L12.6 20H21z" fill="#E8002A"/></svg><small>ASTROCORE MEMORY</small></div>
+      <div class="core"><svg width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 20h5.5L12 13l2.2 4.2H11L12.6 20H21z" fill="#E8002A"/></svg><small>YOUR AGENT</small></div>
     </div>
     <div class="pinfo" id="pinfo" aria-live="polite"></div>
   </div>
@@ -96,16 +97,16 @@ export const LANDING_HTML = `
 
 
 <section class="s sheet" id="reports"><span class="laser"></span><div class="wrap">
-  <div class="head"><span class="eyebrow">Core feature · Reports</span><h2>Agents don't just reply. They hand you a finished report.</h2></div>
+  <div class="head"><span class="eyebrow">Core feature · Reports</span><h2>Your OpenClaw agent hands you a finished report</h2></div>
   <div class="rstage">
     <div class="rmeta">
-      <p class="muted" style="margin:0">Give an agent a task in chat. When it finishes, the result is saved to Reports with the text, the charts and every source it used in separate tabs.</p>
-      <dl><dt>Task</dt><dd>Compare 5 agent platforms</dd><dt>Agent</dt><dd>Research · Claude</dd><dt>Run time</dt><dd>6 min 12 s</dd><dt>Sources</dt><dd>14 pages</dd><dt>Output</dt><dd>1 summary · 2 charts</dd></dl>
+      <p class="muted" style="margin:0">Give your agent a task in chat or let it run on a schedule. When it finishes, the result lands in Reports with the text, the charts and every source it used in separate tabs. No more digging through Telegram messages.</p>
+      <dl><dt>Task</dt><dd>Compare 5 agent platforms</dd><dt>Agent</dt><dd>My OpenClaw</dd><dt>Run time</dt><dd>6 min 12 s</dd><dt>Sources</dt><dd>14 pages</dd><dt>Output</dt><dd>1 summary · 2 charts</dd></dl>
       <a class="btn btn-red" href="/register" style="justify-self:start">Try it free →</a>
     </div>
     <div class="rwin">
-      <div class="win-top"><i></i><i></i><i></i><span>astrocore.one/reports/agent-platforms</span></div>
-      <div class="rhead"><span class="ex">Example report</span><h3>AI agent platforms: pricing compared</h3></div>
+      <div class="win-top"><i></i><i></i><i></i><span>astrocore.one/reports/my-openclaw</span></div>
+      <div class="rhead"><span class="ex">Example report · My OpenClaw</span><h3>AI agent platforms: pricing compared</h3></div>
       <div class="rtabs" role="tablist" aria-label="Report sections">
         <button role="tab" id="t-text" aria-selected="true" aria-controls="p-text">TEXT</button>
         <button role="tab" id="t-charts" aria-selected="false" aria-controls="p-charts">CHARTS</button>
@@ -127,7 +128,7 @@ export const LANDING_HTML = `
           <rect class="b" x="290" y="10"  width="64" height="240" rx="5"/><text class="val" x="322" y="26" text-anchor="middle" style="fill:#fff">$40</text><text x="322" y="272" text-anchor="middle">C</text>
           <rect class="b" x="395" y="178" width="64" height="72"  rx="5"/><text class="val" x="427" y="170" text-anchor="middle">$12</text><text x="427" y="272" text-anchor="middle">D</text>
           <rect class="b" x="500" y="94"  width="64" height="156" rx="5"/><text class="val" x="532" y="86" text-anchor="middle">$26</text><text x="532" y="272" text-anchor="middle">E</text>
-          <text x="315" y="294" text-anchor="middle">Price per seat per month, platforms A–E (example data)</text>
+          <text class="cap" x="315" y="294" text-anchor="middle">Price per seat per month, platforms A–E (example data)</text>
         </svg>
       </div>
       <div class="rpanel" id="p-sources" role="tabpanel" aria-labelledby="t-sources" hidden>
@@ -147,7 +148,7 @@ export const LANDING_HTML = `
 
 
 <section class="s sheet" id="how"><span class="laser"></span><div class="wrap">
-  <div class="head"><span class="eyebrow">How it works</span><h2>From sign-up to first report in three steps</h2></div>
+  <div class="head"><span class="eyebrow">How it works</span><h2>Connect your OpenClaw agent in 3 clicks</h2><p>Then manage it from one place: chat, memory, files and reports. No terminal and no SSH.</p></div>
   <div class="conv" id="conv">
     <svg viewBox="0 0 1000 110" aria-hidden="true">
       <path id="track" class="track" d="M60 55 C 230 5, 330 105, 500 55 S 770 5, 940 55"/>
@@ -156,8 +157,8 @@ export const LANDING_HTML = `
       <circle class="dot" id="cdot" cx="60" cy="55" r="7"/>
     </svg>
     <div class="csteps">
-      <div class="cs" id="c0"><span class="n">STEP 1 · PROVIDER</span><h3>Connect a provider</h3><p>Paste your Claude, OpenAI or Gemini key in <code>Providers</code>. Keys are stored encrypted.</p></div>
-      <div class="cs" id="c1"><span class="n">STEP 2 · AGENT</span><h3>Create an agent</h3><p>Pick a model, describe the job and choose which memory and files it can use.</p></div>
+      <div class="cs" id="c0"><span class="n">STEP 1 · CONNECT</span><h3>Connect your OpenClaw agent</h3><p>Pick OpenClaw, paste your key and press Launch. Three clicks and no terminal.</p></div>
+      <div class="cs" id="c1"><span class="n">STEP 2 · WORKSPACE</span><h3>Give it a workspace</h3><p>Choose which memory, files and tools your agent can use. No terminal and no config files.</p></div>
       <div class="cs" id="c2"><span class="n">STEP 3 · REPORT</span><h3>Get the report</h3><p>The agent does the work and saves the result to <code>Reports</code> with sources and charts.</p></div>
     </div>
   </div>
@@ -177,9 +178,9 @@ export const LANDING_HTML = `
   <div class="head"><span class="eyebrow">FAQ</span><h2>Questions people ask first</h2></div>
   <div class="faq">
     <details open><summary>Is AstroCore free?</summary><p>Yes, AstroCore is free during beta. You pay your AI provider directly for the tokens you use with your own key.</p></details>
-    <details><summary>Which models can I use?</summary><p>Claude, OpenAI, Gemini and any OpenAI-compatible custom endpoint.</p></details>
+    <details><summary>What can I connect?</summary><p>Your OpenClaw agent, Claude, OpenAI, Gemini and any OpenAI-compatible custom endpoint.</p></details>
     <details><summary>Does AstroCore only work with OpenClaw?</summary><p>No. OpenClaw is where we started, but we are building a larger ecosystem. We keep adding new features, and support for connecting other agents is on the way.</p></details>
-    <details><summary>Do I need to know how to code?</summary><p>No. You create agents by describing the task in plain language.</p></details>
+    <details><summary>Do I need to know how to code?</summary><p>No. You connect your agent in a few clicks and work with it in a normal interface instead of a terminal.</p></details>
     <details><summary>Where are my API keys stored?</summary><p>Encrypted in our database, never shown again after you save them, and used only for your requests.</p></details>
   </div>
 </div></section>
@@ -187,7 +188,7 @@ export const LANDING_HTML = `
 
 <section class="final sheet"><span class="laser"></span><div class="wrap">
   <span class="eyebrow">Free during beta</span>
-  <h2>Give your first agent a task <em>today</em></h2>
+  <h2>Give your agent a real <em>home</em></h2>
   <p class="muted" style="margin:0">No card needed. Bring your own API key.</p>
   <div class="ctas"><a class="btn btn-red" href="/register">Start free →</a><a class="btn btn-ghost" href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener">Join on Telegram</a></div>
 </div></section>
