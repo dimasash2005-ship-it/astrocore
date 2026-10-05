@@ -252,3 +252,9 @@
   .ac-landing .sheet,.ac-landing .mock{transform:none!important;opacity:1!important}
   .ac-landing #floor{display:none}
 }
+
+/* Захист від глобальних стилів проєкту (main/section з overflow чи висотою ламають "прилипання") */
+.ac-landing main.stage{overflow:visible!important;height:auto!important;max-height:none!important;contain:none!important;display:block!important}
+.ac-landing section.collapse{overflow:visible!important;contain:none!important}
+.ac-landing .collapse .pin{position:sticky!important;top:0!important}
+@media (max-width:460px){.ac-landing .collapse .pin{position:static!important}}
