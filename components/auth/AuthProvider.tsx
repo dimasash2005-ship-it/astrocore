@@ -4,12 +4,11 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { getSupabase } from "@/lib/supabase/client"
+import Landing from "@/components/landing/Landing"
 
 const PUBLIC_ROUTES = new Set(["/login", "/register"])
 // Pages open to everyone (logged in or not) — no redirects at all
-// /forgot-password and /reset-password: reachable logged out (forgot) and
-// right after the email link logs the user in (reset) — so never redirect.
-const OPEN_ROUTES = new Set(["/terms", "/privacy-policy", "/forgot-password", "/reset-password"])
+const OPEN_ROUTES = new Set(["/terms", "/privacy-policy"])
 
 function Spinner() {
   return (
@@ -35,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready,  setReady]  = useState(false)
   const [authed, setAuthed] = useState(false)
 
+  const isHome      = pathname === "/"
   const isOpen      = OPEN_ROUTES.has(pathname)
   const isPublic    = PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/auth/")
   const showSidebar = authed && !isPublic && !isOpen
@@ -42,28 +42,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sb = getSupabase()
 
-    sb.auth.getSession().then(({ data: { session } }) => {
-      const loggedIn = !!session?.user
+    function route(loggedIn: boolean) {
       setAuthed(loggedIn)
       setReady(true)
       if (isOpen) return
+      if (isHome && !loggedIn) return // guests see the landing page on "/"
       if (loggedIn && isPublic) router.replace("/")
       else if (!loggedIn && !isPublic) router.replace("/login")
-    })
+    }
+
+    sb.auth.getSession().then(({ data: { session } }) => route(!!session?.user))
 
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
-      const loggedIn = !!session?.user
-      setAuthed(loggedIn)
-      setReady(true)
-      if (isOpen) return
-      if (loggedIn && isPublic) router.replace("/")
-      else if (!loggedIn && !isPublic) router.replace("/login")
+      route(!!session?.user)
     })
 
     return () => subscription.unsubscribe()
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready && !isPublic && !isOpen) return <Spinner />
+
+  // Guest on the home page → landing instead of the dashboard
+  if (isHome && !authed) return <Landing />
 
   return (
     <>
