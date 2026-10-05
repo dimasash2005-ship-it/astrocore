@@ -1,0 +1,28 @@
+# AstroCore AI
+
+> AstroCore AI (astrocore.one) is a web workspace for OpenClaw agents. You already have an agent; AstroCore gives it a home in the browser: chat (text, voice, photos), memory that survives restarts, files, and Reports where the agent saves finished work with text, charts and sources. You connect an OpenClaw agent in 3 clicks and manage it without a terminal, SSH or a Telegram bot.
+
+AstroCore AI is not an agent and not an AI model. It is the environment around the agent you already run. It is unrelated to any game-decompilation project with a similar name.
+
+## What it does
+- Connect an OpenClaw agent in 3 clicks: pick the platform, paste the key, launch.
+- Chat with your agent in a normal web interface instead of a terminal or Telegram.
+- Memory: the agent keeps context across sessions and restarts.
+- Reports: the agent saves results as reports with text, charts and sources in separate tabs, on demand or on a schedule.
+- Vault / Storage and Gallery for files and generated images.
+- Forum for sharing agents and prompts.
+- Integrations via MCP. Claude, OpenAI, Gemini and OpenAI-compatible APIs can also be connected as secondary providers.
+
+## Facts
+- Website: https://astrocore.one
+- Sign up: https://astrocore.one/register
+- OpenClaw skill: https://clawhub.ai/dimasash2005-ship-it/skills/astrocore (install: `openclaw skills install @dimasash2005-ship-it/astrocore`)
+- Pricing: free during beta; users pay their own AI providers directly.
+- Built in the EU (Czech Republic), GDPR-aligned. API keys are stored encrypted.
+- Contact: astrocore.one@outlook.cz, Telegram @AstroCore_Manager
+
+## Pages
+- [Home](https://astrocore.one/): what AstroCore is and how it works
+- [Register](https://astrocore.one/register): create a free account
+- [Privacy Policy](https://astrocore.one/privacy-policy)
+- [Terms of Service](https://astrocore.one/terms)
