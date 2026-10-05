@@ -14,7 +14,7 @@
   --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
 }
 .ac-landing *,.ac-landing{box-sizing:border-box}
-.ac-landing{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6;margin:0;overflow-x:hidden}
+.ac-landing{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6;margin:0;overflow-x:clip}
 .ac-landing a{color:inherit}
 .ac-landing button{font:inherit;color:inherit}
 .ac-landing .wrap{max-width:1160px;margin:0 auto;padding-inline:clamp(16px,4vw,40px)}
