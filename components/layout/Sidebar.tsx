@@ -66,7 +66,7 @@ const NAV_GROUPS: { label?: { uk: string; en: string }; items: { href: string; i
 ]
 
 function ContactPanel({ onClose }: { onClose: () => void }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   return (
     <div style={{
       position: "absolute",
@@ -97,7 +97,7 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
       <div style={{ padding: "8px 8px 10px" }}>
         {[
           { href: "https://t.me/AstroCore_Manager", target: "_blank", Icon: Send,  ic: "#0088CC", ib: "rgba(0,136,204,0.14)", ibd: "rgba(0,136,204,0.28)", title: "Telegram", sub: t.sidebar.telegramSubtitle },
-          { href: "mailto:gbtauent21@outlook.com",  target: undefined, Icon: Mail, ic: "#E8002A", ib: "rgba(232,0,42,0.12)",  ibd: "rgba(232,0,42,0.28)",  title: "Email",    sub: "gbtauent21@outlook.com" },
+          { href: "mailto:astrocore.one@outlook.cz", target: undefined, Icon: Mail, ic: "#E8002A", ib: "rgba(232,0,42,0.12)",  ibd: "rgba(232,0,42,0.28)",  title: "Email",    sub: "astrocore.one@outlook.cz" },
         ].map(({ href, target, Icon, ic, ib, ibd, title, sub }) => (
           <a key={href} href={href} target={target} rel="noopener noreferrer"
             style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 10px", borderRadius: 10, textDecoration: "none" }}
@@ -113,6 +113,25 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
             </div>
           </a>
         ))}
+      </div>
+      <div style={{
+        display: "flex", justifyContent: "center", gap: 14,
+        padding: "8px 14px 10px",
+        borderTop: "0.5px solid rgba(255,255,255,0.07)",
+        fontSize: 10.5,
+      }}>
+        <Link href="/terms" target="_blank" style={{ color: "#5C5A78", textDecoration: "none" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#C8C4D8" }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#5C5A78" }}
+        >
+          {language === "uk" ? "Умови використання" : "Terms of Service"}
+        </Link>
+        <Link href="/privacy-policy" target="_blank" style={{ color: "#5C5A78", textDecoration: "none" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#C8C4D8" }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#5C5A78" }}
+        >
+          {language === "uk" ? "Конфіденційність" : "Privacy Policy"}
+        </Link>
       </div>
     </div>
   )
