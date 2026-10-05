@@ -111,9 +111,9 @@
 .ac-landing .head p{margin:0;color:var(--fg2)}
 
 /* scene 1: tabs collapse */
-.ac-landing .collapse{height:230vh;border-top:1px solid var(--line);position:relative}
-.ac-landing .collapse .pin{position:sticky;top:0;height:100vh;display:grid;align-content:center;overflow:hidden}
-.ac-landing .collapse .head{margin-bottom:24px}
+.ac-landing .ac-collapse{height:230vh;border-top:1px solid var(--line);position:relative}
+.ac-landing .ac-collapse .pin{position:sticky;top:0;height:100vh;display:grid;align-content:center;overflow:hidden}
+.ac-landing .ac-collapse .head{margin-bottom:24px}
 .ac-landing .cstage{position:relative;height:min(52vh,440px)}
 .ac-landing .ctab{position:absolute;left:var(--x);top:var(--y);font:500 13px var(--mono);padding:8px 13px;border-radius:9px;background:#14141F;border:1px solid var(--line);color:var(--fg2);white-space:nowrap;box-shadow:0 10px 30px rgba(0,0,0,.4);transform:translate(-50%,-50%) rotate(var(--r));will-change:transform,opacity}
 .ac-landing .cwin{position:absolute;left:50%;top:50%;width:min(420px,86%);transform:translate(-50%,-50%) scale(var(--ws,1));opacity:var(--wo,1);border-radius:16px;border:1px solid var(--redline);background:linear-gradient(160deg,rgba(232,0,42,.12),#0B0B15 70%);box-shadow:0 0 60px rgba(232,0,42,.25);overflow:hidden}
@@ -130,8 +130,8 @@
 .ac-landing .sys{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.9fr);gap:36px;align-items:center}
 .ac-landing .orbit{position:relative;height:540px;--k:1}
 .ac-landing .oword{position:absolute;left:0;top:0;font:600 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#FF6A80;text-shadow:0 0 10px rgba(232,0,42,.8);pointer-events:none;white-space:nowrap;will-change:transform}
-.ac-landing .ring{position:absolute;left:50%;top:50%;border:1px solid rgba(232,0,42,.22);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
-.ac-landing .ring.r2{border-color:rgba(232,0,42,.15)}.ac-landing .ring.r3{border-color:rgba(232,0,42,.10);border-style:dashed}
+.ac-landing .orb-ring{position:absolute;left:50%;top:50%;border:1px solid rgba(232,0,42,.22);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+.ac-landing .orb-ring.r2{border-color:rgba(232,0,42,.15)}.ac-landing .orb-ring.r3{border-color:rgba(232,0,42,.10);border-style:dashed}
 .ac-landing .core{position:absolute;left:50%;top:50%;width:110px;height:110px;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;z-index:50;background:radial-gradient(circle at 40% 35%,#2A0008,#000 70%);box-shadow:0 0 0 1px var(--redline),0 0 60px 10px rgba(232,0,42,.35),inset 0 0 30px rgba(232,0,42,.4)}
 .ac-landing .core::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(232,0,42,.4);animation:corePulse 3s ease-in-out infinite}
 @keyframes corePulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.18);opacity:0}}
@@ -241,7 +241,7 @@
   .ac-landing .mock{transform:none}
   .ac-landing .conv svg{display:none}
   .ac-landing .csteps{grid-template-columns:1fr}
-  .ac-landing .collapse{height:auto}.ac-landing .collapse .pin{position:static;height:auto;padding-block:80px}
+  .ac-landing .ac-collapse{height:auto}.ac-landing .ac-collapse .pin{position:static;height:auto;padding-block:80px}
   .ac-landing .cstage{height:auto;display:flex;flex-wrap:wrap;gap:8px;padding-bottom:20px}
   .ac-landing .ctab{position:static;transform:none!important;opacity:1!important}
   .ac-landing .cwin{position:relative;left:auto;top:auto;transform:none!important;opacity:1!important;margin-top:16px;width:100%}
@@ -255,6 +255,6 @@
 
 /* Захист від глобальних стилів проєкту (main/section з overflow чи висотою ламають "прилипання") */
 .ac-landing main.stage{overflow:visible!important;height:auto!important;max-height:none!important;contain:none!important;display:block!important}
-.ac-landing section.collapse{overflow:visible!important;contain:none!important}
-.ac-landing .collapse .pin{position:sticky!important;top:0!important}
-@media (max-width:460px){.ac-landing .collapse .pin{position:static!important}}
+.ac-landing section.ac-collapse{overflow:visible!important;contain:none!important}
+.ac-landing .ac-collapse .pin{position:sticky!important;top:0!important}
+@media (max-width:460px){.ac-landing .ac-collapse .pin{position:static!important}}

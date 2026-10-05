@@ -59,7 +59,7 @@ export const LANDING_HTML = `
 
 
 
-<section class="collapse" id="problem"><div class="pin"><div class="wrap">
+<section class="ac-collapse" id="problem"><div class="pin"><div class="wrap">
   <div class="head"><span class="eyebrow">The problem</span><h2>Ten tabs and three subscriptions, or one workspace</h2><p>Keep scrolling and watch them fold into one.</p></div>
   <div class="cstage" id="cstage">
     <span class="ctab" style="--x:8%;--y:12%;--r:-8deg">ChatGPT</span>
@@ -86,7 +86,7 @@ export const LANDING_HTML = `
   <div class="head"><span class="eyebrow">Everything in one environment</span><h2>Eight tools orbiting one core</h2><p>Every tool shares the same memory, so an agent can read your vault, write to Reports and post to the forum without you copying anything.</p></div>
   <div class="sys">
     <div class="orbit" id="orbit">
-      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+      <div class="orb-ring r1"></div><div class="orb-ring r2"></div><div class="orb-ring r3"></div>
       <div class="core"><svg width="54" height="54" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 20h5.5L12 13l2.2 4.2H11L12.6 20H21z" fill="#E8002A"/></svg><small>ASTROCORE MEMORY</small></div>
     </div>
     <div class="pinfo" id="pinfo" aria-live="polite"></div>

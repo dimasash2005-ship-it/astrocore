@@ -65,7 +65,7 @@ export function initLanding(root: HTMLElement): () => void {
       {id:'forum',name:'Forum',ring:2,a:2.9,s:.15,d:'Share agents and prompts with other AstroCore users and learn from theirs.',b:['Share your agents','Copy others in one click','Ask the community'],un:'Форум',ud:'Діліться агентами й промптами з іншими користувачами AstroCore.',ub:['Публікуй своїх агентів','Копіюй чужих в один клік','Питай спільноту']},
       {id:'integrations',name:'Integrations',ring:2,a:5.0,s:.15,d:'Connect your tools through MCP and plug agents into your workflow.',b:['MCP connectors','Bring your own tools','Custom providers'],un:'Інтеграції',ud:'Підключай свої інструменти через MCP і вбудовуй агентів у свою роботу.',ub:['MCP-конектори','Свої інструменти','Власні провайдери']}
     ];
-    var orbit=$id('orbit'),pinfo=$id('pinfo'),rings=orbit.querySelectorAll('.ring'),active='reports',paused=false,oVis=true;
+    var orbit=$id('orbit'),pinfo=$id('pinfo'),rings=orbit.querySelectorAll('.orb-ring'),active='reports',paused=false,oVis=true;
     P.forEach(function(p){
       var b=document.createElement('button');b.type='button';b.className='planet';b.setAttribute('aria-label',p.name);
       b.innerHTML='<span class="pi"><svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[p.id]+'</svg></span>'+p.name;
