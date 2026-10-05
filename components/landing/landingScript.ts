@@ -97,8 +97,6 @@ export function initLanding(root: HTMLElement): () => void {
         p.el.style.opacity=(p.id===active?1:(.45+.55*depth)).toFixed(3);
       });
     }
-    var last=0;
-    (function spin(ts){var dt=last?Math.min((ts-last)/1000,.05):0;last=ts;if(oVis){layoutOrbit(dt);layoutWords(dt)}raf(spin)})(0);
     if('IntersectionObserver' in window)mkIO(function(e){oVis=e[0].isIntersecting}).observe(orbit);
     onWin('resize',function(){layoutOrbit(0)});
   
@@ -135,12 +133,15 @@ export function initLanding(root: HTMLElement): () => void {
     var WORDS=['research','automate','remember','analyse','create','report','connect','write','plan','summarise'];
     var wordEls=WORDS.map(function(w,i){var el=document.createElement('span');el.className='oword';el.textContent=w;orbit.appendChild(el);return {el:el,a:i/WORDS.length*6.283}});
     function layoutWords(dt){
-      if(!wordEls)return;
       var w=orbit.clientWidth,h=orbit.clientHeight,base=Math.min(w,h*1.9),rx=base*.19,ry=rx*.52;
       wordEls.forEach(function(o){if(dt&&!reduce)o.a-=.45*dt;var depth=(Math.sin(o.a)+1)/2;
         o.el.style.transform='translate('+(w/2+Math.cos(o.a)*rx-o.el.offsetWidth/2).toFixed(1)+'px,'+(h/2+Math.sin(o.a)*ry-6).toFixed(1)+'px) scale('+(.75+.4*depth).toFixed(3)+')';
         o.el.style.opacity=(.15+.75*depth).toFixed(3);o.el.style.zIndex=depth>.5?55:45;});
     }
+  
+    /* start the solar system only after planets and words exist */
+    var last=0;
+    (function spin(ts){var dt=last?Math.min((ts-last)/1000,.05):0;last=ts;if(oVis){layoutOrbit(dt);layoutWords(dt)}raf(spin)})(0);
   
     /* report tabs */
     var tabs=[].slice.call(root.querySelectorAll('.rtabs [role=tab]'));
