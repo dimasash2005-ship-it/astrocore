@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy — AstroCore AI",
   description: "How AstroCore AI collects, uses and protects your data.",
+  robots: { index: false, follow: true },
 };
 
 const CONTACT_EMAIL = "astrocore.one@outlook.cz";

@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service — AstroCore AI",
   description: "The rules for using AstroCore AI.",
+  robots: { index: false, follow: true },
 };
 
 const CONTACT_EMAIL = "astrocore.one@outlook.cz";
