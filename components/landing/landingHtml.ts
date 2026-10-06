@@ -6,7 +6,7 @@ export const LANDING_HTML = `
     <span class="mark"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 20h5.5L12 13l2.2 4.2H11L12.6 20H21z" fill="#E8002A"/></svg></span>
     <span>Astro<em>Core</em></span>
   </a>
-  <div class="links"><a href="#demo">Demo</a><a href="#features">Features</a><a href="#reports">Reports</a><a href="#how">How it works</a><a href="#faq">FAQ</a></div>
+  <div class="links"><a href="#demo">Demo</a><a href="#features">Features</a><a href="#reports">Reports</a><a href="#how">How it works</a><a href="#faq">FAQ</a><a href="/guides">Guides</a></div>
   <div class="nav-cta"><div class="lang" role="group" aria-label="Language"><button type="button" id="lang-en" aria-pressed="true">EN</button><button type="button" id="lang-uk" aria-pressed="false">UA</button></div><a class="btn btn-text" href="/login">Sign in</a><a class="btn btn-red" href="/register">Start free</a></div>
 </div></nav>
 
@@ -196,7 +196,7 @@ export const LANDING_HTML = `
 
 <footer><div class="wrap">
   <span>© 2026 AstroCore AI</span>
-  <a href="/terms">Terms</a><a href="/privacy-policy">Privacy</a><a href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener">Telegram</a>
+  <a href="/guides">Guides</a><a href="/terms">Terms</a><a href="/privacy-policy">Privacy</a><a href="https://t.me/AstroCore_Manager" target="_blank" rel="noopener">Telegram</a>
   <span class="sp">astrocore.one@outlook.cz</span>
 </div></footer>
 `;

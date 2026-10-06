@@ -222,6 +222,7 @@ export function initLanding(root: HTMLElement): () => void {
   
     /* language */
     var UK={
+      'Guides':'Гайди',
       'Research the top 5 AI agent platforms and compare their pricing.':'Досліди 5 найкращих платформ для AI-агентів і порівняй їхні ціни.',
       'Searching 14 sources…':'Шукаю у 14 джерелах…',
       'Building comparison table…':'Будую порівняльну таблицю…',

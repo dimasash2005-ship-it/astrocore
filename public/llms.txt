@@ -23,6 +23,9 @@ AstroCore AI is not an agent and not an AI model. It is the environment around t
 
 ## Pages
 - [Home](https://astrocore.one/): what AstroCore is and how it works
+- [What is AstroCore AI?](https://astrocore.one/guides/what-is-astrocore)
+- [How to connect your OpenClaw agent to a web dashboard](https://astrocore.one/guides/connect-openclaw-agent-to-web-dashboard)
+- [All guides](https://astrocore.one/guides)
 - [Register](https://astrocore.one/register): create a free account
 - [Privacy Policy](https://astrocore.one/privacy-policy)
 - [Terms of Service](https://astrocore.one/terms)
