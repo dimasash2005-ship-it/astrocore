@@ -4,7 +4,9 @@
 import { useEffect, useRef } from "react"
 import { LANDING_HTML } from "./landingHtml"
 import { initLanding } from "./landingScript"
+import { initGuides } from "./landingGuides"
 import "./landing.css"
+import "./landingGuides.css"
 
 export default function Landing() {
   const ref = useRef<HTMLDivElement>(null)
@@ -12,7 +14,8 @@ export default function Landing() {
   useEffect(() => {
     if (!ref.current) return
     const stop = initLanding(ref.current)
-    return stop
+    const stopGuides = initGuides(ref.current)
+    return () => { stop(); stopGuides() }
   }, [])
 
   return <div ref={ref} className="ac-landing" dangerouslySetInnerHTML={{ __html: LANDING_HTML }} />
