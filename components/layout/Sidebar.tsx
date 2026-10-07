@@ -8,7 +8,7 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut, BarChart3, Menu,
+  ChevronDown, LogOut, BarChart3, Menu, Target,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -37,12 +37,17 @@ type SidebarKey = keyof typeof translations.uk.sidebar
 // doesn't need introducing. `label` is given in both languages directly
 // (not via t.sidebar) since these group headers don't have dictionary
 // keys yet.
-const NAV_GROUPS: { label?: { uk: string; en: string }; items: { href: string; icon: React.ElementType; labelKey: SidebarKey }[] }[] = [
+// An item takes its label from the dictionary (labelKey) or, for newer
+// items without a dictionary key yet, directly in both languages (label).
+type NavItem = { href: string; icon: React.ElementType; labelKey?: SidebarKey; label?: { uk: string; en: string }; isNew?: boolean }
+
+const NAV_GROUPS: { label?: { uk: string; en: string }; items: NavItem[] }[] = [
   {
     items: [
       { href: "/",        icon: Home,          labelKey: "center"  },
       { href: "/chat",    icon: MessageSquare, labelKey: "chat"    },
       { href: "/agents",  icon: Bot,           labelKey: "agents"  },
+      { href: "/missions", icon: Target,       label: { uk: "Місії", en: "Missions" }, isNew: true },
       { href: "/memory",  icon: Brain,         labelKey: "memory"  },
       { href: "/reports", icon: BarChart3,     labelKey: "reports" },
     ],
@@ -152,8 +157,8 @@ function Label({ open, children, style }: { open: boolean; children: React.React
   )
 }
 
-function NavLink({ href, icon: Icon, label, active, open }: {
-  href: string; icon: React.ElementType; label: string; active: boolean; open: boolean
+function NavLink({ href, icon: Icon, label, active, open, isNew }: {
+  href: string; icon: React.ElementType; label: string; active: boolean; open: boolean; isNew?: boolean
 }) {
   const [hov, setHov] = useState(false)
   const [tipY, setTipY] = useState(0)
@@ -179,6 +184,9 @@ function NavLink({ href, icon: Icon, label, active, open }: {
         <Label open={open} style={{ fontSize: 13, fontWeight: active ? 600 : 450, letterSpacing: "-0.01em" }}>
           {label}
         </Label>
+        {isNew && (open
+          ? <span className="sb-new">NEW</span>
+          : <span className="sb-new-dot" aria-hidden />)}
       </Link>
 
       {hov && !open && (
@@ -401,7 +409,9 @@ export function Sidebar() {
                 </div>
               )}
               {group.items.map(item => (
-                <NavLink key={item.href} href={item.href} icon={item.icon} label={t.sidebar[item.labelKey]} active={isActive(item.href)} open={open} />
+                <NavLink key={item.href} href={item.href} icon={item.icon}
+                  label={item.labelKey ? t.sidebar[item.labelKey] : (language === "uk" ? item.label?.uk : item.label?.en) ?? ""}
+                  active={isActive(item.href)} open={open} isNew={item.isNew} />
               ))}
             </div>
           ))}
@@ -586,6 +596,11 @@ export function Sidebar() {
         }
         .sb-link.is-active .sb-icon { color: #fff; filter: drop-shadow(0 0 5px rgba(232,0,42,.8)); }
         .sb-link.is-active .sb-bar { height: 20px; opacity: 1; }
+
+        .sb-new { margin-left: auto; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; font-size: 8.5px; font-weight: 600;
+          letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; color: #fff; background: #E8002A; }
+        .sb-new-dot { position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; border-radius: 50%;
+          background: #E8002A; box-shadow: 0 0 6px rgba(232,0,42,.9); }
 
         .sb-tip {
           position: fixed; transform: translateY(-50%); z-index: 400; pointer-events: none; white-space: nowrap;

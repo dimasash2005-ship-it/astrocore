@@ -196,6 +196,30 @@ function CopyBtn({ text, t }: { text: string; t: ReturnType<typeof useLanguage>[
   )
 }
 
+// "→ Mission": turns a message into a mission (prefilled form on /missions).
+function MissionBtn({ text, agentId, lang }: { text: string; agentId?: string; lang: Language }) {
+  const router = useRouter()
+  const label = lang === "uk" ? "У місію" : "To mission"
+  return (
+    <button onClick={() => {
+      try { sessionStorage.setItem("ac_mission_draft", JSON.stringify({ text, agentId })) } catch { /* ignore */ }
+      router.push("/missions?new=1")
+    }} title={lang === "uk" ? "Зробити з цього місію" : "Make this a mission"} style={{
+      padding: "3px 7px", borderRadius: 6, border: "none", background: "none",
+      cursor: "pointer", color: T.t4, display: "flex", alignItems: "center", gap: 4,
+      fontSize: 10.5, fontFamily: "inherit", transition: "color 130ms ease",
+    }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#FF4D6A" }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t4 }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
+      </svg>
+      {label}
+    </button>
+  )
+}
+
 function SaveVaultBtn({ content, t, lang }: { content: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language }) {
   const [status, setStatus]     = useState<"idle" | "loading" | "success" | "error">("idle")
   const [errorMsg, setErrorMsg] = useState("")
@@ -483,7 +507,7 @@ const OFFSCREEN_SKIP = {
 
 // PERF: memo — an existing message never re-renders unless its own
 // props change (it used to re-render on every keystroke in the input).
-const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, isNew }: { msg: Message; agentColor?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, t, lang, isNew }: { msg: Message; agentColor?: string; agentId?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
   const isStreamingEmpty = !!msg.streaming && !msg.content
@@ -503,6 +527,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
         <SaveVaultBtn content={msg.content} t={t} lang={lang} />
         <SaveGalleryBtn content={msg.content} t={t} lang={lang} />
         <SaveMemoryBtn content={msg.content} t={t} />
+        <MissionBtn text={msg.content} agentId={agentId} lang={lang} />
       </div>
     </div>
   )
@@ -530,7 +555,10 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, t, lang, is
               ? <VoiceMessage voice={msg.voice} text={msg.content} lang={lang === "uk" ? "uk" : "en"} />
               : <Markdown content={userText} />}
           </div>}
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {!msg.voice && userText && <span className="astrocore-msg-actions"><MissionBtn text={userText} agentId={agentId} lang={lang} /></span>}
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
+          </div>
         </div>
       </div>
     )
@@ -867,6 +895,23 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
   )
 })
 
+// ─── Missions ─────────────────────────────────────────────────────
+// Opened from /missions as /chat/<id>?mission=<missionId>: the task is sent
+// automatically, and when the agent's reply is finished it is saved to Reports.
+
+function buildMissionPrompt(title: string, instructions: string, lang: Language): string {
+  if (lang === "uk") {
+    return `🎯 Місія: ${title}\n\n${instructions}\n\n` +
+      "Виконай це завдання повністю. Дай відповідь одним готовим результатом у Markdown: " +
+      "заголовки, списки, таблиці, джерела з посиланнями, якщо вони є. " +
+      "AstroCore автоматично збереже цю відповідь у Звіти, тому окремо нічого зберігати не треба."
+  }
+  return `🎯 Mission: ${title}\n\n${instructions}\n\n` +
+    "Complete this task fully. Reply with one finished result in Markdown: " +
+    "headings, lists, tables and linked sources where you have them. " +
+    "AstroCore saves this reply to Reports automatically, so you don't need to save anything yourself."
+}
+
 // ─── Page ─────────────────────────────────────────────────────────
 
 export default function SessionPage() {
@@ -1172,6 +1217,58 @@ export default function SessionPage() {
       setVoiceNote("")
     }
   }
+
+  // ── Missions: auto-send the task, then save the finished reply to Reports ──
+  const missionRef = useRef<{ id: string; title: string; phase: "idle" | "sent" | "done" } | null>(null)
+
+  useEffect(() => {
+    if (missionRef.current) return
+    let id: string | null = null
+    try { id = new URLSearchParams(window.location.search).get("mission") } catch { id = null }
+    if (id) missionRef.current = { id, title: "", phase: "idle" }
+  }, [])
+
+  useEffect(() => {
+    const m = missionRef.current
+    if (!m || m.phase !== "idle") return
+    if (!session || !provider || messages.length > 0 || loading) return
+    m.phase = "sent"
+    ;(async () => {
+      const sb = getSupabase()
+      const { data } = await sb.from("missions").select("id, title, instructions").eq("id", m.id).single()
+      if (!data) { m.phase = "done"; return }
+      m.title = data.title as string
+      // Drop ?mission= so a refresh doesn't send the task again.
+      try { window.history.replaceState(null, "", `/chat/${sessionId}`) } catch { /* ignore */ }
+      handleSend(buildMissionPrompt(data.title as string, (data.instructions as string) || "", language))
+    })()
+  }, [session, provider, messages.length, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const m = missionRef.current
+    if (!m || m.phase !== "sent" || loading || hasPendingJob) return
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== "assistant" || last.streaming || !last.content) return
+    m.phase = "done"
+    const failed = [t.chatSession.sendError, t.chatSession.noReply, t.chatSession.providerNotFoundError]
+      .includes(last.content)
+    ;(async () => {
+      const sb = getSupabase()
+      const { data: { user } } = await sb.auth.getUser()
+      let reportId: string | null = null
+      if (!failed && user) {
+        const { data: rep } = await sb.from("reports")
+          .insert({ user_id: user.id, company_name: m.title, summary: last.content })
+          .select("id").single()
+        reportId = (rep?.id as string | undefined) ?? null
+      }
+      await sb.from("missions").update({
+        status: failed ? "failed" : "done",
+        last_report_id: reportId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", m.id)
+    })()
+  }, [messages, loading, hasPendingJob]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Send ─────────────────────────────────────────────────────────
 
@@ -1541,7 +1638,7 @@ export default function SessionPage() {
                 </div>
               </div>
             )}
-            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} t={t} lang={language} isNew={msg.id === justAddedId} />)}
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} agentId={agent?.id} t={t} lang={language} isNew={msg.id === justAddedId} />)}
             {loading && !messages.some(m => m.streaming) && <TypingDots />}
             <div ref={bottomRef} />
           </div>
