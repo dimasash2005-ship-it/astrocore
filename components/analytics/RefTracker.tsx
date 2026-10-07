@@ -61,9 +61,16 @@ export default function RefTracker() {
       finally { busy = false }
     }
 
-    sb.auth.getUser().then(({ data }) => check(data.user))
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_e, session) => check(session?.user))
-    return () => subscription.unsubscribe()
+    // IMPORTANT: never call Supabase auth methods directly inside
+    // onAuthStateChange — it deadlocks the whole auth client. Defer with setTimeout.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN") return
+      const user = session?.user
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { check(user) }, 1500)
+    })
+    return () => { if (timer) clearTimeout(timer); subscription.unsubscribe() }
   }, [])
 
   return null
