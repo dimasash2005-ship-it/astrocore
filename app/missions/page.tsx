@@ -15,6 +15,7 @@ import {
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
+import { nextRunAt } from "@/lib/missions/schedule"
 
 const T = {
   bg: "#08080F", s1: "#11111C", b1: "rgba(255,255,255,0.09)", bRed: "rgba(232,0,42,0.30)",
@@ -34,6 +35,7 @@ type Mission = {
   last_run_at: string | null
   last_session_id: string | null
   last_report_id: string | null
+  next_run_at?: string | null
   created_at: string
 }
 type Agent = { id: string; name: string; avatar_color: string | null; provider_id: string | null }
@@ -211,6 +213,7 @@ export default function MissionsPage() {
     setSaving(true)
     setError("")
     const sb = getSupabase()
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Prague"
     const { data, error: insErr } = await sb.from("missions").insert({
       title: draft.title.trim(),
       instructions: draft.instructions.trim(),
@@ -218,7 +221,8 @@ export default function MissionsPage() {
       schedule: draft.schedule,
       run_time: draft.schedule === "manual" ? null : draft.run_time,
       run_weekday: draft.schedule === "weekly" ? draft.run_weekday : null,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Prague",
+      timezone: tz,
+      next_run_at: nextRunAt(draft.schedule, draft.run_time, draft.run_weekday, tz),
     }).select("*").single()
     setSaving(false)
     if (insErr || !data) {
@@ -551,6 +555,12 @@ export default function MissionsPage() {
                         </span>
                         <span><Clock size={10} />{scheduleLabel(m, uk)}</span>
                         <span>{ago(m.last_run_at, uk)}</span>
+                        {m.schedule !== "manual" && m.next_run_at && (
+                          <span style={{ color: T.cyan }}>
+                            {uk ? "далі: " : "next: "}
+                            {new Date(m.next_run_at).toLocaleString(uk ? "uk-UA" : "en-US", { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
                         {m.status === "failed" && <span className="ms-tag" style={{ color: "#FF4D6A", background: "rgba(232,0,42,.1)" }}>{uk ? "помилка" : "failed"}</span>}
                       </div>
                       <div className="ms-acts">
@@ -667,8 +677,8 @@ export default function MissionsPage() {
                   {draft.schedule !== "manual" && (
                     <span className="ms-note" style={{ marginTop: 6 }}>
                       {uk
-                        ? "Розклад збережеться. Автозапуск у цей час з'явиться в наступному оновленні, а поки запускай кнопкою."
-                        : "The schedule is saved. Automatic runs arrive in the next update; for now, start it with Run."}
+                        ? "Агент запуститься сам у цей час (з точністю до 5 хв) і покладе результат у Звіти. Працює для OpenClaw-агентів, підключених до AstroCore."
+                        : "The agent starts on its own at this time (within 5 min) and puts the result in Reports. Works for OpenClaw agents connected to AstroCore."}
                     </span>
                   )}
                 </div>
