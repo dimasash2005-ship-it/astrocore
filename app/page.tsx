@@ -10,6 +10,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { chatStore } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
+import AwayBrief from "@/components/dashboard/AwayBrief"
 
 const T = {
   bg:    "#08080F",
@@ -347,6 +348,9 @@ export default function DashboardPage() {
 
         {/* ── Body ── */}
         <div style={{ padding: "26px 48px 60px" }}>
+
+          {/* While you were away */}
+          <AwayBrief />
 
           {ready && activeProviders.length === 0 && (
             <button onClick={() => router.push("/providers")} style={{
