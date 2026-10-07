@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
 import CookieConsent from "@/components/CookieConsent";
+import RefTracker from "@/components/analytics/RefTracker";
 
 const DESCRIPTION =
   "AstroCore AI is a web workspace for OpenClaw agents. Connect your OpenClaw agent in 3 clicks and manage it in the browser: chat, memory, files and reports. No terminal, SSH or Telegram bot.";
@@ -90,6 +91,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
         />
+        <RefTracker />
         <AuthProvider>{children}</AuthProvider>
         <CookieConsent />
         <Analytics />

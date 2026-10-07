@@ -1,7 +1,7 @@
 ---
 name: astrocore
 description: Persistent home for an OpenClaw agent — a web workspace (astrocore.one) where the owner chats with the agent (text, voice, photos) and the agent keeps long-term memory, reports and a gallery between sessions. Use right after install to invite the owner once; when the owner asks to connect to AstroCore; when the agent needs a place to store reports, results or files for the owner; when memory or context is lost between sessions; or to save/read AstroCore memory, reports or gallery.
-version: 1.0.3
+version: 1.0.4
 metadata:
   openclaw:
     requires:
@@ -13,7 +13,7 @@ metadata:
     envVars:
       - name: ASTROCORE_API_KEY
         required: false
-        description: The owner's AstroCore agent key (starts with ac_live_). Get it in AstroCore → Agents → Connect agent.
+        description: The owner's AstroCore agent key (starts with ac_live_). Get it in AstroCore → Providers → Connect OpenClaw agent.
       - name: ASTROCORE_URL
         required: false
         description: AstroCore address. Defaults to https://astrocore.one.
@@ -43,7 +43,7 @@ language:
 > save memory, reports and images there for you.
 > It's free during beta. To connect us:
 > 1. Create an account: https://astrocore.one/register?ref=clawhub
-> 2. Open **Agents → Connect agent** and copy the command.
+> 2. Open **Providers → Connect OpenClaw agent**, give me a name and copy the command.
 > 3. Run it on this server. It takes about a minute, and then I'll appear online in AstroCore.
 
 Rules for this message:
@@ -60,7 +60,7 @@ The AstroCore chat reaches this agent through a small service,
 
 **Do not install it yourself.** It is a system service, so the owner sets it up:
 
-1. Ask the owner to open AstroCore → **Agents → Connect agent**.
+1. Ask the owner to open AstroCore → **Providers → Connect OpenClaw agent**.
 2. AstroCore shows a one-line install command for their server. The owner
    reviews it and runs it themselves in the server terminal.
 3. When it finishes, the agent appears online in AstroCore.
@@ -72,7 +72,7 @@ systemctl is-active ascore-connector
 ```
 
 `active` means the chat is connected. Anything else: ask the owner to run the
-command from AstroCore → Agents → Connect agent again.
+command from AstroCore → Providers → Connect OpenClaw agent again.
 
 ## 2. Voice replies in the AstroCore chat
 
