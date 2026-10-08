@@ -354,9 +354,6 @@ export default function DashboardPage() {
           {/* While you were away */}
           <AwayBrief />
 
-          {/* Onboarding: one-click morning mission (shown only until the first mission exists) */}
-          <StarterMission />
-
           {ready && activeProviders.length === 0 && (
             <button onClick={() => router.push("/providers")} style={{
               width: "100%", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left",
