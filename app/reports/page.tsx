@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
-  FileText, Plus, Search, X, Clock, BarChart3, ArrowUpRight, Loader2,
+  FileText, Plus, Search, X, Clock, BarChart3, ArrowUpRight, Loader2, Globe, Trash2,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
@@ -17,6 +17,7 @@ type Report = {
   summary: string | null
   chart_data: unknown
   created_at: string
+  is_public?: boolean | null
 }
 
 // true when the agent has written real chart numbers into chart_data
@@ -73,11 +74,12 @@ function preview(content: string): string {
 
 // ─── Compact report card (click → /reports/[id]) ─────────────────
 
-function ReportCard({ r, onOpen, lang, index }: { r: Report; onOpen: () => void; lang: Language; index: number }) {
+function ReportCard({ r, onOpen, onDelete, lang, index }: { r: Report; onOpen: () => void; onDelete: () => void; lang: Language; index: number }) {
   const uk = lang === "uk"
   const text = r.summary ?? ""
   const charts = hasCharts(r.chart_data)
   return (
+    <div className="rc-wrap">
     <button onClick={onOpen} className="mem-card" style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         <div style={{
@@ -99,12 +101,17 @@ function ReportCard({ r, onOpen, lang, index }: { r: Report; onOpen: () => void;
         {charts
           ? <span className="mem-chip mem-chip-green"><BarChart3 size={9} /> {uk ? "є графіки" : "charts"}</span>
           : <span className="mem-chip">{uk ? "лише текст" : "text only"}</span>}
+        {r.is_public && <span className="mem-chip mem-chip-green"><Globe size={9} /> {uk ? "публічний" : "public"}</span>}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4 }}>
           {text && <span>{readingMinutes(text)} {uk ? "хв читання" : "min read"}</span>}
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={10} />{ago(r.created_at, lang)}</span>
         </span>
       </div>
     </button>
+    <button className="rc-del" onClick={onDelete} title={uk ? "Видалити звіт" : "Delete report"} aria-label={uk ? "Видалити звіт" : "Delete report"}>
+      <Trash2 size={13} />
+    </button>
+    </div>
   )
 }
 
@@ -176,6 +183,13 @@ export default function ReportsPage() {
       (!onlyCharts || hasCharts(r.chart_data)))
   }, [reports, search, onlyCharts])
 
+  async function deleteReport(r: Report) {
+    if (!window.confirm(uk ? `Видалити звіт «${r.company_name}»? Це не можна скасувати.` : `Delete report "${r.company_name}"? This can't be undone.`)) return
+    const { error } = await getSupabase().from("reports").delete().eq("id", r.id)
+    if (error) { window.alert(error.message); return }
+    setReports(prev => prev.filter(x => x.id !== r.id))
+  }
+
   const withCharts = reports.filter(r => hasCharts(r.chart_data)).length
   const openNew = () => { setNewName(""); setNewError(""); setShowNew(true) }
 
@@ -214,6 +228,15 @@ export default function ReportsPage() {
         .mem-chip-red { color: ${T.red}; background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.18); }
         .mem-chip-green { color: #22C55E; background: rgba(34,197,94,.08); border-color: rgba(34,197,94,.25); }
 
+        .rc-wrap { position: relative; display: flex; }
+        .rc-wrap > .mem-card { flex: 1; }
+        .rc-del { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; padding: 0; border-radius: 8px; z-index: 2;
+          display: flex; align-items: center; justify-content: center; cursor: pointer; color: ${T.t4};
+          background: rgba(8,8,15,.85); border: 0.5px solid rgba(255,255,255,.1); opacity: 0; transition: opacity .15s, color .15s, border-color .15s; }
+        .rc-wrap:hover .rc-del, .rc-del:focus-visible { opacity: 1; }
+        .rc-del:hover { color: #FF4D6A; border-color: rgba(232,0,42,.45); }
+        @media (hover: none) { .rc-del { opacity: 1; } }
+        .rc-wrap .mem-arrow { margin-right: 30px; }
         .mem-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 172px;
           border-radius: 14px; border: 1px dashed rgba(232,0,42,.3); background: rgba(232,0,42,.03); color: ${T.t3};
           cursor: pointer; font-family: inherit; font-size: 13px; transition: background .2s, border-color .2s, color .2s; }
@@ -316,7 +339,7 @@ export default function ReportsPage() {
                   </button>
                 )}
                 {filtered.map((r, i) => (
-                  <ReportCard key={r.id} r={r} index={i} lang={language} onOpen={() => router.push(`/reports/${r.id}`)} />
+                  <ReportCard key={r.id} r={r} index={i} lang={language} onOpen={() => router.push(`/reports/${r.id}`)} onDelete={() => deleteReport(r)} />
                 ))}
               </div>
             )}

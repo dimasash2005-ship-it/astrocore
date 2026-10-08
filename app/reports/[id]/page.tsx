@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, FileText, TrendingUp, TrendingDown, Loader2, Sparkles, CalendarDays,
-  Pencil, Check, X, Plus, Copy, Link2, Printer, Clock, BarChart3, ChevronDown,
+  Pencil, Check, X, Plus, Copy, Printer, Clock, BarChart3, ChevronDown, Trash2,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -12,6 +12,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import ShareButton from "@/components/reports/ShareButton"
 
 type Report = {
   id: string
@@ -767,9 +768,6 @@ export default function ReportDetailPage() {
   async function copyText() {
     try { await navigator.clipboard.writeText(report?.summary ?? ""); toast(uk ? "Текст скопійовано" : "Text copied") } catch {}
   }
-  async function copyLink() {
-    try { await navigator.clipboard.writeText(window.location.href); toast(uk ? "Посилання скопійовано" : "Link copied") } catch {}
-  }
 
   // derived report content (hooks must run before early returns)
   const text    = report?.summary ?? ""
@@ -996,11 +994,20 @@ export default function ReportDetailPage() {
 
           <div className="rp-noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button style={actionBtn} onClick={copyText}><Copy size={13} /> {uk ? "Копіювати" : "Copy"}</button>
-            <button style={actionBtn} onClick={copyLink}><Link2 size={13} /> {uk ? "Посилання" : "Link"}</button>
             <button style={actionBtn} onClick={() => window.print()}><Printer size={13} /> PDF</button>
             <button style={{ ...actionBtn, background: T.red, border: "none", color: "#fff", fontWeight: 600 }}
               onClick={() => { setSummaryDraft(report.summary ?? ""); setEditingSummary(true); setTab("report") }}>
               <Pencil size={13} /> {tr.edit}
+            </button>
+            <ShareButton reportId={report.id} title={report.company_name} />
+            <button style={{ ...actionBtn, color: "#FF6B85", border: "0.5px solid rgba(232,0,42,0.30)" }} title={uk ? "Видалити звіт" : "Delete report"}
+              onClick={async () => {
+                if (!window.confirm(uk ? `Видалити звіт «${report.company_name}»? Це не можна скасувати.` : `Delete report "${report.company_name}"? This can't be undone.`)) return
+                const { error } = await getSupabase().from("reports").delete().eq("id", report.id)
+                if (error) { window.alert(error.message); return }
+                router.push("/reports")
+              }}>
+              <Trash2 size={13} /> {uk ? "Видалити" : "Delete"}
             </button>
           </div>
         </header>
