@@ -11,6 +11,7 @@ import { chatStore } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import AwayBrief from "@/components/dashboard/AwayBrief"
+import StarterMission from "@/components/dashboard/StarterMission"
 
 const T = {
   bg:    "#08080F",
@@ -340,6 +341,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
+              <StarterMission variant="button" />
               <button onClick={() => router.push("/chat")} className="db-ghost"><MessageSquare size={14} /> {t.dashboard.openChat}</button>
               <button onClick={() => router.push("/agents")} className="db-primary"><Bot size={14} /> {t.dashboard.newAgent}</button>
             </div>
@@ -351,6 +353,9 @@ export default function DashboardPage() {
 
           {/* While you were away */}
           <AwayBrief />
+
+          {/* Onboarding: one-click morning mission (shown only until the first mission exists) */}
+          <StarterMission />
 
           {ready && activeProviders.length === 0 && (
             <button onClick={() => router.push("/providers")} style={{
