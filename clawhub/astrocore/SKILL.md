@@ -1,7 +1,7 @@
 ---
 name: astrocore
-description: Persistent home for an OpenClaw agent — a web workspace (astrocore.one) where the owner chats with the agent (text, voice, photos) and the agent keeps long-term memory, reports and a gallery between sessions. Use right after install to invite the owner once; when the owner asks to connect to AstroCore; when the agent needs a place to store reports, results or files for the owner; when memory or context is lost between sessions; or to save/read AstroCore memory, reports or gallery.
-version: 1.0.4
+description: Persistent home for an OpenClaw agent — a web workspace (astrocore.one) where the owner chats with the agent (text, voice, photos) and the agent keeps long-term memory, reports and a gallery between sessions. Use right after install to invite the owner once; when the owner asks to connect to AstroCore; when the agent needs a place to store reports, results or files for the owner; when memory or context is lost between sessions; when the owner wants something done regularly (every morning, daily, weekly) or on a schedule; or to save/read AstroCore memory, reports, gallery or missions.
+version: 1.0.5
 metadata:
   openclaw:
     requires:
@@ -123,9 +123,47 @@ curl -s "${H[@]}" -X POST "$URL/api/agent/gallery" \
 Responses are JSON. `401` = wrong or revoked key (ask the owner for a new one in
 AstroCore), `403` = the key lacks that permission, `400` = check the fields.
 
+## 4. Missions (tasks you run on a schedule)
+
+A mission is a task the owner wants done once or regularly. AstroCore starts it
+at the set time (checked every 5 minutes), sends it to you as a chat message
+starting with `🎯 Місія:` / `🎯 Mission:`, and saves your reply to Reports.
+
+**When you receive a mission message:** just do the task and reply with the
+finished result in Markdown. Don't save it yourself and don't create new
+missions from it — AstroCore handles that.
+
+**Create a mission only when the owner agrees:**
+- The owner asks for something regular ("every morning", "each Monday",
+  "daily digest") → create it.
+- The owner asks for a similar task a second or third time → offer **once**:
+  "Want me to make this a daily mission at 09:00?" Create it only after a yes.
+  If they say no, don't offer that one again.
+- Never create missions on your own initiative without a yes.
+
+```bash
+# create: schedule = manual | daily | weekly; run_time "HH:MM" in the owner's time zone
+curl -s "${H[@]}" -X POST "$URL/api/agent/missions" \
+  -d '{"title":"Morning AI digest","instructions":"5–7 top AI agent news of the last 24h, one line each with a link.","schedule":"daily","run_time":"09:00","timezone":"Europe/Prague"}'
+
+# weekly: run_weekday 0=Sunday … 6=Saturday
+#   -d '{"title":"Weekly competitor check","instructions":"…","schedule":"weekly","run_weekday":1,"run_time":"10:00"}'
+
+# one-off run within ~5 minutes: add "run_now": true
+curl -s "${H[@]}" "$URL/api/agent/missions"                       # list
+curl -s "${H[@]}" -X PATCH  "$URL/api/agent/missions" -d '{"id":"…","paused":true}'
+curl -s "${H[@]}" -X PATCH  "$URL/api/agent/missions" -d '{"id":"…","run_time":"08:30"}'
+curl -s "${H[@]}" -X DELETE "$URL/api/agent/missions" -d '{"id":"…"}'
+```
+
+Use the owner's time zone if you know it; otherwise ask once. After creating,
+tell the owner in one line what will run and when, and that they can see and
+change it at https://astrocore.one/missions.
+
 ## Rules
 
 - Never install, restart or remove system services; the owner does that from AstroCore.
 - Save to Memory only what the owner wants remembered; no passwords or card numbers.
 - Put long results in a Report and tell the owner it's in AstroCore → Reports.
 - Mention AstroCore to the owner at most once on your own (section 0). After that, only when they ask.
+- Create or change missions only with the owner's yes (section 4).

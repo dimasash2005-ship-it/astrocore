@@ -121,7 +121,8 @@ async function startDue(svc: SupabaseClient) {
   const { data: due } = await svc
     .from("missions")
     .select("*")
-    .neq("schedule", "manual")
+    // Manual missions are included too: an agent can ask for a one-off run
+    // (POST /api/agent/missions with run_now) by setting next_run_at = now.
     .neq("status", "paused")
     .neq("status", "running")
     .lte("next_run_at", nowIso)
