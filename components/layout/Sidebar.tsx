@@ -188,7 +188,7 @@ function NavLink({ href, icon: Icon, label, active, open, isNew }: {
 
   return (
     <>
-      <Link href={href} ref={linkRef}
+      <Link href={href} ref={linkRef} prefetch={false}
         onMouseEnter={handleEnter}
         onMouseLeave={() => setHov(false)}
         className={`sb-link${active ? " is-active" : ""}`}

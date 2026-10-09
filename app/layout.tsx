@@ -47,6 +47,7 @@ const JSON_LD = {
       sameAs: [
         "https://clawhub.ai/dimasash2005-ship-it/skills/astrocore",
         "https://t.me/AstroCore_Manager",
+        "https://discord.gg/aQevqZxPqc",
       ],
     },
     {
@@ -80,6 +81,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uk">
+      <head>
+        {/* Fonts: connect early and load once for the whole app (pages used to @import them separately) */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        />
+      </head>
       <body
         style={{
           background: "#08080F",
@@ -96,12 +106,12 @@ export default function RootLayout({
         <CookieConsent />
         <Analytics />
 
-        {/* Google tag (gtag.js) — loaded after the page is interactive */}
+        {/* Google tag (gtag.js): loaded when the browser is idle, so it doesn't slow down the first screen */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
-        <Script id="google-analytics" strategy="afterInteractive">
+        <Script id="google-analytics" strategy="lazyOnload">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}

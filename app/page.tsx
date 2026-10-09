@@ -21,7 +21,7 @@ const T = {
   t1:    "#F0EDF8",
   t2:    "#D8D4EC",
   t3:    "#BEB8D4",
-  t4:    "#6A6A8A",
+  t4:    "#8A8AAA",  // was #6A6A8A: too low contrast (Lighthouse a11y)
   red:   "#E8002A",
   green: "#22C55E",
 }
@@ -90,39 +90,42 @@ export default function DashboardPage() {
   const [sessions,  setSessions]  = useState<Session[]>([])
   const [providers, setProviders] = useState<Provider[]>([])
   const [vault,     setVault]     = useState<VaultItem[]>([])
-  const [gallery,   setGallery]   = useState<{ id: string }[]>([])
-  const [memory,    setMemory]    = useState<{ id: string }[]>([])
-  const [reports,   setReports]   = useState<{ id: string }[]>([])
+  // Only counts are shown for these, so we ask Supabase for the number, not the rows.
+  const [galleryCount, setGalleryCount] = useState(0)
+  const [memoryCount,  setMemoryCount]  = useState(0)
+  const [reportsCount, setReportsCount] = useState(0)
   const [userName,  setUserName]  = useState("Operator")
   const [ready,     setReady]     = useState(false)
 
   useEffect(() => {
     async function load() {
       const sb = getSupabase()
-      const { data: { user } } = await sb.auth.getUser()
+      // getSession reads the saved session locally (no network call), so the greeting shows the name right away.
+      const { data: { session } } = await sb.auth.getSession()
+      const user = session?.user
       if (user) {
         const name = user.user_metadata?.full_name || user.email?.split("@")[0] || "Operator"
         setUserName(name)
       }
       const [
         { data: agentsData }, { data: sessionsData }, { data: providersData },
-        { data: vaultData }, { data: galleryData }, { data: memoryData }, { data: reportsData },
+        { data: vaultData }, { count: galleryN }, { count: memoryN }, { count: reportsN },
       ] = await Promise.all([
         sb.from("agents").select("id,name,description,provider_id,avatar_color,created_at").order("created_at", { ascending: false }),
         sb.from("chat_sessions").select("id,agent_id,title,updated_at,created_at").order("updated_at", { ascending: false }),
         sb.from("providers").select("id,name,model,is_active"),
         sb.from("vault_items").select("id,title,content,created_at").order("created_at", { ascending: false }),
-        sb.from("gallery_items").select("id"),
-        sb.from("memory_items").select("id"),
-        sb.from("reports").select("id"),
+        sb.from("gallery_items").select("id", { count: "exact", head: true }),
+        sb.from("memory_items").select("id", { count: "exact", head: true }),
+        sb.from("reports").select("id", { count: "exact", head: true }),
       ])
       if (agentsData)    setAgents(agentsData as Agent[])
       if (sessionsData)  setSessions(sessionsData as Session[])
       if (providersData) setProviders(providersData as Provider[])
       if (vaultData)     setVault(vaultData as VaultItem[])
-      if (galleryData)   setGallery(galleryData)
-      if (memoryData)    setMemory(memoryData)
-      if (reportsData)   setReports(reportsData)
+      setGalleryCount(galleryN ?? 0)
+      setMemoryCount(memoryN ?? 0)
+      setReportsCount(reportsN ?? 0)
       setReady(true)
     }
     load()
@@ -177,22 +180,21 @@ export default function DashboardPage() {
   const stats = [
     { icon: Bot,           value: agents.length,          label: t.dashboard.statAgents,    href: "/agents",    color: "#E8002A" },
     { icon: MessageSquare, value: sessions.length,        label: t.dashboard.statSessions,  href: "/chat",      color: "#22C55E" },
-    { icon: Brain,         value: memory.length,          label: t.dashboard.statMemory,    href: "/memory",    color: "#8B5CF6" },
-    { icon: BarChart3,     value: reports.length,         label: uk ? "Звіти" : "Reports",   href: "/reports",   color: "#06B6D4" },
+    { icon: Brain,         value: memoryCount,          label: t.dashboard.statMemory,    href: "/memory",    color: "#8B5CF6" },
+    { icon: BarChart3,     value: reportsCount,         label: uk ? "Звіти" : "Reports",   href: "/reports",   color: "#06B6D4" },
     { icon: BookOpen,      value: vault.length,           label: t.dashboard.statVault,     href: "/vault",     color: "#F59E0B" },
-    { icon: ImageIcon,     value: gallery.length,         label: t.dashboard.statGallery,   href: "/gallery",   color: "#EC4899" },
+    { icon: ImageIcon,     value: galleryCount,         label: t.dashboard.statGallery,   href: "/gallery",   color: "#EC4899" },
     { icon: Key,           value: activeProviders.length, label: t.dashboard.statProviders, href: "/providers", color: "#4285F4" },
   ]
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
         @keyframes scanline { 0% { transform: translateX(-100%); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateX(200%); opacity: 0; } }
         .astrocore-hero-sweep { animation: astrocoreHeroSweep 3s linear infinite; }
-        @keyframes astrocoreHeroSweep { 0% { left: -20%; } 100% { left: 100%; } }
+        @keyframes astrocoreHeroSweep { 0% { transform: translateX(0); } 100% { transform: translateX(600%); } }
         .astrocore-badge-sweep { animation: astrocoreBadgeSweep 1.6s linear infinite; }
-        @keyframes astrocoreBadgeSweep { 0% { left: -40%; } 100% { left: 100%; } }
+        @keyframes astrocoreBadgeSweep { 0% { transform: translateX(0); } 100% { transform: translateX(350%); } }
         @keyframes dbIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes dbPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
 
@@ -280,7 +282,7 @@ export default function DashboardPage() {
         .db-row:last-child { border-bottom: 0; }
         .db-row:hover { background: rgba(232,0,42,.05); }
         .db-row-t { font-size: 12.5px; font-weight: 500; color: ${T.t1}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .db-row-s { font-size: 10.5px; color: ${T.t4}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+        .db-row-s { font-size: 12px; color: ${T.t4}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 
         .db-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .db-quick button { display: flex; align-items: center; gap: 9px; padding: 11px 12px; border-radius: 11px; cursor: pointer; text-align: left;
@@ -302,17 +304,27 @@ export default function DashboardPage() {
           background: #0D0D15; border: 1.5px solid ${T.red}; }
         .db-tl-item:first-child::before { background: ${T.red}; box-shadow: 0 0 8px rgba(232,0,42,.8); }
 
-        @media (prefers-reduced-motion: reduce) { .db-stat, .db-card { animation: none; } }
+        @media (prefers-reduced-motion: reduce) {
+          .db-stat, .db-card { animation: none; }
+          .astrocore-hero-sweep, .astrocore-badge-sweep, .db-live, .db-scan { animation: none !important; }
+        }
+        /* phones: smaller side paddings so nothing runs off the screen */
+        @media (max-width: 640px) {
+          .db-hero { padding: 26px 16px 22px !important; }
+          .db-body { padding: 20px 16px 48px !important; }
+          .db-hero h1 { font-size: 26px !important; }
+          .db-hero-actions { width: 100%; flex-wrap: wrap; }
+        }
       `}</style>
 
-      <div style={{
+      <main style={{
         marginLeft: SIDEBAR_W, minHeight: "100vh", background: T.bg, position: "relative",
         backgroundImage: "radial-gradient(rgba(255,255,255,0.035) 1px,transparent 1px)", backgroundSize: "24px 24px",
       }}>
-        <div aria-hidden style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10 }} />
+        <div aria-hidden className="db-scan" style={{ position: "fixed", top: 0, left: SIDEBAR_W, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(232,0,42,0.6),transparent)", animation: "scanline 6s linear infinite", pointerEvents: "none", zIndex: 10 }} />
 
         {/* ── Hero ── */}
-        <div style={{ position: "relative", padding: "38px 48px 30px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
+        <div className="db-hero" style={{ position: "relative", padding: "38px 48px 30px", borderBottom: `0.5px solid ${T.b1}`, overflow: "hidden" }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 220, pointerEvents: "none", background: "radial-gradient(ellipse 80% 100% at 50% 0%,rgba(232,0,42,0.07) 0%,transparent 100%)" }} />
           <div aria-hidden style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 340, pointerEvents: "none", background: "radial-gradient(ellipse 70% 100% at 100% 50%,rgba(232,0,42,0.07) 0%,transparent 70%)" }} />
           <div aria-hidden style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1.5, background: "rgba(255,255,255,0.06)", overflow: "hidden", pointerEvents: "none" }}>
@@ -340,7 +352,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: 10 }}>
+            <div className="db-hero-actions" style={{ display: "flex", gap: 10 }}>
               <StarterMission variant="button" />
               <button onClick={() => router.push("/chat")} className="db-ghost"><MessageSquare size={14} /> {t.dashboard.openChat}</button>
               <button onClick={() => router.push("/agents")} className="db-primary"><Bot size={14} /> {t.dashboard.newAgent}</button>
@@ -349,7 +361,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Body ── */}
-        <div style={{ padding: "26px 48px 60px" }}>
+        <div className="db-body" style={{ padding: "26px 48px 60px" }}>
 
           {/* While you were away */}
           <AwayBrief />
@@ -520,7 +532,7 @@ export default function DashboardPage() {
                       {p.is_active ? <span className="db-live" /> : <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2E2E4A", flexShrink: 0 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="db-row-t">{p.name}</div>
-                        <div className="db-row-s" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10 }}>{p.model}</div>
+                        <div className="db-row-s" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5 }}>{p.model}</div>
                       </div>
                       <span style={{
                         fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: "2px 7px", borderRadius: 5, textTransform: "uppercase", letterSpacing: ".05em",
@@ -557,7 +569,7 @@ export default function DashboardPage() {
             </aside>
           </div>
         </div>
-      </div>
+      </main>
     </>
   )
 }

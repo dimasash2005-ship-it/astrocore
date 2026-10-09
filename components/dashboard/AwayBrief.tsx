@@ -44,6 +44,39 @@ function sinceLabel(iso: string, uk: boolean): string {
   return uk ? `з ${date}` : `since ${date}`
 }
 
+const AB_CSS = `
+        .ab { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; width: fit-content; max-width: 100%;
+          margin-bottom: 20px; padding: 6px 8px 6px 12px; border-radius: 11px;
+          background: rgba(255,255,255,.025); border: 0.5px solid rgba(255,255,255,.07); }
+        .ab-title { display: inline-flex; align-items: center; gap: 7px; margin-right: 6px;
+          font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 600; color: #D8D4EC; white-space: nowrap; }
+        .ab-since { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8A8AAA; font-weight: 500; }
+        .ab-sep { width: 1px; height: 16px; background: rgba(255,255,255,.08); margin: 0 4px; }
+        .ab-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 7px; white-space: nowrap;
+          font-family: inherit; font-size: 12px; color: #BEB8D4; background: transparent; border: 0.5px solid transparent;
+          cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+        .ab-chip:hover { background: rgba(255,255,255,.04); border-color: color-mix(in srgb, var(--c) 40%, transparent); color: #F0EDF8; }
+        .ab-chip b { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #F0EDF8; }
+        .ab-chip.zero b { color: #4A4A66; }
+        .ab-chip.soon { cursor: default; color: #8A8AAA; }
+        .ab-chip.soon:hover { background: transparent; border-color: transparent; color: #8A8AAA; }
+        .ab-chip.soon em { font-style: normal; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .05em;
+          text-transform: uppercase; padding: 2px 5px; border-radius: 4px; border: 0.5px dashed rgba(245,158,11,.4); color: #F59E0B; }
+        .ab-latest { max-width: 260px; }
+        .ab-latest span { overflow: hidden; text-overflow: ellipsis; }
+        .ab-quiet { font-size: 12px; color: #8C8AA6; padding: 4px 6px; }
+        .ab-go { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 7px; font-family: inherit;
+          font-size: 12px; font-weight: 500; cursor: pointer; color: #FF4D6A; background: rgba(232,0,42,.08);
+          border: 0.5px solid rgba(232,0,42,.25); white-space: nowrap; transition: background .15s; }
+        .ab-go:hover { background: rgba(232,0,42,.16); }
+              /* placeholder while counts load: same size as the real strip, so nothing below jumps */
+        .ab-skel { box-sizing: border-box; min-height: 39px; pointer-events: none; }
+        @media (max-width: 640px) { .ab-skel { min-height: 70px; width: 100%; align-content: flex-start; } }
+        .ab-sk { display: inline-block; height: 14px; border-radius: 5px; background: rgba(255,255,255,.06); animation: abPulse 1.4s ease-in-out infinite; }
+        @keyframes abPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .ab-sk { animation: none; } }
+`
+
 export default function AwayBrief() {
   const router = useRouter()
   const { language } = useLanguage()
@@ -79,7 +112,21 @@ export default function AwayBrief() {
     load()
   }, [])
 
-  if (!since || !counts) return null
+  // Reserve the strip's space from the very first paint (also on the server),
+  // so the dashboard below doesn't jump when the counts arrive.
+  if (!since || !counts) return (
+    <>
+      <style>{AB_CSS}</style>
+      <div className="ab ab-skel" aria-hidden>
+        <span className="ab-sk" style={{ width: 150 }} />
+        <span className="ab-sep" />
+        <span className="ab-sk" style={{ width: 70 }} />
+        <span className="ab-sk" style={{ width: 80 }} />
+        <span className="ab-sk" style={{ width: 70 }} />
+        <span className="ab-sk" style={{ width: 64 }} />
+      </div>
+    </>
+  )
 
   const items = [
     { key: "reports", n: counts.reports, icon: BarChart3,     color: "#06B6D4", href: "/reports", label: uk ? "звітів" : "reports" },
@@ -88,37 +135,10 @@ export default function AwayBrief() {
     { key: "chats",   n: counts.chats,   icon: MessageSquare, color: "#22C55E", href: "/chat",    label: uk ? "чатів" : "chats" },
   ].filter(i => i.n !== null || i.key === "missions")
 
-  const total = items.reduce((sum, i) => sum + (i.n || 0), 0)
-  const quiet = total === 0
 
   return (
     <>
-      <style>{`
-        .ab { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 4px; width: fit-content; max-width: 100%;
-          margin-bottom: 20px; padding: 6px 8px 6px 12px; border-radius: 11px;
-          background: rgba(255,255,255,.025); border: 0.5px solid rgba(255,255,255,.07); }
-        .ab-title { display: inline-flex; align-items: center; gap: 7px; margin-right: 6px;
-          font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 600; color: #D8D4EC; white-space: nowrap; }
-        .ab-since { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #6A6A8A; font-weight: 500; }
-        .ab-sep { width: 1px; height: 16px; background: rgba(255,255,255,.08); margin: 0 4px; }
-        .ab-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 7px; white-space: nowrap;
-          font-family: inherit; font-size: 12px; color: #BEB8D4; background: transparent; border: 0.5px solid transparent;
-          cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
-        .ab-chip:hover { background: rgba(255,255,255,.04); border-color: color-mix(in srgb, var(--c) 40%, transparent); color: #F0EDF8; }
-        .ab-chip b { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 600; color: #F0EDF8; }
-        .ab-chip.zero b { color: #4A4A66; }
-        .ab-chip.soon { cursor: default; color: #6A6A8A; }
-        .ab-chip.soon:hover { background: transparent; border-color: transparent; color: #6A6A8A; }
-        .ab-chip.soon em { font-style: normal; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .05em;
-          text-transform: uppercase; padding: 2px 5px; border-radius: 4px; border: 0.5px dashed rgba(245,158,11,.4); color: #F59E0B; }
-        .ab-latest { max-width: 260px; }
-        .ab-latest span { overflow: hidden; text-overflow: ellipsis; }
-        .ab-quiet { font-size: 12px; color: #8C8AA6; padding: 4px 6px; }
-        .ab-go { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 7px; font-family: inherit;
-          font-size: 12px; font-weight: 500; cursor: pointer; color: #FF4D6A; background: rgba(232,0,42,.08);
-          border: 0.5px solid rgba(232,0,42,.25); white-space: nowrap; transition: background .15s; }
-        .ab-go:hover { background: rgba(232,0,42,.16); }
-      `}</style>
+      <style>{AB_CSS}</style>
 
       <section className="ab" aria-label={uk ? "Поки тебе не було" : "While you were away"}>
         <span className="ab-title">
@@ -145,15 +165,7 @@ export default function AwayBrief() {
           )
         })}
 
-        {quiet ? (
-          <>
-            <span className="ab-sep" aria-hidden />
-            <span className="ab-quiet">{uk ? "Нового поки нічого" : "Nothing new yet"}</span>
-            <button className="ab-go" onClick={() => router.push("/chat")}>
-              {uk ? "Дати задачу агенту" : "Give your agent a task"} <ArrowRight size={12} />
-            </button>
-          </>
-        ) : latest && (
+        {latest && (
           <>
             <span className="ab-sep" aria-hidden />
             <button className="ab-chip ab-latest" onClick={() => router.push("/reports")}
