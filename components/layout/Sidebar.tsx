@@ -299,9 +299,9 @@ export function Sidebar() {
       <button type="button" aria-label={language === "en" ? "Open menu" : "Відкрити меню"} onClick={() => setOpen(true)} className="sb-burger">
         <Menu size={20} />
       </button>
-      <span style={{ fontSize: 16, fontWeight: 700, color: "#F0EDF8", letterSpacing: "-0.03em" }}>
+      <Link href="/" style={{ fontSize: 16, fontWeight: 700, color: "#F0EDF8", letterSpacing: "-0.03em", textDecoration: "none" }}>
         Astro<span style={{ color: "#E8002A" }}>Core</span>
-      </span>
+      </Link>
     </div>
     <div className={`sb-backdrop${open ? " show" : ""}`} onClick={closeAll} aria-hidden />
 
@@ -357,7 +357,8 @@ export function Sidebar() {
         overflow: "hidden",
       }}>
 
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginBottom: 18, gap: 11, overflow: "hidden", paddingLeft: 3 }}>
+        <Link href="/" aria-label={language === "en" ? "AstroCore home" : "AstroCore: на головну"} title={language === "en" ? "Home" : "Центр"}
+          style={{ display: "flex", alignItems: "center", flexShrink: 0, marginBottom: 18, gap: 11, overflow: "hidden", paddingLeft: 3, textDecoration: "none", cursor: "pointer" }}>
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 11,
@@ -388,7 +389,7 @@ export function Sidebar() {
               AI Workspace
             </div>
           </Label>
-        </div>
+        </Link>
 
         <nav
           className="astrocore-sidebar-nav"
