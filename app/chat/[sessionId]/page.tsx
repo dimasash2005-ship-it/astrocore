@@ -960,7 +960,6 @@ export default function SessionPage() {
     ])
 
     if (!sessionData) { setNotFound(true); return }
-    setSession(sessionData as Session)
 
     const msgs: Message[] = (messagesData ?? []).map((m: DBMessage) => ({
       id:         m.id,
@@ -975,18 +974,27 @@ export default function SessionPage() {
         peaks:    Array.isArray(m.audio_peaks) ? m.audio_peaks : [],
       } : undefined,
     }))
-    setMessages(msgs)
 
+    // Load the agent and provider first and show everything in one go:
+    // otherwise the header (avatar, model, badges) and the "no provider" banner
+    // pop in later and push the messages around (layout shift).
+    let agentData: Agent | null = null
+    let providerData: Provider | null = null
     if (sessionData.agent_id) {
-      const { data: agentData } = await sb.from("agents").select("*").eq("id", sessionData.agent_id).single()
-      if (agentData) {
-        setAgent(agentData as Agent)
-        if (agentData.provider_id) {
-          const { data: providerData } = await sb.from("providers").select("*").eq("id", agentData.provider_id).single()
-          if (providerData) setProvider(providerData as Provider)
+      const { data: a } = await sb.from("agents").select("*").eq("id", sessionData.agent_id).single()
+      if (a) {
+        agentData = a as Agent
+        if (a.provider_id) {
+          const { data: pr } = await sb.from("providers").select("*").eq("id", a.provider_id).single()
+          if (pr) providerData = pr as Provider
         }
       }
     }
+
+    setMessages(msgs)
+    if (agentData) setAgent(agentData)
+    if (providerData) setProvider(providerData)
+    setSession(sessionData as Session)
   }, [sessionId])
 
   useEffect(() => { loadSession() }, [loadSession])
@@ -1026,7 +1034,7 @@ export default function SessionPage() {
     return () => clearInterval(timer)
   }, [pendingKey])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages.length === 0) return
     if (!hasScrolledInitially.current) {
       hasScrolledInitially.current = true
@@ -1579,10 +1587,11 @@ export default function SessionPage() {
         @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes popIn { from{opacity:0;transform:translateY(6px) scale(.97)} to{opacity:1;transform:none} }
         @keyframes redpulse { 0%,100%{box-shadow:0 0 4px rgba(232,0,42,0.8)} 50%{box-shadow:0 0 10px rgba(232,0,42,1)} }
+        @media (max-width: 640px) { .cs-badges { display: none !important; } }
         ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
       `}</style>
 
-      <div style={{
+      <main style={{
         marginLeft: SIDEBAR_W, height: "100vh",
         display: "flex", flexDirection: "column",
         background: T.bg,
@@ -1594,7 +1603,7 @@ export default function SessionPage() {
         {/* Header — PERF: backdropFilter removed, the background is already ~opaque so blur was invisible but costly */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 24px", borderBottom: `0.5px solid ${T.b1}`, background: "rgba(8,8,15,0.98)", flexShrink: 0, zIndex: 5, position: "relative" }}>
           <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 50% 100% at 0% 50%,rgba(232,0,42,0.035) 0%,transparent 100%)" }} />
-          <button onClick={() => router.push("/chat")} style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, cursor: "pointer", color: T.t3, display: "flex", alignItems: "center", justifyContent: "center" }}
+          <button onClick={() => router.push("/chat")} aria-label={language === "uk" ? "До всіх чатів" : "Back to all chats"} title={language === "uk" ? "До всіх чатів" : "Back to all chats"} style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: "rgba(255,255,255,0.05)", border: `0.5px solid ${T.b1}`, cursor: "pointer", color: T.t3, display: "flex", alignItems: "center", justifyContent: "center" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = T.t1 }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = T.t3 }}
           >
@@ -1609,7 +1618,7 @@ export default function SessionPage() {
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.title || t.chatSession.newChatFallback}</div>
             {agent && <div style={{ fontSize: 11, color: T.t4, marginTop: 1 }}>{agent.name}{provider ? <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{` · ${provider.model}`}</span> : ""}</div>}
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div className="cs-badges" style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Badge icon={Activity} label={t.chatSession.aiCoreOnline} color={T.red} bg="rgba(232,0,42,0.09)" border="rgba(232,0,42,0.25)" />
             {provider && <Badge icon={Zap} label={t.chatSession.providerConnected} color={T.green} bg="rgba(34,197,94,0.08)" border="rgba(34,197,94,0.22)" />}
             <Badge icon={Brain} label={t.chatSession.memoryLayer} color="#A78BFA" bg="rgba(167,139,250,0.08)" border="rgba(167,139,250,0.22)" />
@@ -1781,7 +1790,7 @@ export default function SessionPage() {
 
           </div>
         </div>
-      </div>
+      </main>
     </>
   )
 }
