@@ -70,6 +70,19 @@ const NAV_GROUPS: { label?: { uk: string; en: string }; items: NavItem[] }[] = [
   },
 ]
 
+// Discord invite for the AstroCore community server. Paste your own invite link here
+// (Discord → server name → Invite People → Edit invite link → Expire after: Never).
+const DISCORD_INVITE = "https://discord.gg/aQevqZxPqc"
+
+// Discord brand icon (lucide has none). Same props shape as lucide icons used below.
+function DiscordIcon({ size = 14, style }: { size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style} aria-hidden>
+      <path fillRule="evenodd" d="M5 6.5c2-1 3.8-1.5 4.5-1.5l.5 1h4l.5-1c.7 0 2.5.5 4.5 1.5 1.6 3 2.2 6 2 9.5-1.6 1.2-3.2 2-4.8 2.4l-1-1.6c.6-.2 1.2-.5 1.7-.8-3.3 1.5-6.5 1.5-9.8 0 .5.3 1.1.6 1.7.8l-1 1.6C6.2 18 4.6 17.2 3 16c-.2-3.5.4-6.5 2-9.5zM9 11.2a1.5 1.6 0 100 3.2 1.5 1.6 0 000-3.2zM15 11.2a1.5 1.6 0 100 3.2 1.5 1.6 0 000-3.2z"/>
+    </svg>
+  )
+}
+
 function ContactPanel({ onClose }: { onClose: () => void }) {
   const { t, language } = useLanguage()
   return (
@@ -102,6 +115,7 @@ function ContactPanel({ onClose }: { onClose: () => void }) {
       <div style={{ padding: "8px 8px 10px" }}>
         {[
           { href: "https://t.me/AstroCore_Manager", target: "_blank", Icon: Send,  ic: "#0088CC", ib: "rgba(0,136,204,0.14)", ibd: "rgba(0,136,204,0.28)", title: "Telegram", sub: t.sidebar.telegramSubtitle },
+          { href: DISCORD_INVITE, target: "_blank", Icon: DiscordIcon, ic: "#5865F2", ib: "rgba(88,101,242,0.14)", ibd: "rgba(88,101,242,0.30)", title: "Discord", sub: language === "en" ? "Community, help and news" : "Спільнота, допомога й новини" },
           { href: "mailto:astrocore.one@outlook.cz", target: undefined, Icon: Mail, ic: "#E8002A", ib: "rgba(232,0,42,0.12)",  ibd: "rgba(232,0,42,0.28)",  title: "Email",    sub: "astrocore.one@outlook.cz" },
         ].map(({ href, target, Icon, ic, ib, ibd, title, sub }) => (
           <a key={href} href={href} target={target} rel="noopener noreferrer"

@@ -8,7 +8,9 @@ AstroCore AI is not an agent and not an AI model. It is the environment around t
 - Connect an OpenClaw agent in 3 clicks: pick the platform, paste the key, launch.
 - Chat with your agent in a normal web interface instead of a terminal or Telegram.
 - Memory: the agent keeps context across sessions and restarts.
-- Reports: the agent saves results as reports with text, charts and sources in separate tabs, on demand or on a schedule.
+- Reports: the agent saves results as reports with text, charts and sources in separate tabs.
+- Missions: give the agent a task once and it runs once, daily or weekly at a set time (for example a morning brief at 08:00). Each result is saved to Reports automatically. Ready-made templates help you start (for example a morning brief or competitor watch). The agent can also create missions itself through the AstroCore skill, with the owner's approval.
+- Public reports: any report can be shared as a clean public page with one link (astrocore.one/r/...). The owner chooses whether to show charts, sources and their name; chats, memory and other reports stay private. Sharing can be turned off at any time.
 - Vault / Storage and Gallery for files and generated images.
 - Forum for sharing agents and prompts.
 - Integrations via MCP. Claude, OpenAI, Gemini and OpenAI-compatible APIs can also be connected as secondary providers.
@@ -20,6 +22,7 @@ AstroCore AI is not an agent and not an AI model. It is the environment around t
 - Pricing: free during beta; users pay their own AI providers directly.
 - Built in the EU (Czech Republic), GDPR-aligned. API keys are stored encrypted.
 - Contact: astrocore.one@outlook.cz, Telegram @AstroCore_Manager
+- Community: Discord https://discord.gg/aQevqZxPqc
 
 ## Pages
 - [Home](https://astrocore.one/): what AstroCore is and how it works

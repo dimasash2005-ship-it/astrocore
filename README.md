@@ -13,11 +13,12 @@
   <a href="https://astrocore.one">Website</a> ·
   <a href="https://astrocore.one/register">Start free</a> ·
   <a href="https://astrocore.one/guides">Guides</a> ·
+  <a href="https://discord.gg/aQevqZxPqc">Discord</a> ·
   <a href="https://clawhub.ai/dimasash2005-ship-it/skills/astrocore">OpenClaw skill</a>
 </p>
 
 <p align="center">
-  <img src="public/astrocore-missions-poster.jpg" alt="AstroCore Missions" width="820" />
+  <img src="public/astrocore-demo-poster.jpg" alt="AstroCore demo" width="820" />
 </p>
 
 ---
@@ -94,4 +95,5 @@ Built in Ukraine 🇺🇦
 ## Contact
 
 - Email: astrocore.one@outlook.cz
+- Discord: [join the community](https://discord.gg/aQevqZxPqc)
 - Telegram: [@AstroCore_Manager](https://t.me/AstroCore_Manager)
