@@ -177,9 +177,14 @@ function NavLink({ href, icon: Icon, label, active, open, isNew }: {
   const [hov, setHov] = useState(false)
   const [tipY, setTipY] = useState(0)
   const linkRef = useRef<HTMLAnchorElement>(null)
+  const router = useRouter()
+  const prefetched = useRef(false)
 
   function handleEnter() {
     setHov(true)
+    // Load the page in the background only when the mouse is over its link,
+    // instead of prefetching all pages on every visit. The click then opens it instantly.
+    if (!prefetched.current) { prefetched.current = true; router.prefetch(href) }
     if (linkRef.current) {
       const rect = linkRef.current.getBoundingClientRect()
       setTipY(rect.top + rect.height / 2)
