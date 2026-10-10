@@ -55,7 +55,19 @@ const BRAND: Record<ProviderSlug, { icon: React.ElementType; color: string }> = 
 
 // ─── Add provider modal ───────────────────────────────────────────
 
+// Ready-made OpenAI-compatible services for the Custom provider: one click fills the URL
+// and a suggested model (the user can change the model). Test the connection after filling.
+const CUSTOM_QUICK: { name: string; url: string; model: string; keyHint: string }[] = [
+  { name: "OpenRouter", url: "https://openrouter.ai/api/v1",          model: "openrouter/auto",          keyHint: "sk-or-..." },
+  { name: "Groq",       url: "https://api.groq.com/openai/v1",        model: "llama-3.3-70b-versatile",  keyHint: "gsk_..." },
+  { name: "DeepSeek",   url: "https://api.deepseek.com/v1",           model: "deepseek-chat",            keyHint: "sk-..." },
+  { name: "Mistral",    url: "https://api.mistral.ai/v1",             model: "mistral-small-latest",     keyHint: "..." },
+  { name: "Together",   url: "https://api.together.xyz/v1",           model: "meta-llama/Llama-3.3-70B-Instruct-Turbo", keyHint: "..." },
+]
+
 function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+  const { language } = useLanguage()
+  const uk = language === "uk"
   const PRESETS: {
     slug: ProviderSlug
     name: string
@@ -84,6 +96,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
 
   const [testState, setTestState]   = useState<"idle" | "testing" | "success" | "error">("idle")
   const [testMsg,   setTestMsg]     = useState("")
+  const [testHint,  setTestHint]    = useState("")
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
@@ -101,38 +114,51 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
     setTestState("idle")
   }
 
+  // Sends one tiny "ping" to the provider (works for every provider type) and explains
+  // the result in plain words: /api/providers/check returns { ok, ms } or { ok:false, title, hint }.
   async function handleTest() {
-    if (slug !== "custom") return
-    if (!webhookUrl.trim() || !effectiveModel || !apiKey.trim()) {
+    if (!apiKey.trim() || !effectiveModel || (slug === "custom" && !webhookUrl.trim())) {
       setTestState("error")
       setTestMsg(t.providers.testMissingFields)
+      setTestHint("")
       return
     }
     setTestState("testing")
     setTestMsg("")
+    setTestHint("")
     try {
-      const res = await fetch("/api/providers/test", {
+      const res = await fetch("/api/providers/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          baseUrl: webhookUrl.trim(),
+          slug,
           model: effectiveModel,
           apiKey: apiKey.trim(),
-          customHeaders: customHeaders.trim() || undefined,
+          webhookUrl: slug === "custom" ? webhookUrl.trim() : undefined,
+          authHeader: slug === "custom" ? authHeader.trim() || undefined : undefined,
+          customHeaders: slug === "custom" ? customHeaders.trim() || undefined : undefined,
         }),
       })
       const data = await res.json()
-      if (data.success) {
+      if (data.ok) {
         setTestState("success")
-        setTestMsg(data.latencyMs ? `${t.providers.testSuccess} (${data.latencyMs}ms)` : t.providers.testSuccess)
+        setTestMsg(data.ms ? `${t.providers.testSuccess} (${data.ms}ms)` : t.providers.testSuccess)
       } else {
         setTestState("error")
-        setTestMsg(data.message || t.providers.testFailed)
+        setTestMsg(data.title || t.providers.testFailed)
+        setTestHint(data.hint || "")
       }
     } catch {
       setTestState("error")
       setTestMsg(t.providers.testFailed)
     }
+  }
+
+  function applyQuick(q: typeof CUSTOM_QUICK[number]) {
+    setWebhookUrl(q.url)
+    setCustomModel(q.model)
+    if (!name.trim() || CUSTOM_QUICK.some(x => x.name === name.trim())) setName(q.name)
+    setTestState("idle")
   }
 
   async function handleAdd() {
@@ -159,6 +185,15 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
       })
       const data = await res.json()
       if (!res.ok) { setError(data?.error || t.providers.saveFailedError); setLoading(false); return }
+
+      // Quick background check of the saved provider: marks it "connected" if it answers.
+      if (data?.provider?.id) {
+        fetch("/api/providers/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ providerId: data.provider.id }),
+        }).then(() => onAdded()).catch(() => {})
+      }
 
       onAdded()
       onClose()
@@ -187,6 +222,16 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* OpenClaw first: the main way to use AstroCore */}
+          <div className="pv-oc">
+            <span className="pv-ico sm" style={{ ["--c" as string]: BRAND.openclaw.color } as React.CSSProperties}><Terminal size={13} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.t1 }}>{uk ? "Маєш OpenClaw-агента?" : "Have an OpenClaw agent?"}</div>
+              <div style={{ fontSize: 11, color: T.t3, marginTop: 2 }}>{uk ? "Підключи його напряму, приблизно за хвилину" : "Connect it directly in about a minute"}</div>
+            </div>
+            <ConnectAgentButton variant="primary" onConnected={() => { onAdded(); onClose() }} />
+          </div>
+
           <div>
             <label className="pv-label">
               {t.providers.providerField}
@@ -221,6 +266,21 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
 
           {slug === "custom" ? (
             <>
+              <div>
+                <label className="pv-label">{uk ? "Швидке заповнення" : "Quick fill"}</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {CUSTOM_QUICK.map(q => (
+                    <button key={q.name} type="button" onClick={() => applyQuick(q)}
+                      className={`pv-chip${webhookUrl.trim() === q.url ? " on" : ""}`}>{q.name}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: T.t4, marginTop: 6, lineHeight: 1.5 }}>
+                  {uk
+                    ? "Підходить будь-який OpenAI-сумісний API з власним ключем. Безкоштовні тарифи, що працюють лише у своїй програмі (наприклад, безкоштовні моделі OpenCode), не підключаються."
+                    : "Any OpenAI-compatible API with your own key works. Free tiers that only work inside their own app (e.g. OpenCode free models) can't be connected."}
+                </div>
+              </div>
+
               <div>
                 <label className="pv-label">
                   {t.providers.webhookUrlField}
@@ -302,30 +362,34 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
                 <div style={{ fontSize: 10.5, color: T.t4, marginTop: 5 }}>{t.providers.customHeadersHint}</div>
               </div>
 
-              <div>
-                <button onClick={handleTest} disabled={testState === "testing"} style={{
-                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 500,
-                  cursor: testState === "testing" ? "default" : "pointer",
-                  background: "rgba(139,92,246,0.10)", border: "0.5px solid rgba(139,92,246,0.24)",
-                  color: "#A78BFA",
-                }}>
-                  {testState === "testing" ? <Loader2 size={13} className="pv-spin" /> : <Globe size={13} />}
-                  {testState === "testing" ? t.providers.testing : t.providers.testConnectionBtn}
-                </button>
-                {testState === "success" && (
-                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: T.green }}>
-                    <Check size={13} /> {testMsg}
-                  </div>
-                )}
-                {testState === "error" && (
-                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#FF4D6A" }}>
-                    <AlertCircle size={13} /> {testMsg}
-                  </div>
-                )}
-              </div>
             </>
           )}
+
+          <div>
+            <button onClick={handleTest} disabled={testState === "testing"} style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 500,
+              cursor: testState === "testing" ? "default" : "pointer",
+              background: "rgba(139,92,246,0.10)", border: "0.5px solid rgba(139,92,246,0.24)",
+              color: "#A78BFA",
+            }}>
+              {testState === "testing" ? <Loader2 size={13} className="pv-spin" /> : <Globe size={13} />}
+              {testState === "testing" ? t.providers.testing : t.providers.testConnectionBtn}
+            </button>
+            {testState === "success" && (
+              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: T.green }}>
+                <Check size={13} /> {testMsg}
+              </div>
+            )}
+            {testState === "error" && (
+              <div style={{ marginTop: 8, padding: "9px 11px", borderRadius: 9, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.22)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 600, color: "#FF4D6A" }}>
+                  <AlertCircle size={13} style={{ flexShrink: 0 }} /> {testMsg}
+                </div>
+                {testHint && <div style={{ fontSize: 11.5, color: T.t2, marginTop: 5, lineHeight: 1.5 }}>{testHint}</div>}
+              </div>
+            )}
+          </div>
 
           <div style={{
             display: "flex", alignItems: "flex-start", gap: 8,
@@ -565,6 +629,14 @@ export default function ProvidersPage() {
         .pv-preset:hover { border-color: color-mix(in srgb, var(--c) 40%, transparent); color: ${T.t1}; }
         .pv-preset.on { background: color-mix(in srgb, var(--c) 12%, transparent); border-color: color-mix(in srgb, var(--c) 55%, transparent); color: ${T.t1}; font-weight: 500;
           box-shadow: 0 0 18px color-mix(in srgb, var(--c) 15%, transparent); }
+        .pv-oc { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 12px;
+          background: linear-gradient(90deg, rgba(249,115,22,.10), rgba(249,115,22,.02)); border: 0.5px solid rgba(249,115,22,.35); }
+        .pv-oc button { flex-shrink: 0; }
+        .pv-chip { padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit;
+          background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.10); color: ${T.t2}; transition: all .15s; }
+        .pv-chip:hover { border-color: rgba(139,92,246,.5); color: ${T.t1}; }
+        .pv-chip.on { background: rgba(139,92,246,.14); border-color: rgba(139,92,246,.6); color: ${T.t1}; }
+        @media (max-width: 480px) { .pv-oc { flex-wrap: wrap; } .pv-oc button { width: 100%; justify-content: center; } }
         @media (prefers-reduced-motion: reduce) { .pv-card, .pv-card::before, .pv-modal { animation: none; } }
       `}</style>
 

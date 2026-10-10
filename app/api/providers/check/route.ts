@@ -192,9 +192,9 @@ export async function POST(req: NextRequest) {
         // Providers we can't ping (e.g. image generators): don't block saving.
         return NextResponse.json({ ok: true, ms: 0, reply: "", skipped: true })
     }
-    // A saved provider that answered is marked as verified (removes the "UNVERIFIED" badge).
+    // A saved provider that answered is marked as connected (the badge turns green instead of "UNVERIFIED").
     if (typeof body.providerId === "string") {
-      await supabase.from("providers").update({ status: "verified" }).eq("id", body.providerId).eq("user_id", user.id)
+      await supabase.from("providers").update({ status: "connected" }).eq("id", body.providerId).eq("user_id", user.id)
     }
     return NextResponse.json({ ok: true, ms: Date.now() - started, reply: reply.slice(0, 80) })
   } catch (err) {
