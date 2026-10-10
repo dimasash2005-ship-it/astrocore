@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/server/encryption"
 import { assertSafeProviderUrl, joinProviderPath, UnsafeProviderUrlError } from "@/lib/server/ssrf-guard"
 import { safeFetch, readCappedText, SafeFetchError } from "@/lib/server/safe-fetch"
 import { generateMedia } from "@/lib/server/media-generation"
+import { providerErrorMarkdown, pickLang } from "@/lib/server/provider-errors"
 
 // Normal chat replies are fast, but a generate_image/generate_video
 // tool call can add up to ~55s (image) or ~110s (video: base image +
@@ -133,7 +134,9 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[API/chat] error:", msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    // Show the user what went wrong and what to do, not raw JSON from the provider.
+    const lang = pickLang(req.headers.get("accept-language"))
+    return NextResponse.json({ error: providerErrorMarkdown(msg, lang) }, { status: 500 })
   }
 }
 
