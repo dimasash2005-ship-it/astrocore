@@ -8,11 +8,12 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut, BarChart3, Menu, Target,
+  ChevronDown, LogOut, BarChart3, Menu, Target, LifeBuoy,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
 import { LANGUAGES, translations } from "@/lib/language"
+import HelpModal from "@/components/feedback/HelpModal"
 
 // Collapsed (rail) width on desktop.
 const RAIL_W = 68
@@ -255,6 +256,7 @@ export function Sidebar() {
   const { t, language } = useLanguage()
   const [open,     setOpen]     = useState(false)
   const [contact,  setContact]  = useState(false)
+  const [help,     setHelp]     = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoErr,  setLogoErr]  = useState(false)
   const [account,  setAccount]  = useState<{ name: string; email: string; avatarUrl: string | null } | null>(null)
@@ -323,6 +325,8 @@ export function Sidebar() {
       </Link>
     </div>
     <div className={`sb-backdrop${open ? " show" : ""}`} onClick={closeAll} aria-hidden />
+    {/* Rendered outside the sidebar so hovering the window doesn't expand the sidebar */}
+    <HelpModal open={help} onClose={() => setHelp(false)} />
 
     <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} className={`sb-root${open ? " sb-open" : ""}`} style={{
       position: "fixed", top: 0, left: 0,
@@ -439,6 +443,25 @@ export function Sidebar() {
 
         <div style={{ flexShrink: 0, marginTop: 10, marginBottom: 8 }}>
           <LanguageSwitch open={open} />
+        </div>
+
+        {/* Help & feedback: opens a window where users write problems, ideas and what they like */}
+        <div style={{ flexShrink: 0, marginBottom: 6 }}>
+          <button onClick={() => { setHelp(true); setOpen(false) }} className="sb-help"
+            title={language === "uk" ? "Допомога і відгуки" : "Help & feedback"}
+            aria-label={language === "uk" ? "Допомога і відгуки" : "Help & feedback"}
+            style={{
+              display: "flex", alignItems: "center", height: 36, width: "100%",
+              borderRadius: 10, padding: "0 13px", gap: 11, cursor: "pointer", overflow: "hidden",
+              background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.22)",
+              transition: `background ${SPD}`,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.14)" }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(232,0,42,0.07)" }}
+          >
+            <LifeBuoy size={15} style={{ flexShrink: 0, color: "#FF4D6A" }} />
+            <Label open={open} style={{ fontSize: 13, color: "#F0EDF8" }}>{language === "uk" ? "Допомога" : "Help"}</Label>
+          </button>
         </div>
 
         <div style={{ position: "relative", flexShrink: 0, marginBottom: 10 }}>
