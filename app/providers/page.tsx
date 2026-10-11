@@ -64,6 +64,9 @@ const CUSTOM_QUICK: { name: string; url: string; model: string; keyHint: string 
   { name: "DeepSeek",   url: "https://api.deepseek.com/v1",           model: "deepseek-chat",            keyHint: "sk-..." },
   { name: "Mistral",    url: "https://api.mistral.ai/v1",             model: "mistral-small-latest",     keyHint: "..." },
   { name: "Together",   url: "https://api.together.xyz/v1",           model: "meta-llama/Llama-3.3-70B-Instruct-Turbo", keyHint: "..." },
+  // OpenCode Zen with a paid API key (opencode.ai/zen). Works for its chat-completions models
+  // (GLM, Kimi, Qwen…). Its free tier only works inside the OpenCode app, so it can't be used here.
+  { name: "OpenCode Zen", url: "https://opencode.ai/zen/v1",          model: "kimi-k2",                  keyHint: "..." },
 ]
 
 function AddModal({ onClose, onAdded, onHelp, t }: { onClose: () => void; onAdded: () => void; onHelp: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
