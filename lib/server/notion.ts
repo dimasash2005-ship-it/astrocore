@@ -140,11 +140,21 @@ export async function loadNotion(sb: SupabaseClient, userId: string): Promise<No
     .eq("user_id", userId).eq("provider", "notion").maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) return null
+  // Saved with a different PROVIDER_ENCRYPTION_KEY (e.g. connected on localhost): treat as
+  // "not connected", so the user simply connects again and the row is overwritten.
+  let accessToken: string, refreshToken: string | null
+  try {
+    accessToken = decryptSecret(data.access_token_enc as string)
+    refreshToken = data.refresh_token_enc ? decryptSecret(data.refresh_token_enc as string) : null
+  } catch {
+    console.error("[notion] stored token can't be decrypted (different PROVIDER_ENCRYPTION_KEY), asking to reconnect")
+    return null
+  }
   return {
     id: data.id as string,
     userId,
-    accessToken: decryptSecret(data.access_token_enc as string),
-    refreshToken: data.refresh_token_enc ? decryptSecret(data.refresh_token_enc as string) : null,
+    accessToken,
+    refreshToken,
     workspaceName: (data.workspace_name as string | null) ?? null,
     workspaceIcon: (data.workspace_icon as string | null) ?? null,
     settings: (data.settings as NotionSettings | null) ?? {},
