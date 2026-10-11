@@ -29,7 +29,7 @@ const L = {
     noPages: "AstroCore не бачить жодної сторінки. Натисни «Підключити Notion» ще раз і познач хоча б одну сторінку.",
     auto: "Автоматично надсилати нові звіти", autoHint: "Звіти місій і звіти від агента самі з'являтимуться в Notion",
     reconnect: "Змінити доступ до сторінок",
-    steps: ["Натисни «Підключити Notion»", "У вікні Notion познач сторінку, куди складати звіти", "Готово: у кожному звіті кнопка «Експорт → Notion»"],
+    steps: ["Натисни «Підключити Notion»", "У вікні Notion дай доступ до будь-якої сторінки: AstroCore сам створить у ній «AstroCore Reports»", "Готово: у кожному звіті кнопка «Експорт → Notion»"],
     caps: "Що вміє Notion + AstroCore",
     capList: [
       "Звіт → сторінка Notion в один клік",
@@ -52,7 +52,7 @@ const L = {
     noPages: "AstroCore can't see any page. Click “Connect Notion” again and select at least one page.",
     auto: "Send new reports automatically", autoHint: "Mission and agent reports will appear in Notion by themselves",
     reconnect: "Change page access",
-    steps: ["Click “Connect Notion”", "In Notion, select the page where reports should go", "Done: every report gets an “Export → Notion” button"],
+    steps: ["Click “Connect Notion”", "In Notion, give access to any page: AstroCore creates “AstroCore Reports” inside it", "Done: every report gets an “Export → Notion” button"],
     caps: "What Notion + AstroCore can do",
     capList: [
       "Report → Notion page in one click",

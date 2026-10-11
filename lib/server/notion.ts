@@ -96,6 +96,7 @@ type TokenResponse = {
   workspace_id?: string
   workspace_name?: string | null
   workspace_icon?: string | null
+  duplicated_template_id?: string | null
 }
 
 async function tokenRequest(body: Record<string, string>): Promise<TokenResponse> {
@@ -116,6 +117,8 @@ async function tokenRequest(body: Record<string, string>): Promise<TokenResponse
   }
   return data as unknown as TokenResponse
 }
+
+export type { TokenResponse }
 
 export function exchangeNotionCode(code: string, redirectUri: string) {
   return tokenRequest({ grant_type: "authorization_code", code, redirect_uri: redirectUri })
@@ -253,6 +256,27 @@ export async function searchNotionPages(sb: SupabaseClient, conn: NotionConn, qu
 
 export async function getNotionPage(sb: SupabaseClient, conn: NotionConn, pageId: string): Promise<NotionPageLite> {
   return pageLite(await notionCall(sb, conn, `/pages/${encodeURIComponent(pageId)}`))
+}
+
+export const REPORTS_PAGE_TITLE = "AstroCore Reports"
+
+/**
+ * Creates the "AstroCore Reports" page inside a page the user shared, so reports
+ * don't land loose in their notes. Returns the new page.
+ */
+export async function createReportsPage(sb: SupabaseClient, conn: NotionConn, insidePageId: string): Promise<NotionPageLite> {
+  const page = await notionCall<Record<string, unknown>>(sb, conn, "/pages", {
+    method: "POST",
+    body: {
+      parent: { page_id: insidePageId },
+      icon: { type: "external", external: { url: PAGE_ICON } },
+      properties: { title: { title: [{ type: "text", text: { content: REPORTS_PAGE_TITLE } }] } },
+      markdown: conn.settings.lang === "uk"
+        ? "Сюди AstroCore складає звіти твого агента. Можна перейменувати або перенести цю сторінку."
+        : "AstroCore puts your agent's reports here. Feel free to rename or move this page.",
+    },
+  })
+  return pageLite(page)
 }
 
 // ── Markdown → Notion markdown ───────────────────────────────────

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getServerLanguage } from "@/lib/server-language"
 import {
   exchangeNotionCode, notionRedirectUri, loadNotion, saveNotionConnection, searchNotionPages,
-  updateNotionSettings, requestOrigin, safeNext, withParam, NOTION_STATE_COOKIE, type NotionSettings,
+  updateNotionSettings, getNotionPage, createReportsPage, REPORTS_PAGE_TITLE, requestOrigin, safeNext, withParam, NOTION_STATE_COOKIE, type NotionSettings,
 } from "@/lib/server/notion"
 
 export const dynamic = "force-dynamic"
@@ -63,14 +63,31 @@ export async function GET(req: NextRequest) {
       return back("error")
     }
 
-    // Default page for reports: keep the old one if still shared, otherwise the newest shared page.
+    // Where reports go. The user doesn't have to prepare anything in Notion:
+    //  1. They chose "Use a template" in Notion's window -> the copied template page.
+    //  2. Their previous page is still shared -> keep it.
+    //  3. A shared page is already called "AstroCore Reports" -> use it.
+    //  4. Otherwise create "AstroCore Reports" inside the newest shared page.
     const conn = await loadNotion(supabase, user.id)
     if (conn) {
-      const pages = await searchNotionPages(supabase, conn).catch(() => [])
-      const keep = pages.find(p => p.id === settings.parent_id)
-      const pick = keep ?? pages[0]
-      await updateNotionSettings(supabase, conn, pick
-        ? { parent_id: pick.id, parent_title: pick.title, parent_icon: pick.icon }
+      let target: { id: string; title: string; icon: string | null } | null = null
+      if (tok.duplicated_template_id) {
+        target = await getNotionPage(supabase, conn, tok.duplicated_template_id).catch(() => null)
+      }
+      if (!target) {
+        const pages = await searchNotionPages(supabase, conn).catch(() => [])
+        target = pages.find(p => p.id === settings.parent_id)
+          ?? pages.find(p => p.title.trim().toLowerCase() === REPORTS_PAGE_TITLE.toLowerCase())
+          ?? null
+        if (!target && pages[0]) {
+          target = await createReportsPage(supabase, conn, pages[0].id).catch(err => {
+            console.error("[notion callback] couldn't create reports page:", err instanceof Error ? err.message : err)
+            return pages[0]
+          })
+        }
+      }
+      await updateNotionSettings(supabase, conn, target
+        ? { parent_id: target.id, parent_title: target.title, parent_icon: target.icon }
         : { parent_id: null, parent_title: null, parent_icon: null })
     }
     return back("connected")
