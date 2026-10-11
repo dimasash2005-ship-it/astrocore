@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js"
 import { nextRunAt, type MissionSchedule } from "@/lib/missions/schedule"
+import { notifyAdmin } from "@/lib/server/alert"
 
 export const dynamic = "force-dynamic"
 
@@ -237,6 +238,7 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[cron/missions] error:", msg)
+    await notifyAdmin({ title: "Місії: помилка планувальника", key: "cron:missions", lines: [`❌ ${msg.slice(0, 400)}`] })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

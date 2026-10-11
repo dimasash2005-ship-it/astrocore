@@ -4,7 +4,8 @@ import { decryptSecret } from "@/lib/server/encryption"
 import { assertSafeProviderUrl, joinProviderPath, UnsafeProviderUrlError } from "@/lib/server/ssrf-guard"
 import { safeFetch, readCappedText, SafeFetchError } from "@/lib/server/safe-fetch"
 import { generateMedia } from "@/lib/server/media-generation"
-import { providerErrorMarkdown, pickLang } from "@/lib/server/provider-errors"
+import { providerErrorMarkdown, pickLang, classifyProviderError } from "@/lib/server/provider-errors"
+import { notifyAdmin } from "@/lib/server/alert"
 
 // Normal chat replies are fast, but a generate_image/generate_video
 // tool call can add up to ~55s (image) or ~110s (video: base image +
@@ -35,6 +36,8 @@ type ProviderRow = {
 type MediaGenContext = { providerId: string; userId: string }
 
 export async function POST(req: NextRequest) {
+  // Filled in as we go, so the error alert can say who and which provider.
+  const ctx: { email?: string; slug?: string; model?: string } = {}
   try {
     const body = await req.json()
     const { messages, systemPrompt, providerId, sessionId } = body
@@ -65,6 +68,9 @@ export async function POST(req: NextRequest) {
     }
 
     const row = provider as ProviderRow
+    ctx.email = user.email ?? user.id
+    ctx.slug = row.slug
+    ctx.model = row.model
 
     let apiKey: string
     try {
@@ -134,6 +140,19 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[API/chat] error:", msg)
+    // Tell the owner right away (once per 10 min per user + error type).
+    const kind = classifyProviderError(msg)
+    await notifyAdmin({
+      emoji: "⚠️",
+      title: "Агент не відповів користувачу",
+      key: `chat:${ctx.email ?? "?"}:${kind}`,
+      lines: [
+        `👤 ${ctx.email ?? "невідомо"}`,
+        `🔌 ${ctx.slug ?? "?"}${ctx.model ? ` · ${ctx.model}` : ""}`,
+        `🏷 ${kind}`,
+        `❌ ${msg.slice(0, 300)}`,
+      ],
+    })
     // Show the user what went wrong and what to do, not raw JSON from the provider.
     const lang = pickLang(req.headers.get("accept-language"))
     return NextResponse.json({ error: providerErrorMarkdown(msg, lang) }, { status: 500 })
