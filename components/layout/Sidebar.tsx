@@ -8,7 +8,7 @@ import {
   Home, Bot, MessageSquare, BookOpen,
   Image as ImageIcon, Brain, Settings, Key,
   Send, Mail, X, User, Users, Puzzle,
-  ChevronDown, LogOut, BarChart3, Menu, Target, LifeBuoy,
+  ChevronDown, LogOut, BarChart3, Menu, Target, LifeBuoy, ShieldCheck,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/useLanguage"
@@ -257,6 +257,15 @@ export function Sidebar() {
   const [open,     setOpen]     = useState(false)
   const [contact,  setContact]  = useState(false)
   const [help,     setHelp]     = useState(false)
+  // Admin link: shown only if the server says this account is the admin (ADMIN_EMAILS).
+  const [isAdmin,  setIsAdmin]  = useState(false)
+  useEffect(() => {
+    try { if (sessionStorage.getItem("ac_admin") === "1") setIsAdmin(true) } catch {}
+    fetch("/api/admin/me", { cache: "no-store" })
+      .then(r => r.ok ? r.json() : { admin: false })
+      .then(d => { setIsAdmin(!!d.admin); try { sessionStorage.setItem("ac_admin", d.admin ? "1" : "0") } catch {} })
+      .catch(() => {})
+  }, [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoErr,  setLogoErr]  = useState(false)
   const [account,  setAccount]  = useState<{ name: string; email: string; avatarUrl: string | null } | null>(null)
@@ -444,6 +453,21 @@ export function Sidebar() {
         <div style={{ flexShrink: 0, marginTop: 10, marginBottom: 8 }}>
           <LanguageSwitch open={open} />
         </div>
+
+        {isAdmin && (
+          <div style={{ flexShrink: 0, marginBottom: 6 }}>
+            <Link href="/admin" prefetch={false} title="Адмін-панель" aria-label="Адмін-панель"
+              style={{
+                display: "flex", alignItems: "center", height: 36, width: "100%", borderRadius: 10, padding: "0 13px", gap: 11,
+                overflow: "hidden", textDecoration: "none",
+                background: pathname === "/admin" ? "rgba(232,0,42,0.14)" : "rgba(255,255,255,0.03)",
+                border: pathname === "/admin" ? "0.5px solid rgba(232,0,42,0.35)" : "0.5px solid rgba(255,255,255,0.05)",
+              }}>
+              <ShieldCheck size={15} style={{ flexShrink: 0, color: "#FF4D6A" }} />
+              <Label open={open} style={{ fontSize: 13, color: "#F0EDF8" }}>Адмін</Label>
+            </Link>
+          </div>
+        )}
 
         {/* Help & feedback: opens a window where users write problems, ideas and what they like */}
         <div style={{ flexShrink: 0, marginBottom: 6 }}>
