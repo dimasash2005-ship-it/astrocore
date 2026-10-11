@@ -82,12 +82,13 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
-        {/* Fonts: connect early and load once for the whole app (pages used to @import them separately) */}
+        {/* Fonts: connect early and load once for the whole app (pages used to @import them separately).
+            IBM Plex Sans is for the landing page; the font files only download on pages that use them. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
         />
       </head>
       <body
