@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import {
   Key, Plus, Trash2, Eye, EyeOff, Check,
-  Shield, X, Loader2, AlertCircle, Globe, Sparkles, Bot, Webhook, Terminal, Link2,
+  Shield, X, Loader2, AlertCircle, Globe, Sparkles, Bot, Webhook, Terminal, Link2, LifeBuoy,
 } from "lucide-react"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import { ConnectAgentButton, AgentStatusBadge } from "@/components/agents/ConnectAgentButton"
+import HelpModal from "@/components/feedback/HelpModal"
 
 const T = {
   bg:   "#08080F",
@@ -65,7 +66,7 @@ const CUSTOM_QUICK: { name: string; url: string; model: string; keyHint: string 
   { name: "Together",   url: "https://api.together.xyz/v1",           model: "meta-llama/Llama-3.3-70B-Instruct-Turbo", keyHint: "..." },
 ]
 
-function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
+function AddModal({ onClose, onAdded, onHelp, t }: { onClose: () => void; onAdded: () => void; onHelp: () => void; t: ReturnType<typeof useLanguage>["t"] }) {
   const { language } = useLanguage()
   const uk = language === "uk"
   const PRESETS: {
@@ -205,52 +206,57 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
 
   return (
     <div className="pv-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="pv-modal">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: "rgba(232,0,42,0.12)", border: "0.5px solid rgba(232,0,42,0.25)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Key size={15} style={{ color: T.red }} />
+      <div className="pv-modal" role="dialog" aria-modal="true" aria-labelledby="pv-mt">
+        {/* ── Header ── */}
+        <div className="pv-mh">
+          <span className="pv-mh-ic"><Key size={17} /></span>
+          <div style={{ minWidth: 0 }}>
+            <div id="pv-mt" className="pv-mh-t">{t.providers.connectProviderTitle}</div>
+            <div className="pv-mh-s">{uk ? "Підключи свого агента або AI-модель, і вона стане його мозком" : "Connect your agent or an AI model to power it"}</div>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.t1 }}>{t.providers.connectProviderTitle}</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: T.t3, textTransform: "uppercase", letterSpacing: "0.06em" }}>{t.providers.apiControlLayer}</div>
-          </div>
-          <button onClick={onClose} className="pv-x" style={{ marginLeft: "auto" }}><X size={15} /></button>
+          <button onClick={onClose} className="pv-x" style={{ marginLeft: "auto" }} aria-label={uk ? "Закрити" : "Close"}><X size={15} /></button>
+          <span className="pv-mh-line" aria-hidden><i /></span>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="pv-mb">
           {/* OpenClaw first: the main way to use AstroCore */}
           <div className="pv-oc">
-            <span className="pv-ico sm" style={{ ["--c" as string]: BRAND.openclaw.color } as React.CSSProperties}><Terminal size={13} /></span>
+            <span className="pv-oc-ic"><Terminal size={17} /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: T.t1 }}>{uk ? "Маєш OpenClaw-агента?" : "Have an OpenClaw agent?"}</div>
-              <div style={{ fontSize: 11, color: T.t3, marginTop: 2 }}>{uk ? "Підключи його напряму, приблизно за хвилину" : "Connect it directly in about a minute"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1 }}>{uk ? "OpenClaw-агент" : "OpenClaw agent"}</span>
+                <span className="pv-tag">{uk ? "Рекомендовано" : "Recommended"}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: T.t3, marginTop: 3, lineHeight: 1.45 }}>
+                {uk ? "Твій агент з пам'яттю та інструментами. Одна команда на сервері, приблизно хвилина." : "Your agent with its memory and tools. One command on your server, about a minute."}
+              </div>
             </div>
             <ConnectAgentButton variant="primary" onConnected={() => { onAdded(); onClose() }} />
           </div>
 
+          <div className="pv-or"><span>{uk ? "або підключи модель напряму" : "or connect a model directly"}</span></div>
+
           <div>
-            <label className="pv-label">
-              {t.providers.providerField}
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <label className="pv-label"><b className="pv-step">1</b>{t.providers.providerField}</label>
+            <div className="pv-presets">
               {PRESETS.map(p => {
                 const BIcon = BRAND[p.slug].icon
                 return (
                   <button key={p.slug} onClick={() => handleSlugChange(p.slug)} className={`pv-preset${slug === p.slug ? " on" : ""}`}
-                    style={{ ["--c" as string]: p.color } as React.CSSProperties}>
-                    <span className="pv-ico sm"><BIcon size={13} /></span>
-                    <span style={{ flex: 1 }}>{p.name}</span>
-                    {slug === p.slug && <Check size={13} style={{ color: p.color }} />}
+                    style={{ ["--c" as string]: p.color } as React.CSSProperties} aria-pressed={slug === p.slug}>
+                    <span className="pv-ico sm"><BIcon size={14} /></span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span className="pv-preset-n">{p.name}</span>
+                      <span className="pv-preset-d">{p.desc}</span>
+                    </span>
+                    {slug === p.slug && <Check size={14} style={{ color: p.color, flexShrink: 0 }} />}
                   </button>
                 )
               })}
             </div>
-            <div style={{ fontSize: 11, color: T.t4, marginTop: 7 }}>{preset.desc}</div>
           </div>
+
+          <label className="pv-label" style={{ marginBottom: -6 }}><b className="pv-step">2</b>{uk ? "Налаштування" : "Settings"}</label>
 
           {slug === "custom" && (
             <div>
@@ -366,6 +372,7 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
           )}
 
           <div>
+            <label className="pv-label"><b className="pv-step">3</b>{uk ? "Перевірка (необов'язково)" : "Check (optional)"}</label>
             <button onClick={handleTest} disabled={testState === "testing"} style={{
               width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               padding: "9px", borderRadius: 9, fontSize: 12.5, fontWeight: 500,
@@ -408,9 +415,17 @@ function AddModal({ onClose, onAdded, t }: { onClose: () => void; onAdded: () =>
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onClose} className="pv-btn" style={{ flex: 1, height: 38 }}>{t.providers.cancel}</button>
-            <button onClick={handleAdd} disabled={loading} className="pv-primary" style={{ flex: 2, justifyContent: "center" }}>
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="pv-mf">
+          <button type="button" className="pv-help" onClick={onHelp}>
+            <LifeBuoy size={14} />
+            <span>{uk ? "Не виходить? Напиши нам" : "Stuck? Message us"}</span>
+          </button>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+            <button onClick={onClose} className="pv-btn" style={{ height: 38, padding: "0 16px" }}>{t.providers.cancel}</button>
+            <button onClick={handleAdd} disabled={loading} className="pv-primary" style={{ justifyContent: "center", minWidth: 150 }}>
               {loading ? <Loader2 size={14} className="pv-spin" /> : <Link2 size={14} />} {loading ? t.providers.saving : t.providers.connect}
             </button>
           </div>
@@ -502,6 +517,7 @@ export default function ProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([])
   const [showModal, setShowModal] = useState(false)
   const [loaded,    setLoaded]    = useState(false)
+  const [help,      setHelp]      = useState(false)
 
   async function load() {
     try {
@@ -614,9 +630,30 @@ export default function ProvidersPage() {
         /* modal */
         .pv-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px;
           background: rgba(4,4,10,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: pvFade .18s ease-out; }
-        .pv-modal { width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; border-radius: 16px; padding: 22px 22px 20px;
+        .pv-modal { width: 100%; max-width: 600px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
           background: linear-gradient(160deg,#111120 0%,#0C0C18 100%); border: 0.5px solid rgba(232,0,42,.28);
-          box-shadow: 0 30px 80px rgba(0,0,0,.8), 0 0 50px rgba(232,0,42,.07); animation: pvPop .24s cubic-bezier(.2,.9,.3,1.2); }
+          box-shadow: 0 30px 80px rgba(0,0,0,.8), 0 0 60px rgba(232,0,42,.08); animation: pvPop .24s cubic-bezier(.2,.9,.3,1.2); }
+        .pv-mh { position: relative; display: flex; align-items: center; gap: 12px; padding: 18px 20px 16px; flex-shrink: 0;
+          background: radial-gradient(ellipse 70% 120% at 0% 0%, rgba(232,0,42,.10), transparent 70%); border-bottom: 0.5px solid ${T.b1}; }
+        .pv-mh-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; color: #fff;
+          background: linear-gradient(135deg, #E8002A, #8A0019); box-shadow: 0 0 18px rgba(232,0,42,.4), inset 0 1px 0 rgba(255,255,255,.18); }
+        .pv-mh-t { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; color: ${T.t1}; letter-spacing: -.01em; }
+        .pv-mh-s { font-size: 12px; color: ${T.t3}; margin-top: 2px; }
+        .pv-mh-line { position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; overflow: hidden; }
+        .pv-mh-line i { position: absolute; top: 0; left: 0; width: 30%; height: 100%; background: linear-gradient(90deg, transparent, ${T.red}, transparent);
+          animation: pvSweep 3.2s linear infinite; }
+        @keyframes pvSweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+        .pv-mb { flex: 1; overflow-y: auto; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+        .pv-mb > * { flex-shrink: 0; }
+        .pv-mf { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px; border-top: 0.5px solid ${T.b1}; background: rgba(6,6,12,.6); }
+        .pv-help { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 9px; cursor: pointer; font-family: inherit; font-size: 12.5px;
+          color: #FF7A8F; background: transparent; border: 0.5px solid transparent; transition: all .15s; }
+        .pv-help:hover { background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.25); color: #fff; }
+        .pv-step { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 7px; border-radius: 5px; font-size: 9.5px;
+          color: #fff; background: rgba(232,0,42,.8); vertical-align: 1px; }
+        .pv-or { display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: ${T.t4}; }
+        .pv-or::before, .pv-or::after { content: ""; flex: 1; height: 0.5px; background: rgba(255,255,255,.10); }
+        .pv-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .pv-x { background: rgba(255,255,255,.04); border: none; cursor: pointer; color: ${T.t4}; line-height: 0; padding: 6px; border-radius: 8px; }
         .pv-x:hover { color: ${T.t1}; background: rgba(255,255,255,.08); }
         .pv-label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4}; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px; }
@@ -624,19 +661,37 @@ export default function ProvidersPage() {
           background: #07070D; border: 0.5px solid ${T.b1}; transition: border-color .15s, box-shadow .15s; }
         .pv-input:focus { border-color: rgba(232,0,42,.5); box-shadow: 0 0 0 3px rgba(232,0,42,.12); }
         .pv-input option { background: #111118; }
-        .pv-preset { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; cursor: pointer; text-align: left; font-size: 12.5px; font-family: inherit;
+        .pv-preset { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 11px 10px 13px; border-radius: 12px; cursor: pointer; text-align: left;
+          font-size: 13px; font-family: inherit; overflow: hidden;
           background: rgba(255,255,255,.03); border: 0.5px solid rgba(255,255,255,.08); color: ${T.t3}; transition: all .15s; }
+        .pv-preset::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 0 2px 2px 0; background: var(--c); opacity: 0; transition: opacity .15s; }
+        .pv-preset.on::before { opacity: 1; }
+        .pv-preset-n { display: block; font-weight: 600; color: ${T.t1}; }
+        .pv-preset-d { display: block; font-size: 10.5px; color: ${T.t4}; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .pv-preset:hover { border-color: color-mix(in srgb, var(--c) 40%, transparent); color: ${T.t1}; }
         .pv-preset.on { background: color-mix(in srgb, var(--c) 12%, transparent); border-color: color-mix(in srgb, var(--c) 55%, transparent); color: ${T.t1}; font-weight: 500;
           box-shadow: 0 0 18px color-mix(in srgb, var(--c) 15%, transparent); }
-        .pv-oc { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 12px;
-          background: linear-gradient(90deg, rgba(249,115,22,.10), rgba(249,115,22,.02)); border: 0.5px solid rgba(249,115,22,.35); }
+        .pv-oc { position: relative; display: flex; align-items: center; gap: 12px; padding: 14px 14px 14px 16px; border-radius: 14px; overflow: hidden;
+          background: linear-gradient(120deg, rgba(249,115,22,.12), rgba(249,115,22,.02) 60%), #0E0E18; border: 0.5px solid rgba(249,115,22,.38); }
+        .pv-oc::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: #F97316; box-shadow: 0 0 12px rgba(249,115,22,.7); }
+        .pv-oc::after { content: ""; position: absolute; right: -40px; top: -40px; width: 130px; height: 130px; border-radius: 50%; pointer-events: none;
+          background: radial-gradient(closest-side, rgba(249,115,22,.22), transparent); }
+        .pv-oc > * { position: relative; z-index: 1; }
         .pv-oc button { flex-shrink: 0; }
+        .pv-oc-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; color: #FDBA74;
+          background: rgba(249,115,22,.14); border: 0.5px solid rgba(249,115,22,.4); }
+        .pv-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+          padding: 2px 7px; border-radius: 5px; color: #FDBA74; background: rgba(249,115,22,.12); border: 0.5px solid rgba(249,115,22,.4); }
         .pv-chip { padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; font-family: inherit;
           background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.10); color: ${T.t2}; transition: all .15s; }
         .pv-chip:hover { border-color: rgba(139,92,246,.5); color: ${T.t1}; }
         .pv-chip.on { background: rgba(139,92,246,.14); border-color: rgba(139,92,246,.6); color: ${T.t1}; }
-        @media (max-width: 480px) { .pv-oc { flex-wrap: wrap; } .pv-oc button { width: 100%; justify-content: center; } }
+        @media (max-width: 520px) {
+          .pv-oc { flex-wrap: wrap; } .pv-oc button { width: 100%; justify-content: center; }
+          .pv-presets { grid-template-columns: 1fr; }
+          .pv-mf > div { width: 100%; } .pv-mf .pv-primary { flex: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) { .pv-mh-line i { animation: none; } }
         @media (prefers-reduced-motion: reduce) { .pv-card, .pv-card::before, .pv-modal { animation: none; } }
       `}</style>
 
@@ -724,7 +779,8 @@ export default function ProvidersPage() {
         )}
       </div>
 
-      {showModal && <AddModal onClose={() => setShowModal(false)} onAdded={load} t={t} />}
+      {showModal && <AddModal onClose={() => setShowModal(false)} onAdded={load} onHelp={() => setHelp(true)} t={t} />}
+      <HelpModal open={help} onClose={() => setHelp(false)} />
     </>
   )
 }
