@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft, FileText, TrendingUp, TrendingDown, Loader2, Sparkles, CalendarDays,
-  Pencil, Check, X, Plus, Copy, Printer, Clock, BarChart3, ChevronDown, Trash2,
+  Pencil, Check, X, Plus, Clock, BarChart3, ChevronDown, Trash2,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -13,6 +13,7 @@ import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import ShareButton from "@/components/reports/ShareButton"
+import ExportMenu from "@/components/reports/ExportMenu"
 
 type Report = {
   id: string
@@ -21,6 +22,7 @@ type Report = {
   summary: string | null
   chart_data: unknown
   created_at: string
+  notion_url?: string | null
 }
 
 const T = {
@@ -765,9 +767,6 @@ export default function ReportDetailPage() {
   }
 
   function toast(msg: string) { setFlash(msg); setTimeout(() => setFlash(""), 1800) }
-  async function copyText() {
-    try { await navigator.clipboard.writeText(report?.summary ?? ""); toast(uk ? "Текст скопійовано" : "Text copied") } catch {}
-  }
 
   // derived report content (hooks must run before early returns)
   const text    = report?.summary ?? ""
@@ -993,8 +992,7 @@ export default function ReportDetailPage() {
           </div>
 
           <div className="rp-noprint" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button style={actionBtn} onClick={copyText}><Copy size={13} /> {uk ? "Копіювати" : "Copy"}</button>
-            <button style={actionBtn} onClick={() => window.print()}><Printer size={13} /> PDF</button>
+            <ExportMenu reportId={report.id} title={report.company_name} markdown={md} notionUrl={report.notion_url ?? null} />
             <button style={{ ...actionBtn, background: T.red, border: "none", color: "#fff", fontWeight: 600 }}
               onClick={() => { setSummaryDraft(report.summary ?? ""); setEditingSummary(true); setTab("report") }}>
               <Pencil size={13} /> {tr.edit}

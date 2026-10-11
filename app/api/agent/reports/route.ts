@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { z } from 'zod'
 import { authenticate, scoped } from '../_lib/auth'
+import { autoExportReport } from '@/lib/server/notion'
 
 // ---------------------------------------------------------------------------
 // This route is called by the AI agent on behalf of an AstroCore user, via
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest) {
   const { data, error } = await scoped(auth, 'reports').insert(parsed.data).single()
 
   if (error) return jsonError(error.message, 400)
+
+  // After the response: send the new report to Notion if the user turned on auto export.
+  const newId = (data as { id?: string } | null)?.id
+  after(() => autoExportReport(auth.userId, newId))
+
   return NextResponse.json({ data }, { status: 201 })
 }
 

@@ -10,6 +10,7 @@ import {
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import NotionPanel from "@/components/integrations/NotionPanel"
 
 const T = {
   bg:   "#08080F",
@@ -40,6 +41,7 @@ type IntegrationDef = {
 
 const INTEGRATIONS: IntegrationDef[] = [
   { id: "obsidian", name: "Obsidian",          emoji: "🔮",              color: "#8B5CF6", category: "notes",         soon: false },
+  { id: "notion",   name: "Notion",            color: "#F4F2EE",                                  category: "notes",         soon: false },
   { id: "vscode",   name: "VS Code",           icon: Code2,              color: "#007ACC", category: "dev",           soon: true  },
   { id: "browser",  name: "Browser Extension", icon: Globe,              color: "#F59E0B", category: "productivity",  soon: true  },
   { id: "raycast",  name: "Raycast",           icon: Search,             color: "#FF6363", category: "productivity",  soon: true  },
@@ -128,6 +130,7 @@ export default function IntegrationsPage() {
   const [revealKey, setRevealKey] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkedAt, setCheckedAt] = useState<number | null>(null)
+  const [notionOn, setNotionOn] = useState(false)
 
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
@@ -144,6 +147,7 @@ export default function IntegrationsPage() {
   }
   const descriptions: Record<string, string> = {
     obsidian: t.integrations.obsidianDesc,
+    notion: uk ? "Звіти агента в Notion в один клік або автоматично." : "Agent reports to Notion in one click or automatically.",
     vscode: t.integrations.vscodeDesc,
     browser: t.integrations.browserDesc,
     raycast: t.integrations.raycastDesc,
@@ -499,6 +503,9 @@ export default function IntegrationsPage() {
             </div>
           </div>
 
+          {/* ── Notion ── */}
+          <NotionPanel onStatus={setNotionOn} />
+
           {/* ── Marketplace ── */}
           <div id="marketplace" style={{ scrollMarginTop: 20 }}>
             <div style={{ marginBottom: 16 }}>
@@ -523,15 +530,19 @@ export default function IntegrationsPage() {
                   <div className="ig-gtitle"><span className="ig-live" style={{ animation: "none" }} />{uk ? "Доступно зараз" : "Available now"}</div>
                   <div className="ig-grid">
                     {availableNow.map((item, i) => {
-                      const isConnected = item.id === "obsidian" && connected
+                      const isConnected = (item.id === "obsidian" && connected) || (item.id === "notion" && notionOn)
                       const Icon = item.icon
                       return (
-                        <button key={item.id} className="ig-card live" onClick={() => scrollTo("obsidian-hero")}
+                        <button key={item.id} className="ig-card live" onClick={() => scrollTo(item.id === "notion" ? "notion-hero" : "obsidian-hero")}
                           style={{ ["--c" as string]: item.color, animationDelay: `${i * 40}ms` } as React.CSSProperties}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <div className="ig-ico" style={item.emoji ? { background: "linear-gradient(145deg,#6C3FA0 0%,#3D2260 100%)", border: "none", boxShadow: "0 0 18px rgba(139,92,246,.3)" } : undefined}>
-                              {item.emoji ?? (Icon && <Icon size={17} />)}
-                            </div>
+                            {item.id === "notion" ? (
+                              <div className="ig-ico" style={{ background: "#F4F2EE", border: "none", color: "#111", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 18, boxShadow: "inset 0 0 0 1.5px #111" }}>N</div>
+                            ) : (
+                              <div className="ig-ico" style={item.emoji ? { background: "linear-gradient(145deg,#6C3FA0 0%,#3D2260 100%)", border: "none", boxShadow: "0 0 18px rgba(139,92,246,.3)" } : undefined}>
+                                {item.emoji ?? (Icon && <Icon size={17} />)}
+                              </div>
+                            )}
                             {isConnected
                               ? <span className="ig-pill" style={{ background: "rgba(34,197,94,0.10)", color: T.green, border: "0.5px solid rgba(34,197,94,0.28)" }}><span className="ig-live" style={{ width: 5, height: 5 }} />{t.integrations.connected}</span>
                               : <ArrowUpRight size={15} className="ig-arr" />}
