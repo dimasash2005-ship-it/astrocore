@@ -1287,12 +1287,23 @@ export default function SessionPage() {
 
   // ── Send ─────────────────────────────────────────────────────────
 
-  // "нагадай завтра о 9 …" -> AstroCore sets a reminder itself (no agent call, no tokens).
-  // If the phrase has no date/time, it goes to the agent as a normal message.
+  // "нагадай завтра о 9 …" -> AstroCore sets a reminder itself: never sent to the agent, no tokens.
   async function sendReminder(text: string): Promise<boolean> {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     const parsed = parseReminder(text, tz)
-    if (!parsed) return false
+    if (!parsed) {
+      // Didn't understand the time: explain right here (not saved, not sent to the agent).
+      const now = new Date().toISOString()
+      const hint = uk
+        ? "🤔 Не зрозумів, **коли** нагадати. Напиши, наприклад:\n\n• нагадай **через 10 хв** перевірити пошту\n• нагадай **за 3 хв** подивитись сайт\n• нагадай **завтра о 9** зустріч\n• нагадай **щодня о 8:30** випити воду\n\n_Повідомлення з «нагадай» не йдуть агенту, тож токени не витрачаються._"
+        : "🤔 I didn't get **when** to remind you. Try for example:\n\n• remind me **in 10 minutes** to check email\n• remind me **tomorrow at 9** meeting\n• remind me **every day at 8:30** to drink water\n\n_Messages starting with “remind” never go to the agent, so no tokens are used._"
+      setMessages(prev => [...prev,
+        { id: crypto.randomUUID(), role: "user", content: text, createdAt: now },
+        { id: crypto.randomUUID(), role: "assistant", content: hint, createdAt: now },
+      ])
+      inputApi.current?.clear()
+      return true
+    }
     sendingRef.current = true
     try {
       const sb = getSupabase()

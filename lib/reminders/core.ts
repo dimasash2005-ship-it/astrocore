@@ -111,13 +111,17 @@ export function parseReminder(input: string, tzIn?: string | null, now: Date = n
   cut(re("^\\s*/remind(?:@\\w+)?\\s"))
   cut(re("^\\s*(?:нагадай(?:те)?|нагадати|remind)\\s+(?:мені\\s+|me\\s+)?(?:(?:to|що|щоб|про)\\s+)?"))
 
-  // Relative: "через 20 хв", "in 2 hours"
-  const rel = take(re("\\b(?:через|in)\\s+(\\d{1,4})\\s*(хв(?:илин[уи]?)?|min(?:ute)?s?|m|год(?:ин[уи]?)?|hours?|h|дн(?:і|ів|я)?|день|days?|d)\\b"))
+  // Relative: "через 20 хв", "за 5 хвилин", "за хвилину", "через пів години", "in 2 hours", "in an hour"
+  const rel = take(re("\\b(?:через|за|in)\\s+(?:(\\d{1,4}(?:[.,]5)?|пів|півтори|одну|одна|один|дві|два|три|чотири|п['’ʼ]?ять|десять|an?|one|two|three|five|ten|half an?)\\s*)?(хвилин[уи]?|хвилина|хв|min(?:ute)?s?|m|годин[уи]?|година|год|hours?|h|днів|дні|дня|день|дн|days?|d)\\b"))
   if (rel) {
-    const n = Number(rel[1]); const u = rel[2].toLowerCase()
+    const WORDS: Record<string, number> = { "пів": 0.5, "півтори": 1.5, "одну": 1, "одна": 1, "один": 1, "дві": 2, "два": 2, "три": 3, "чотири": 4,
+      "пять": 5, "десять": 10, "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "half a": 0.5, "half an": 0.5 }
+    const raw = (rel[1] ?? "1").toLowerCase().replace(/['’ʼ]/g, "").replace(",", ".")
+    const n = WORDS[raw] ?? Number(raw)
+    const u = rel[2].toLowerCase()
     const ms = /^(хв|min|m)/.test(u) ? 60_000 : /^(год|h)/.test(u) ? 3_600_000 : 86_400_000
     const text = clean(s)
-    return text && n > 0 ? { text, at: new Date(now.getTime() + n * ms), repeat: "none" } : null
+    return text && n > 0 ? { text, at: new Date(now.getTime() + Math.round(n * ms)), repeat: "none" } : null
   }
 
   // Repeat
@@ -129,7 +133,7 @@ export function parseReminder(input: string, tzIn?: string | null, now: Date = n
 
   // Time: "о 9", "о 18:30", "at 9pm", "9:30"
   let hh: number | null = null, mm = 0
-  const t = take(re("\\b(?:о|об|at|в|у)\\s+(\\d{1,2})(?:[:.](\\d{2}))?\\s*(am|pm|ранку|вечора|дня)?\\b"))
+  const t = take(re("\\b(?:о|об|at|в|у|з|зі|із)\\s+(\\d{1,2})(?:[:.](\\d{2}))?\\s*(am|pm|ранку|вечора|дня)?\\b"))
     ?? take(re("\\b(\\d{1,2})[:](\\d{2})\\s*(am|pm)?\\b"))
     ?? take(re("\\b(\\d{1,2})\\s*(am|pm)\\b"))
   if (t) {
@@ -208,7 +212,7 @@ function shift(p: { y: number; m: number; d: number }, days: number, tz: string)
 
 function clean(s: string): string {
   return s.replace(/\s+/g, " ").trim()
-    .replace(/^(?:[,.:;—–-]|що|щоб|to|про)\s+/iu, "")
+    .replace(/^(?:[,.:;—–-]|що|щоб|аби|to|про)\s+/iu, "")
     .replace(/[,.:;—–-]+$/u, "")
     .trim()
     .replace(/^\p{Ll}/u, c => c.toUpperCase())

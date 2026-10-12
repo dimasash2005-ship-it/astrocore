@@ -12,20 +12,20 @@ type Reminder = { id: string; text: string; remind_at: string; repeat: Repeat; t
 
 const L = {
   uk: {
-    title: "Нагадування", empty: "Поки немає. Напиши в чаті, напр.:",
-    hint: "Просто напиши в чаті:", cancel: "Скасувати", noTg: "Telegram не підключено: нагадування не прийдуть на телефон.",
+    title: "Мої нагадування", empty: "Поки немає нагадувань.",
+    hint: "Щоб додати, напиши в чаті: «нагадай через 10 хв …» або «нагадай завтра о 9 …»",
+    cancel: "Скасувати", noTg: "Telegram не підключено: нагадування не прийдуть на телефон.",
     connect: "Підключити", tgOn: "Приходять у Telegram",
-    examples: ["нагадай завтра о 9 подзвонити Кіру", "нагадай через 20 хв перевірити духовку", "нагадай щодня о 8:30 випити воду"],
   },
   en: {
-    title: "Reminders", empty: "Nothing yet. Write in the chat, e.g.:",
-    hint: "Just write in the chat:", cancel: "Cancel", noTg: "Telegram isn't connected: reminders won't reach your phone.",
+    title: "My reminders", empty: "No reminders yet.",
+    hint: "To add one, write in the chat: “remind me in 10 minutes …” or “remind me tomorrow at 9 …”",
+    cancel: "Cancel", noTg: "Telegram isn't connected: reminders won't reach your phone.",
     connect: "Connect", tgOn: "Arrive in Telegram",
-    examples: ["remind me tomorrow at 9 to call John", "remind me in 20 minutes to check the oven", "remind me every day at 8:30 to drink water"],
   },
 }
 
-export default function RemindersPopover({ lang, onExample }: { lang: "uk" | "en"; onExample: (text: string) => void }) {
+export default function RemindersPopover({ lang }: { lang: "uk" | "en"; onExample?: (text: string) => void }) {
   const tx = L[lang]
   const [list, setList] = useState<Reminder[] | null>(null)
   const [tg, setTg] = useState<boolean | null>(null)
@@ -76,12 +76,11 @@ export default function RemindersPopover({ lang, onExample }: { lang: "uk" | "en
             </div>
           ))}
         </div>
-      ) : null}
+      ) : (
+        <div className="rmp-empty">{tx.empty}</div>
+      )}
 
-      <div className="rmp-foot">
-        <small>{list && list.length === 0 ? tx.empty : tx.hint}</small>
-        {tx.examples.map(e => <button key={e} onClick={() => onExample(e)}>{e}</button>)}
-      </div>
+      <div className="rmp-foot"><small>{tx.hint}</small></div>
     </div>
   )
 }
@@ -112,7 +111,8 @@ const STYLES = `
   .rmp-row button { width: 24px; height: 24px; border-radius: 7px; flex: none; display: grid; place-items: center; cursor: pointer; color: #6A6A8A; background: none; border: 0.5px solid transparent; }
   .rmp-row button:hover { color: #FF4D6A; border-color: rgba(232,0,42,.35); background: rgba(232,0,42,.08); }
   .rmp-foot { display: flex; flex-direction: column; gap: 5px; padding-top: 8px; border-top: 0.5px solid rgba(255,255,255,.07); }
-  .rmp-foot small { font-size: 11px; color: #8A8AAA; }
+  .rmp-foot small { font-size: 11px; line-height: 1.5; color: #8A8AAA; }
+  .rmp-empty { padding: 10px 2px; font-size: 12.5px; color: #A8A4BC; }
   .rmp-foot button { text-align: left; padding: 6px 9px; border-radius: 8px; cursor: pointer; font: 12px system-ui; font-family: inherit; color: #C8C4D8;
     background: rgba(255,255,255,.03); border: 0.5px solid rgba(255,255,255,.08); transition: all .15s; }
   .rmp-foot button:hover { color: #fff; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.07); }
