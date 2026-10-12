@@ -18,7 +18,7 @@ import { encryptSecret } from "@/lib/server/encryption"
 const SITE = "https://astrocore.one"
 export type Lang = "uk" | "en"
 
-export type TelegramSettings = { notify_reports?: boolean; lang?: Lang }
+export type TelegramSettings = { notify_reports?: boolean; lang?: Lang; tz?: string }
 export type TelegramConn = {
   id: string
   userId: string
@@ -125,10 +125,13 @@ export async function findByChat(sb: SupabaseClient, chatId: string | number): P
 }
 
 /** One-time code for t.me/<bot>?start=<code>. Valid 15 minutes. */
-export async function createLinkCode(sb: SupabaseClient, userId: string, lang: Lang): Promise<string> {
+export async function createLinkCode(sb: SupabaseClient, userId: string, lang: Lang, timezone?: string | null): Promise<string> {
   const code = randomBytes(12).toString("base64url")
   await sb.from("telegram_link_codes").delete().eq("user_id", userId)
-  const { error } = await sb.from("telegram_link_codes").insert({ code, user_id: userId, lang })
+  const row: Record<string, unknown> = { code, user_id: userId, lang }
+  if (timezone) row.timezone = timezone
+  let { error } = await sb.from("telegram_link_codes").insert(row)
+  if (error && timezone) ({ error } = await sb.from("telegram_link_codes").insert({ code, user_id: userId, lang }))  // before the reminders SQL
   if (error) throw new Error(error.message)
   return code
 }
@@ -137,7 +140,7 @@ type TgChat = { id: number; username?: string; first_name?: string }
 
 /** "/start <code>": connects this chat to the account that created the code. */
 export async function linkChat(sb: SupabaseClient, code: string, chat: TgChat): Promise<{ userId: string; lang: Lang } | null> {
-  const { data: row } = await sb.from("telegram_link_codes").select("code, user_id, lang, expires_at").eq("code", code).maybeSingle()
+  const { data: row } = await sb.from("telegram_link_codes").select("*").eq("code", code).maybeSingle()
   if (!row) return null
   await sb.from("telegram_link_codes").delete().eq("code", code)
   if (Date.parse(row.expires_at as string) < Date.now()) return null
@@ -152,7 +155,7 @@ export async function linkChat(sb: SupabaseClient, code: string, chat: TgChat): 
     access_token_enc: encryptSecret(chatId),
     workspace_id: chatId,
     workspace_name: chat.username ? `@${chat.username}` : (chat.first_name ?? "Telegram"),
-    settings: { notify_reports: true, lang },
+    settings: { notify_reports: true, lang, ...(row.timezone ? { tz: row.timezone as string } : {}) },
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,provider" })
   if (error) throw new Error(error.message)
@@ -167,13 +170,13 @@ export const TXT = {
     openSite: "Відкрити AstroCore",
     linked: "✅ <b>Готово!</b> Telegram підключено до AstroCore.\n\nТепер сюди приходитимуть нові звіти твого агента.",
     expired: "⏳ Посилання застаріло. Натисни «Підключити Telegram» на сайті ще раз.",
-    help: "<b>Команди</b>\n/report — останній звіт\n/reports — 5 останніх звітів\n/stop — відключити Telegram\n/help — ця підказка",
+    help: "<b>Команди</b>\n/report — останній звіт\n/reports — 5 останніх звітів\n/reminders — мої нагадування\n/remind — як створити нагадування\n/stop — відключити Telegram\n\n⏰ Просто напиши: <i>нагадай завтра о 9 подзвонити Кіру</i>",
     noReports: "Звітів поки немає. Дай агенту задачу або запусти місію на сайті.",
     newReport: "📊 <b>Новий звіт агента</b>",
     lastReports: "🗂 <b>Останні звіти</b>",
     openReport: "Відкрити звіт",
     stopped: "👋 Telegram відключено. Підключити знову можна в AstroCore → Інтеграції.",
-    soonChat: "💬 Писати агенту прямо тут — уже скоро. Поки що відкрий чат на сайті.",
+    soonChat: "💬 Писати агенту прямо тут — уже скоро. Поки що відкрий чат на сайті.\n\n⏰ А нагадування вже працюють: <i>нагадай завтра о 9 …</i>",
     openChat: "Відкрити чат",
     test: "🔔 <b>Тест від AstroCore</b>\n\nУсе працює: сюди приходитимуть нові звіти твого агента.",
   },
@@ -182,13 +185,13 @@ export const TXT = {
     openSite: "Open AstroCore",
     linked: "✅ <b>Done!</b> Telegram is connected to AstroCore.\n\nNew reports from your agent will arrive here.",
     expired: "⏳ This link has expired. Press “Connect Telegram” on the site again.",
-    help: "<b>Commands</b>\n/report — latest report\n/reports — last 5 reports\n/stop — disconnect Telegram\n/help — this help",
+    help: "<b>Commands</b>\n/report — latest report\n/reports — last 5 reports\n/reminders — my reminders\n/remind — how to create a reminder\n/stop — disconnect Telegram\n\n⏰ Just write: <i>remind me tomorrow at 9 to call John</i>",
     noReports: "No reports yet. Give your agent a task or run a mission on the site.",
     newReport: "📊 <b>New report from your agent</b>",
     lastReports: "🗂 <b>Latest reports</b>",
     openReport: "Open report",
     stopped: "👋 Telegram disconnected. You can connect again in AstroCore → Integrations.",
-    soonChat: "💬 Chatting with your agent right here is coming soon. For now, open the chat on the site.",
+    soonChat: "💬 Chatting with your agent right here is coming soon. For now, open the chat on the site.\n\n⏰ Reminders already work: <i>remind me tomorrow at 9 …</i>",
     openChat: "Open chat",
     test: "🔔 <b>Test from AstroCore</b>\n\nAll good: new reports from your agent will arrive here.",
   },

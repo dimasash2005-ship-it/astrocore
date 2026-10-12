@@ -10,7 +10,7 @@ import {
   Activity, RotateCcw, Copy, Check,
   ChevronDown, AlertCircle, Paperclip,
   Image as ImageIcon, X, BookOpen, Plus,
-  Mic, Smile, FileText,
+  Mic, Smile, FileText, AlarmClock,
 } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
@@ -19,6 +19,8 @@ import type { Language } from "@/lib/language"
 import VoiceComposer, { fmtDuration, type VoiceDraft } from "@/components/chat/VoiceComposer"
 import VoiceMessage, { type VoiceInfo } from "@/components/chat/VoiceMessage"
 import { PhotoGrid, splitImages, compressImage } from "@/components/chat/Photos"
+import RemindersPopover from "@/components/chat/RemindersPopover"
+import { parseReminder, isReminderPhrase, formatWhen, repeatLabel } from "@/lib/reminders/core"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -937,7 +939,7 @@ export default function SessionPage() {
   const [micError,    setMicError]    = useState("")
 
   // which popover is open above the composer: "+" menu or emoji picker
-  const [menu, setMenu] = useState<null | "attach" | "emoji">(null)
+  const [menu, setMenu] = useState<null | "attach" | "emoji" | "reminders">(null)
 
   const bottomRef   = useRef<HTMLDivElement>(null)
   const inputApi    = useRef<ComposerHandle>(null)
@@ -1285,9 +1287,51 @@ export default function SessionPage() {
 
   // ── Send ─────────────────────────────────────────────────────────
 
+  // "нагадай завтра о 9 …" -> AstroCore sets a reminder itself (no agent call, no tokens).
+  // If the phrase has no date/time, it goes to the agent as a normal message.
+  async function sendReminder(text: string): Promise<boolean> {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const parsed = parseReminder(text, tz)
+    if (!parsed) return false
+    sendingRef.current = true
+    try {
+      const sb = getSupabase()
+      const { data: { user } } = await sb.auth.getUser()
+      if (!user) return true
+      const res = await fetch("/api/reminders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: parsed.text, remindAt: parsed.at.toISOString(), repeat: parsed.repeat, timezone: tz }),
+      })
+      const d = await res.json().catch(() => ({}))
+      const rep = repeatLabel(parsed.repeat, uk ? "uk" : "en")
+      const reply = !res.ok
+        ? `⚠️ ${d.error ?? (uk ? "Не вдалося створити нагадування." : "Couldn't create the reminder.")}`
+        : (uk
+            ? `⏰ **Нагадаю ${formatWhen(parsed.at, tz, "uk")}**${rep ? ` · 🔁 ${rep}` : ""}\n\n${parsed.text}\n\n`
+              + (d.telegramConnected ? "📲 Прийде в Telegram. Список і скасування: кнопка ⏰ біля поля вводу." : "⚠️ Telegram не підключено, тому на телефон не прийде. [Підключити Telegram](/integrations)")
+            : `⏰ **I'll remind you ${formatWhen(parsed.at, tz, "en")}**${rep ? ` · 🔁 ${rep}` : ""}\n\n${parsed.text}\n\n`
+              + (d.telegramConnected ? "📲 It will arrive in Telegram. List and cancel: the ⏰ button next to the input." : "⚠️ Telegram isn't connected, so it won't reach your phone. [Connect Telegram](/integrations)"))
+
+      const { data: u } = await sb.from("chat_messages").insert({ user_id: user.id, session_id: sessionId, role: "user", content: text }).select().single()
+      const { data: a } = await sb.from("chat_messages").insert({ user_id: user.id, session_id: sessionId, role: "assistant", content: reply }).select().single()
+      if (messages.length === 0) {
+        await sb.from("chat_sessions").update({ title: `⏰ ${parsed.text}`.slice(0, 60), updated_at: new Date().toISOString() }).eq("id", sessionId)
+      }
+      const userMsg: Message = { id: u?.id ?? crypto.randomUUID(), role: "user", content: text, createdAt: u?.created_at ?? new Date().toISOString() }
+      const botMsg: Message = { id: a?.id ?? crypto.randomUUID(), role: "assistant", content: reply, createdAt: a?.created_at ?? new Date().toISOString() }
+      setMessages(prev => [...prev, userMsg, botMsg])
+      setJustAddedId(userMsg.id)
+      inputApi.current?.clear()
+      return true
+    } finally {
+      sendingRef.current = false
+    }
+  }
+
   async function handleSend(rawText: string, voice?: VoiceInfo) {
     if (sendingRef.current) return
     const text = rawText.trim()
+    if (!voice && attachments.length === 0 && session && isReminderPhrase(text) && await sendReminder(text)) return
     // A voice message goes alone; attachments stay for the next message.
     const usedAttachments = voice ? [] : attachments
     const hasAttachments = usedAttachments.length > 0
@@ -1727,6 +1771,9 @@ export default function SessionPage() {
             {menu === "emoji" && (
               <EmojiPicker onPick={e => inputApi.current?.insert(e)} />
             )}
+            {menu === "reminders" && (
+              <RemindersPopover lang={uk ? "uk" : "en"} onExample={ex => { setMenu(null); inputApi.current?.setText(ex); inputApi.current?.focus() }} />
+            )}
 
             {voiceOpen && (
               <VoiceComposer
@@ -1758,13 +1805,22 @@ export default function SessionPage() {
                 </RoundBtn>
               }
               outsideRight={
-                <RoundBtn
-                  active={menu === "emoji"}
-                  title={language === "uk" ? "Смайлики" : "Emoji"}
-                  onClick={() => setMenu(m => m === "emoji" ? null : "emoji")}
-                >
-                  <Smile size={17} />
-                </RoundBtn>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <RoundBtn
+                    active={menu === "reminders"}
+                    title={language === "uk" ? "Нагадування" : "Reminders"}
+                    onClick={() => setMenu(m => m === "reminders" ? null : "reminders")}
+                  >
+                    <AlarmClock size={17} />
+                  </RoundBtn>
+                  <RoundBtn
+                    active={menu === "emoji"}
+                    title={language === "uk" ? "Смайлики" : "Emoji"}
+                    onClick={() => setMenu(m => m === "emoji" ? null : "emoji")}
+                  >
+                    <Smile size={17} />
+                  </RoundBtn>
+                </div>
               }
               rightSlot={
                 <MicBtn

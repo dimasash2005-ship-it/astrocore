@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: lang === "uk" ? "Telegram ще не налаштований на сервері." : "Telegram is not set up on the server yet." }, { status: 400 })
   }
   try {
-    const code = await createLinkCode(telegramServiceClient(), user.id, lang)
+    const body = await req.json().catch(() => null) as { timezone?: unknown } | null
+    const tz = typeof body?.timezone === "string" && body.timezone.length < 64 ? body.timezone : null
+    const code = await createLinkCode(telegramServiceClient(), user.id, lang, tz)
     return NextResponse.json({ url: `https://t.me/${botUsername()}?start=${code}` }, { headers: { "Cache-Control": "no-store" } })
   } catch (err) {
     console.error("[telegram link]", err instanceof Error ? err.message : err)

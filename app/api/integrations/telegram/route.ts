@@ -43,11 +43,16 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const { supabase, user } = await auth()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const body = await req.json().catch(() => null) as { notifyReports?: unknown } | null
+  const body = await req.json().catch(() => null) as { notifyReports?: unknown; timezone?: unknown } | null
   const conn = await loadTelegram(supabase, user.id).catch(() => null)
   if (!conn) return NextResponse.json({ error: "not_connected" }, { status: 400 })
-  if (typeof body?.notifyReports === "boolean") {
-    const settings = { ...conn.settings, notify_reports: body.notifyReports }
+  const tz = typeof body?.timezone === "string" && body.timezone.length < 64 ? body.timezone : null
+  if (typeof body?.notifyReports === "boolean" || (tz && tz !== conn.settings.tz)) {
+    const settings = {
+      ...conn.settings,
+      ...(typeof body?.notifyReports === "boolean" ? { notify_reports: body.notifyReports } : {}),
+      ...(tz ? { tz } : {}),
+    }
     const { error } = await supabase.from("user_integrations").update({ settings, updated_at: new Date().toISOString() }).eq("id", conn.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     conn.settings = settings

@@ -24,7 +24,7 @@ const EMPTY: Status = { configured: false, bot: null, connected: false, username
 const L = {
   uk: {
     connected: "Підключено", notConnected: "Не підключено", soon: "Скоро",
-    desc: "Звіти агента приходять у Telegram",
+    desc: "Звіти агента й нагадування приходять у Telegram",
     connect: "Підключити Telegram", settings: "Налаштувати", openBot: "Відкрити бота", reports: "Звіти в Telegram",
     waiting: "Відкрий Telegram і натисни «Start» у боті…", reopen: "Відкрити Telegram ще раз",
     linked: "Telegram підключено! Нові звіти приходитимуть у бот.",
@@ -35,14 +35,14 @@ const L = {
     stepsTitle: "Як підключити",
     steps: ["Натисни «Підключити Telegram»", "Відкриється бот AstroCore: натисни «Start»", "Готово: нові звіти приходитимуть сюди"],
     cmdsTitle: "Команди бота",
-    cmds: [["/report", "останній звіт"], ["/reports", "5 останніх звітів"], ["/stop", "відключити"]],
+    cmds: [["нагадай …", "нагадування: «нагадай завтра о 9 …»"], ["/reminders", "мої нагадування"], ["/report", "останній звіт"], ["/reports", "5 останніх звітів"], ["/stop", "відключити"]],
     soonChat: "Скоро: писати агенту прямо з Telegram",
     notConfigured: "Telegram ще не налаштований на сервері.",
     setupError: "Інтеграція ще не готова: виконай SQL для Telegram у Supabase.",
   },
   en: {
     connected: "Connected", notConnected: "Not connected", soon: "Soon",
-    desc: "Your agent's reports arrive in Telegram",
+    desc: "Your agent's reports and reminders arrive in Telegram",
     connect: "Connect Telegram", settings: "Settings", openBot: "Open bot", reports: "Reports to Telegram",
     waiting: "Open Telegram and press “Start” in the bot…", reopen: "Open Telegram again",
     linked: "Telegram is connected! New reports will arrive in the bot.",
@@ -53,7 +53,7 @@ const L = {
     stepsTitle: "How to connect",
     steps: ["Click “Connect Telegram”", "The AstroCore bot opens: press “Start”", "Done: new reports will arrive there"],
     cmdsTitle: "Bot commands",
-    cmds: [["/report", "latest report"], ["/reports", "last 5 reports"], ["/stop", "disconnect"]],
+    cmds: [["remind …", "reminder: “remind me tomorrow at 9 …”"], ["/reminders", "my reminders"], ["/report", "latest report"], ["/reports", "last 5 reports"], ["/stop", "disconnect"]],
     soonChat: "Soon: chat with your agent right from Telegram",
     notConfigured: "Telegram is not set up on the server yet.",
     setupError: "Integration isn't ready yet: run the Telegram SQL in Supabase.",
@@ -112,7 +112,10 @@ export default function TelegramPanel({ onStatus, delay = 0 }: { onStatus?: (con
     // Open the tab right away (inside the click) so the browser doesn't block it.
     const win = window.open("about:blank", "_blank")
     try {
-      const r = await fetch("/api/integrations/telegram/link", { method: "POST" })
+      const r = await fetch("/api/integrations/telegram/link", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      })
       const d = await r.json().catch(() => ({}))
       if (!r.ok || !d.url) { win?.close(); setMsg({ ok: false, text: d.error ?? "Error" }); setOpen(true); return }
       setLinkUrl(d.url)

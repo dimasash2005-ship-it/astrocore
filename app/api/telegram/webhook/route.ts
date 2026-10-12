@@ -1,13 +1,15 @@
 // app/api/telegram/webhook/route.ts
 //
-// Telegram sends every message to the AstroCore bot here.
+// Telegram sends every message (and every button tap) for the AstroCore bot here.
 // Protected by TELEGRAM_WEBHOOK_SECRET (Telegram puts it in a header on each call).
 // Always answers 200 so Telegram doesn't retry the same update.
 
 import { NextRequest, NextResponse } from "next/server"
 import {
-  telegramConfigured, telegramServiceClient, findByChat, linkChat, sendMessage, reportMessage, esc, TXT, type Lang,
+  telegramConfigured, telegramServiceClient, findByChat, linkChat, sendMessage, reportMessage, esc, tg, TXT, type Lang,
 } from "@/lib/server/telegram"
+import { parseReminder, formatWhen, safeTz } from "@/lib/reminders/core"
+import { RTXT, createdMessage, cancelButton, listButtons, handleReminderCallback } from "@/lib/server/reminders"
 
 export const dynamic = "force-dynamic"
 
@@ -18,6 +20,7 @@ type TgMessage = {
   chat: { id: number; type: string; username?: string; first_name?: string }
   from?: { language_code?: string }
 }
+type TgCallback = { id: string; data?: string; from?: { language_code?: string }; message?: { message_id: number; chat: { id: number } } }
 
 export async function POST(req: NextRequest) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET
@@ -26,17 +29,31 @@ export async function POST(req: NextRequest) {
   }
   if (!telegramConfigured()) return NextResponse.json({ ok: true })
 
-  const update = await req.json().catch(() => null) as { message?: TgMessage } | null
-  const msg = update?.message
-  if (msg?.chat?.id && msg.chat.type === "private" && typeof msg.text === "string") {
-    try { await handle(msg) } catch (err) {
-      console.error("[telegram webhook]", err instanceof Error ? err.message : err)
-    }
+  const update = await req.json().catch(() => null) as { message?: TgMessage; callback_query?: TgCallback } | null
+  try {
+    if (update?.callback_query) await onButton(update.callback_query)
+    const msg = update?.message
+    if (msg?.chat?.id && msg.chat.type === "private" && typeof msg.text === "string") await onMessage(msg)
+  } catch (err) {
+    console.error("[telegram webhook]", err instanceof Error ? err.message : err)
   }
   return NextResponse.json({ ok: true })
 }
 
-async function handle(msg: TgMessage) {
+// ── Buttons under messages ──
+async function onButton(q: TgCallback) {
+  const chatId = q.message?.chat.id
+  if (!chatId) return
+  const sb = telegramServiceClient()
+  const conn = await findByChat(sb, chatId)
+  if (!conn) { await tg("answerCallbackQuery", { callback_query_id: q.id }).catch(() => {}); return }
+  const lang: Lang = conn.settings.lang ?? ((q.from?.language_code ?? "").startsWith("uk") ? "uk" : "en")
+  if ((q.data ?? "").startsWith("r:")) await handleReminderCallback(sb, q, conn.userId, lang)
+  else await tg("answerCallbackQuery", { callback_query_id: q.id }).catch(() => {})
+}
+
+// ── Text messages ──
+async function onMessage(msg: TgMessage) {
   const sb = telegramServiceClient()
   const chatId = msg.chat.id
   const text = (msg.text ?? "").trim()
@@ -55,15 +72,49 @@ async function handle(msg: TgMessage) {
   const conn = await findByChat(sb, chatId)
   const lang: Lang = conn?.settings.lang ?? guess
   const t = TXT[lang]
+  const rt = RTXT[lang]
 
   if (!conn) {
     return sendMessage(chatId, t.welcome, [[{ text: t.openSite, url: `${SITE}/integrations` }]])
+  }
+
+  // Reminders: "/remind …", "нагадай …", "remind me …"
+  if (cmd === "/remind" || /^(нагадай|нагадайте|нагадати|remind)(?=\s|$)/iu.test(text)) {
+    if (cmd === "/remind" && args.length === 0) return sendMessage(chatId, rt.howto)
+    const tz = safeTz(conn.settings.tz ?? (await lastTimezone(sb, conn.userId)))
+    const parsed = parseReminder(text, tz)
+    if (!parsed) return sendMessage(chatId, rt.notUnderstood)
+    const { count } = await sb.from("reminders").select("id", { count: "exact", head: true }).eq("user_id", conn.userId).eq("status", "pending")
+    if ((count ?? 0) >= 200) return sendMessage(chatId, rt.tooMany)
+    const { data: row, error } = await sb.from("reminders").insert({
+      user_id: conn.userId, text: parsed.text.slice(0, 500), remind_at: parsed.at.toISOString(),
+      repeat: parsed.repeat, timezone: tz, source: "telegram",
+    }).select("*").single()
+    if (error || !row) return sendMessage(chatId, rt.notUnderstood)
+    return tg("sendMessage", {
+      chat_id: chatId, text: createdMessage(row, lang), parse_mode: "HTML",
+      reply_markup: { inline_keyboard: cancelButton(row.id, lang) },
+    })
   }
 
   switch (cmd) {
     case "/start":
     case "/help":
       return sendMessage(chatId, t.help)
+
+    case "/reminders": {
+      const { data: list } = await sb.from("reminders").select("id, text, remind_at, repeat, timezone")
+        .eq("user_id", conn.userId).eq("status", "pending").order("remind_at").limit(10)
+      if (!list?.length) return sendMessage(chatId, rt.none)
+      const lines = list.map((r, i) => {
+        const when = formatWhen(new Date(r.remind_at as string), safeTz(r.timezone as string), lang)
+        return `${i + 1}. <b>${esc(when)}</b>${r.repeat !== "none" ? " 🔁" : ""}\n    ${esc(String(r.text).slice(0, 120))}`
+      })
+      return tg("sendMessage", {
+        chat_id: chatId, text: `${rt.list}\n\n${lines.join("\n")}`, parse_mode: "HTML",
+        reply_markup: { inline_keyboard: listButtons(list as { id: string }[], lang) },
+      })
+    }
 
     case "/report": {
       const { data: r } = await sb.from("reports").select("id, company_name, summary, notion_url")
@@ -92,4 +143,9 @@ async function handle(msg: TgMessage) {
     default:
       return sendMessage(chatId, t.soonChat, [[{ text: t.openChat, url: SITE }]])
   }
+}
+
+async function lastTimezone(sb: ReturnType<typeof telegramServiceClient>, userId: string): Promise<string | null> {
+  const { data } = await sb.from("reminders").select("timezone").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle()
+  return (data?.timezone as string | undefined) ?? null
 }

@@ -26,23 +26,27 @@ export async function GET(req: NextRequest) {
     await tg("setWebhook", {
       url,
       secret_token: process.env.TELEGRAM_WEBHOOK_SECRET,
-      allowed_updates: ["message"],
+      allowed_updates: ["message", "callback_query"],
       drop_pending_updates: true,
     })
     await tg("setMyCommands", { commands: [
       { command: "report",  description: "Latest report" },
       { command: "reports", description: "Last 5 reports" },
+      { command: "reminders", description: "My reminders" },
+      { command: "remind",  description: "How to create a reminder" },
       { command: "help",    description: "Help" },
       { command: "stop",    description: "Disconnect Telegram" },
     ] })
     await tg("setMyCommands", { language_code: "uk", commands: [
       { command: "report",  description: "Останній звіт" },
       { command: "reports", description: "5 останніх звітів" },
+      { command: "reminders", description: "Мої нагадування" },
+      { command: "remind",  description: "Як створити нагадування" },
       { command: "help",    description: "Підказка" },
       { command: "stop",    description: "Відключити Telegram" },
     ] })
-    await tg("setMyDescription", { description: "AstroCore: reports from your OpenClaw agent, right in Telegram." }).catch(() => {})
-    await tg("setMyDescription", { language_code: "uk", description: "AstroCore: звіти твого OpenClaw-агента прямо в Telegram." }).catch(() => {})
+    await tg("setMyDescription", { description: "AstroCore: reports from your OpenClaw agent and reminders, right in Telegram." }).catch(() => {})
+    await tg("setMyDescription", { language_code: "uk", description: "AstroCore: звіти твого OpenClaw-агента й нагадування прямо в Telegram." }).catch(() => {})
     const info = await tg("getWebhookInfo", {})
     return NextResponse.json({ ok: true, bot: `@${botUsername()}`, webhook: url, info })
   } catch (err) {
