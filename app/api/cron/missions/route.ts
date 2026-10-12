@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js"
 import { nextRunAt, type MissionSchedule } from "@/lib/missions/schedule"
 import { notifyAdmin } from "@/lib/server/alert"
-import { autoExportReport } from "@/lib/server/notion"
+import { onReportCreated } from "@/lib/server/report-hooks"
 
 export const dynamic = "force-dynamic"
 
@@ -86,8 +86,8 @@ async function finishRunning(svc: SupabaseClient) {
         .select("id")
         .single()
       reportId = (rep?.id as string | undefined) ?? null
-      // If the user turned on "auto export to Notion", the report goes there too.
-      await autoExportReport(m.user_id, reportId)
+      // Notion auto export + Telegram message (each only if the user set it up).
+      await onReportCreated(m.user_id, reportId)
     }
     await svc.from("missions").update({
       status: failed ? "failed" : "done",

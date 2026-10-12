@@ -1269,10 +1269,10 @@ export default function SessionPage() {
           .insert({ user_id: user.id, company_name: m.title, summary: last.content })
           .select("id").single()
         reportId = (rep?.id as string | undefined) ?? null
-        // Auto export to Notion (does nothing unless the user turned it on).
-        if (reportId) fetch("/api/integrations/notion/export", {
+        // Notion auto export + Telegram message (each only if the user set it up).
+        if (reportId) fetch("/api/reports/created", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reportId, auto: true }),
+          body: JSON.stringify({ reportId }),
         }).catch(() => {})
       }
       await sb.from("missions").update({

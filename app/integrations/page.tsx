@@ -11,6 +11,7 @@ import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import NotionPanel from "@/components/integrations/NotionPanel"
+import TelegramPanel from "@/components/integrations/TelegramPanel"
 import { IntegrationCard, IntegrationDrawer, Chip } from "@/components/integrations/IntegrationUI"
 
 const T = {
@@ -135,6 +136,7 @@ export default function IntegrationsPage() {
   const [checking, setChecking] = useState(false)
   const [checkedAt, setCheckedAt] = useState<number | null>(null)
   const [notionOn, setNotionOn] = useState(false)
+  const [telegramOn, setTelegramOn] = useState(false)
 
   useEffect(() => { setOrigin(window.location.origin) }, [])
 
@@ -209,7 +211,7 @@ export default function IntegrationsPage() {
   }
 
   const connected = !connLoading && !!obsidianKey
-  const connectedCount = (connected ? 1 : 0) + (notionOn ? 1 : 0)
+  const connectedCount = (connected ? 1 : 0) + (notionOn ? 1 : 0) + (telegramOn ? 1 : 0)
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
@@ -249,8 +251,7 @@ export default function IntegrationsPage() {
           color: ${T.t3}; text-transform: uppercase; letter-spacing: .08em; }
         .ig-gtitle::after { content: ""; flex: 1; max-width: 320px; height: 0.5px; background: rgba(255,255,255,.08); }
         .ig-dot { width: 7px; height: 7px; border-radius: 50%; background: ${T.green}; box-shadow: 0 0 8px rgba(34,197,94,.8); }
-        .ig-mine { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 36px; }
-        @media (max-width: 980px) { .ig-mine { grid-template-columns: 1fr; } }
+        .ig-mine { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px; margin-bottom: 36px; }
 
         .ig-seg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: ${T.s1}; border: 0.5px solid ${T.b1}; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: 18px; }
         .ig-seg button { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: 8px; border: none; cursor: pointer;
@@ -373,6 +374,7 @@ export default function IntegrationsPage() {
                 </>} />
             )}
             <NotionPanel onStatus={setNotionOn} delay={60} />
+            <TelegramPanel onStatus={setTelegramOn} delay={120} />
           </div>
 
           {/* ── Coming soon ── */}
