@@ -56,3 +56,57 @@
 .alb-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--c), #F5B13B);
   box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent); transition: width .8s cubic-bezier(.2,.8,.3,1); }
 .alb small { font-size: 11px; color: #6A6A8A; }
+
+/* ── Level up toast ─────────────────────────── */
+.alu { position: fixed; right: 22px; bottom: 22px; z-index: 9000; width: 360px; max-width: calc(100vw - 32px);
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px 14px 12px; border-radius: 16px; cursor: pointer; overflow: hidden;
+  background: linear-gradient(150deg, #17141F, #0D0C16); border: .5px solid color-mix(in srgb, var(--c) 45%, transparent);
+  box-shadow: 0 22px 60px rgba(0,0,0,.7), 0 0 40px color-mix(in srgb, var(--c) 22%, transparent);
+  animation: aluIn .55s cubic-bezier(.2,1.3,.4,1); }
+.alu.out { animation: aluOut .26s ease-in forwards; }
+.alu::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 3px; background: linear-gradient(var(--c), #F5B13B); }
+.alu-sweep { position: absolute; top: 0; left: -40%; width: 40%; height: 1px; background: linear-gradient(90deg, transparent, #F5B13B, transparent); animation: aluSweep 2.4s linear infinite; }
+.alu-star { position: relative; width: 76px; height: 76px; flex: none; display: grid; place-items: center; }
+.alu-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--c); opacity: 0; animation: aluRing 1.4s ease-out .15s 2; }
+.alu-ring.r2 { border-color: #F5B13B; animation-delay: .45s; }
+.alu-spark { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; opacity: 0;
+  animation: aluSpark .9s cubic-bezier(.1,.8,.3,1) forwards; }
+.alu-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.alu-k { font: 700 10px 'JetBrains Mono', monospace; letter-spacing: .22em; color: #F5B13B; text-shadow: 0 0 12px rgba(245,177,59,.5); }
+.alu-tx b { font: 600 15px 'Space Grotesk', sans-serif; color: #F0EDF8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alu-tx b span { font: 500 11px 'JetBrains Mono', monospace; color: #8A8AAA; margin-left: 6px; }
+.alu-tx b em { font-style: normal; color: #F5B13B; }
+.alu-tx small { font-size: 12px; color: #C8C4D8; }
+.alu-bar { height: 3px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; margin-top: 5px; }
+.alu-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--c), #F5B13B); transform-origin: left; animation: aluTimer 7s linear forwards; }
+.alu-x { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+  background: none; border: none; color: #6A6A8A; cursor: pointer; }
+.alu-x:hover { color: #fff; background: rgba(255,255,255,.06); }
+@keyframes aluIn { from { opacity: 0; transform: translateY(24px) scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes aluOut { to { opacity: 0; transform: translateY(14px) scale(.96); } }
+@keyframes aluSweep { to { left: 100%; } }
+@keyframes aluRing { 0% { opacity: .8; transform: scale(.5); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes aluSpark { 0% { opacity: 1; transform: translate(0,0) scale(1); } 100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(.3); } }
+@keyframes aluTimer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .alu, .alu-ring, .alu-spark, .alu-sweep { animation: none !important; } .alu-spark { display: none; } }
+
+/* ── Neural galaxy loader ───────────────────── */
+.acl { position: relative; min-height: 70vh; width: 100%; display: grid; place-items: center; overflow: hidden; background: transparent;
+  opacity: 0; animation: aclIn .35s ease-out forwards; }
+.acl-full { position: fixed; inset: 0; z-index: 9999; min-height: 0;
+  background: radial-gradient(ellipse 50% 45% at 50% 50%, rgba(232,0,42,.12), transparent 70%), #08080F; animation-duration: .2s; }
+.acl canvas { position: absolute; inset: 0; display: block; }
+.acl-core { position: relative; z-index: 1; filter: drop-shadow(0 0 30px rgba(232,0,42,.35)); }
+.acl-tx { position: absolute; left: 0; right: 0; bottom: 9vh; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.acl:not(.acl-full) .acl-tx { bottom: 6%; }
+.acl-tx b { font: 600 13px 'JetBrains Mono', monospace; letter-spacing: .5em; color: #F0EDF8; padding-left: .5em; }
+.acl-tx b span { color: #E8002A; text-shadow: 0 0 14px rgba(232,0,42,.6); }
+.acl-tx small { font: 500 11.5px 'JetBrains Mono', monospace; color: #8A8AAA; letter-spacing: .06em; animation: aclStep .35s ease-out; }
+.acl-tx small i { font-style: normal; animation: aclDot 1.2s infinite; }
+.acl-tx small i:nth-child(2) { animation-delay: .2s; } .acl-tx small i:nth-child(3) { animation-delay: .4s; }
+.acl-out { animation: aclOut .45s ease-in forwards !important; }
+@keyframes aclIn { to { opacity: 1; } }
+@keyframes aclOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(1.06); filter: blur(4px); } }
+@keyframes aclStep { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes aclDot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .acl, .acl-out { animation-duration: .01s !important; } }

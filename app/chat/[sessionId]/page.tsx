@@ -22,7 +22,7 @@ import { PhotoGrid, splitImages, compressImage } from "@/components/chat/Photos"
 import RemindersPopover from "@/components/chat/RemindersPopover"
 import AgentStar from "@/components/cosmos/AgentStar"
 import CoreEye from "@/components/cosmos/CoreEye"
-import { useAgentLevels } from "@/lib/useAgentLevels"
+import { useAgentLevels, refreshAgentLevels } from "@/lib/useAgentLevels"
 import { isOnline } from "@/lib/cosmos"
 import { parseReminder, isReminderPhrase, formatWhen, repeatLabel } from "@/lib/reminders/core"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
@@ -928,6 +928,16 @@ export default function SessionPage() {
   const [provider,    setProvider]    = useState<Provider | undefined>()
   const { levelOf } = useAgentLevels()
   const [messages,    setMessages]    = useState<Message[]>([])
+  // Re-count the agent's level when a reply has finished (this is what triggers "Level up!").
+  const repliesDone = messages.filter(m => m.role === "assistant" && !m.streaming && !m.jobPending).length
+  const repliesSeen = useRef<number | null>(null)
+  useEffect(() => {
+    if (repliesSeen.current === null) { repliesSeen.current = repliesDone; return }
+    if (repliesDone <= repliesSeen.current) return
+    repliesSeen.current = repliesDone
+    const t = setTimeout(() => { refreshAgentLevels() }, 1200)
+    return () => clearTimeout(t)
+  }, [repliesDone])
   const [loading,     setLoading]     = useState(false)
   const [notFound,    setNotFound]    = useState(false)
   const [showScroll,  setShowScroll]  = useState(false)

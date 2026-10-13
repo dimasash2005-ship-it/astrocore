@@ -5,27 +5,17 @@ import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { getSupabase } from "@/lib/supabase/client"
 import Landing from "@/components/landing/Landing"
+import CosmosLoader from "@/components/cosmos/CosmosLoader"
+import LevelUpToast from "@/components/cosmos/LevelUpToast"
+
+// The galaxy intro plays fully once per browser session; after that it only shows while loading.
+const BOOT_KEY = "astrocore_boot_seen"
+const BOOT_MIN_MS = 1500
 
 const PUBLIC_ROUTES = new Set(["/login", "/register"])
 // Pages open to everyone (logged in or not) — no redirects at all
 const OPEN_ROUTES = new Set(["/terms", "/privacy-policy"])
 
-function Spinner() {
-  return (
-    <div style={{
-      position: "fixed", inset: 0, background: "#08080F",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999,
-    }}>
-      <style>{`@keyframes aspin { to { transform: rotate(360deg) } }`}</style>
-      <div style={{
-        width: 36, height: 36, borderRadius: "50%",
-        border: "2px solid rgba(232,0,42,0.15)",
-        borderTop: "2px solid #E8002A",
-        animation: "aspin 0.8s linear infinite",
-      }} />
-    </div>
-  )
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router   = useRouter()
@@ -33,6 +23,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [ready,  setReady]  = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [boot,   setBoot]   = useState<"on" | "out" | "off">("on")
+  const [bootStart] = useState(() => (typeof performance !== "undefined" ? performance.now() : 0))
 
   const isHome      = pathname === "/"
   const isOpen      = OPEN_ROUTES.has(pathname) || pathname === "/guides" || pathname.startsWith("/guides/") || pathname.startsWith("/r/")
@@ -60,15 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ready && !isPublic && !isOpen) return <Spinner />
+  // Keep the intro on screen for a moment the first time, then fade it out over the app.
+  useEffect(() => {
+    if (!ready || boot !== "on") return
+    let seen = false
+    try { seen = window.sessionStorage.getItem(BOOT_KEY) === "1"; window.sessionStorage.setItem(BOOT_KEY, "1") } catch { /* private mode */ }
+    const wait = seen ? 0 : Math.max(0, BOOT_MIN_MS - (performance.now() - bootStart))
+    const t1 = setTimeout(() => setBoot("out"), wait)
+    const t2 = setTimeout(() => setBoot("off"), wait + 450)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Guest on the home page → landing instead of the dashboard
-  if (isHome && !authed) return <Landing />
+  const gate = !ready && !isPublic && !isOpen
+  // The loader always sits in the same slot, so it doesn't restart when the app appears under it.
+  const loader = (gate || (boot !== "off" && !isPublic && !isOpen))
+    ? <CosmosLoader exiting={!gate && boot === "out"} />
+    : null
 
-  return (
+  let content: React.ReactNode = null
+  if (gate) content = null
+  else if (isHome && !authed) content = <Landing /> // guest on "/" → landing instead of the dashboard
+  else content = (
     <>
       {showSidebar && <Sidebar />}
       {children}
+      {showSidebar && <LevelUpToast />}
+    </>
+  )
+
+  return (
+    <>
+      {content}
+      {loader}
     </>
   )
 }
