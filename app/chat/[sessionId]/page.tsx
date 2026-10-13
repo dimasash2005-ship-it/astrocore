@@ -6,7 +6,7 @@ import {
 } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  ArrowLeft, Send, Bot, Zap, Brain,
+  ArrowLeft, Send, Zap, Brain,
   Activity, RotateCcw, Copy, Check,
   ChevronDown, AlertCircle, Paperclip,
   Image as ImageIcon, X, BookOpen, Plus,
@@ -20,6 +20,10 @@ import VoiceComposer, { fmtDuration, type VoiceDraft } from "@/components/chat/V
 import VoiceMessage, { type VoiceInfo } from "@/components/chat/VoiceMessage"
 import { PhotoGrid, splitImages, compressImage } from "@/components/chat/Photos"
 import RemindersPopover from "@/components/chat/RemindersPopover"
+import AgentStar from "@/components/cosmos/AgentStar"
+import CoreEye from "@/components/cosmos/CoreEye"
+import { useAgentLevels } from "@/lib/useAgentLevels"
+import { isOnline } from "@/lib/cosmos"
 import { parseReminder, isReminderPhrase, formatWhen, repeatLabel } from "@/lib/reminders/core"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -509,7 +513,7 @@ const OFFSCREEN_SKIP = {
 
 // PERF: memo — an existing message never re-renders unless its own
 // props change (it used to re-render on every keystroke in the input).
-const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, t, lang, isNew }: { msg: Message; agentColor?: string; agentId?: string; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
+const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, agentName, agentLevel, t, lang, isNew }: { msg: Message; agentColor?: string; agentId?: string; agentName?: string; agentLevel?: number; t: ReturnType<typeof useLanguage>["t"]; lang: Language; isNew?: boolean }) {
   const isUser  = msg.role === "user"
   const isError = msg.content.startsWith("Помилка") || msg.content.startsWith("Error") || msg.content.startsWith("Провайдер") || msg.content.startsWith("Provider")
   const isStreamingEmpty = !!msg.streaming && !msg.content
@@ -572,13 +576,10 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, t,
       animation: isNew ? "msgIn 240ms ease-out" : undefined,
       ...OFFSCREEN_SKIP,
     }}>
-      <div style={{
-        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-        background: agentColor ?? "rgba(232,0,42,0.15)",
-        border: agentColor ? "none" : "0.5px solid rgba(232,0,42,0.25)",
-        display: "flex", alignItems: "center", justifyContent: "center", marginTop: 2,
-      }}>
-        <Bot size={15} style={{ color: agentColor ? "#fff" : T.red, opacity: 0.9 }} />
+      <div style={{ width: 32, height: 32, flexShrink: 0, marginTop: 2, display: "grid", placeItems: "center" }}>
+        {agentName
+          ? <AgentStar name={agentName} color={agentColor} level={agentLevel ?? 1} size={32} still thinking={!!msg.streaming} />
+          : <span style={{ width: 32, height: 32, borderRadius: 9, overflow: "hidden", display: "grid", placeItems: "center", background: "radial-gradient(circle, rgba(232,0,42,.14), #0B0A12 72%)", boxShadow: "inset 0 0 0 .5px rgba(232,0,42,.3)" }}><CoreEye size={32} mood={msg.streaming ? "thinking" : "idle"} /></span>}
       </div>
 
       <div style={{ maxWidth: 960, minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -618,9 +619,9 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, t,
 function TypingDots() {
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
-      <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: "rgba(232,0,42,0.10)", border: "0.5px solid rgba(232,0,42,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Bot size={15} style={{ color: T.red, opacity: 0.8 }} />
-      </div>
+      <span style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, overflow: "hidden", display: "grid", placeItems: "center", background: "radial-gradient(circle, rgba(232,0,42,.14), #0B0A12 72%)", boxShadow: "inset 0 0 0 .5px rgba(232,0,42,.3)" }}>
+        <CoreEye size={32} mood="thinking" />
+      </span>
       <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
         {[0,1,2].map(i => (
           <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.t3, animation: "dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }} />
@@ -925,6 +926,7 @@ export default function SessionPage() {
   const [session,     setSession]     = useState<Session | null>(null)
   const [agent,       setAgent]       = useState<Agent | undefined>()
   const [provider,    setProvider]    = useState<Provider | undefined>()
+  const { levelOf } = useAgentLevels()
   const [messages,    setMessages]    = useState<Message[]>([])
   const [loading,     setLoading]     = useState(false)
   const [notFound,    setNotFound]    = useState(false)
@@ -1670,9 +1672,9 @@ export default function SessionPage() {
             <ArrowLeft size={15} />
           </button>
           {agent && (
-            <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: agent.avatar_color ?? T.red, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", boxShadow: `0 0 12px ${agent.avatar_color ?? T.red}40` }}>
-              {agent.name.charAt(0).toUpperCase()}
-            </div>
+            <AgentStar name={agent.name} color={agent.avatar_color} level={levelOf(agent.id).level} streak={levelOf(agent.id).streak} size={36}
+              thinking={loading} online={isOnline(provider?.last_seen_at)}
+              title={`${agent.name} · LV ${levelOf(agent.id).level}`} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.t1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{session.title || t.chatSession.newChatFallback}</div>
@@ -1690,8 +1692,10 @@ export default function SessionPage() {
           <div style={{ maxWidth: 1240, margin: "0 auto", width: "100%" }}>
             {messages.length === 0 && !loading && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 24px", textAlign: "center" }}>
-                <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.07)" }}>
-                  {agent ? <span style={{ fontSize: 26, fontWeight: 700, color: "#fff" }}>{agent.name.charAt(0).toUpperCase()}</span> : <Bot size={28} style={{ color: T.red, opacity: 0.7 }} />}
+                <div style={{ marginBottom: 16 }}>
+                  {agent
+                    ? <AgentStar name={agent.name} color={agent.avatar_color} level={levelOf(agent.id).level} streak={levelOf(agent.id).streak} size={110} tile={false} thinking={loading} />
+                    : <CoreEye size={130} track mood={loading ? "thinking" : "idle"} />}
                 </div>
                 <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{agent ? `${t.chatSession.chatWithPrefix}${agent.name}` : t.chatSession.newChatFallback}</div>
                 <div style={{ fontSize: 13.5, color: T.t3, lineHeight: 1.65, maxWidth: 380, marginBottom: 24 }}>
@@ -1707,7 +1711,7 @@ export default function SessionPage() {
                 </div>
               </div>
             )}
-            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} agentId={agent?.id} t={t} lang={language} isNew={msg.id === justAddedId} />)}
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} agentColor={agent?.avatar_color} agentId={agent?.id} agentName={agent?.name} agentLevel={agent ? levelOf(agent.id).level : undefined} t={t} lang={language} isNew={msg.id === justAddedId} />)}
             {loading && !messages.some(m => m.streaming) && <TypingDots />}
             <div ref={bottomRef} />
           </div>

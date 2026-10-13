@@ -12,6 +12,8 @@ import { chatStore } from "@/lib/store"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import AgentStar from "@/components/cosmos/AgentStar"
+import { useAgentLevels } from "@/lib/useAgentLevels"
 
 const T = {
   bg:    "#08080F",
@@ -631,13 +633,7 @@ function CreateAgentModal({ providers, onClose, onCreated, t, language }: {
               padding: "8px 12px", borderRadius: 9,
               background: "rgba(255,255,255,0.03)", border: "0.5px solid rgba(255,255,255,0.07)",
             }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 9, background: color,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0,
-              }}>
-                {name ? name.charAt(0).toUpperCase() : "A"}
-              </div>
+              <AgentStar name={name || "Agent"} color={color} level={3} size={36} />
               <span style={{ fontSize: 13, color: T.t2 }}>{name || t.agents.nameField}</span>
             </div>
           </div>
@@ -746,6 +742,7 @@ function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t,
   index: number
 }) {
   const color = agent.avatar_color ?? T.red
+  const lv = useAgentLevels().levelOf(agent.id)
   return (
     <div
       role="button" tabIndex={0}
@@ -755,18 +752,11 @@ function AgentCard({ agent, provider, sessionCount, onChat, onOpen, onDelete, t,
       style={{ animationDelay: `${Math.min(index, 12) * 40}ms`, ["--ac" as string]: color } as React.CSSProperties}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-          background: color, display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#fff",
-          boxShadow: `0 0 14px ${color}40`,
-        }}>
-          {agent.name.charAt(0).toUpperCase()}
-        </div>
+        <AgentStar name={agent.name} color={color} level={lv.level} streak={lv.streak} size={40} title={`${agent.name} · LV ${lv.level}`} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="mem-title" style={{ WebkitLineClamp: 1 }}>{agent.name}</div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {provider ? provider.model : ""}
+            <span style={{ color: "#F5B13B", marginRight: 6 }}>LV {lv.level}</span>{provider ? provider.model : ""}
           </div>
         </div>
         <div className="ag-actions">

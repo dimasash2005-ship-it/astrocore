@@ -11,6 +11,10 @@ import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import AgentStar from "@/components/cosmos/AgentStar"
+import CoreEye from "@/components/cosmos/CoreEye"
+import { useAgentLevels } from "@/lib/useAgentLevels"
+import { isOnline, type AgentLevel } from "@/lib/cosmos"
 
 const T = {
   bg:   "#08080F",
@@ -46,6 +50,7 @@ type Provider = {
   name: string
   model: string
   is_active: boolean
+  last_seen_at?: string | null
 }
 
 type MessageCount = { session_id: string; count: number }
@@ -127,6 +132,7 @@ function NewChatModal({ onClose, onCreated, t }: {
 }) {
   const router = useRouter()
   const [agents,    setAgents]    = useState<Agent[]>([])
+  const { levelOf } = useAgentLevels()
   const [providers, setProviders] = useState<Provider[]>([])
   const [selected,  setSelected]  = useState<string | null>(null)
   const [loading,   setLoading]   = useState(false)
@@ -220,9 +226,7 @@ function NewChatModal({ onClose, onCreated, t }: {
                     onMouseEnter={e => { if (!noProv && !active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)" }}
                     onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)" }}
                   >
-                    <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: agent.avatar_color ?? T.red, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: "#fff" }}>
-                      {agent.name.charAt(0).toUpperCase()}
-                    </div>
+                    <AgentStar name={agent.name} color={agent.avatar_color} level={levelOf(agent.id).level} streak={levelOf(agent.id).streak} size={38} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: active ? T.t1 : T.t2 }}>{agent.name}</div>
                       <div style={{ display: "flex", gap: 5, marginTop: 3 }}>
@@ -273,8 +277,8 @@ function NewChatModal({ onClose, onCreated, t }: {
 
 // ─── Session row ──────────────────────────────────────────────────
 
-function SessionRow({ session, agent, provider, msgCount, onOpen, onDelete, onRename, t, lang, index }: {
-  session: Session; agent?: Agent; provider?: Provider; msgCount: number
+function SessionRow({ session, agent, provider, msgCount, onOpen, onDelete, onRename, t, lang, index, level }: {
+  session: Session; agent?: Agent; provider?: Provider; msgCount: number; level?: AgentLevel
   onOpen: () => void
   onDelete: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
@@ -285,14 +289,17 @@ function SessionRow({ session, agent, provider, msgCount, onOpen, onDelete, onRe
     <div role="button" tabIndex={0} className="ch-row" onClick={onOpen}
       onKeyDown={e => { if (e.key === "Enter") onOpen() }}
       style={{ ["--c" as string]: color, animationDelay: `${Math.min(index, 14) * 25}ms` } as React.CSSProperties}>
-      <div className="ch-av" style={{ background: agent ? color : "rgba(232,0,42,0.12)" }}>
-        {agent ? agent.name.charAt(0).toUpperCase() : <MessageSquare size={14} style={{ color: T.red }} />}
+      <div className="ch-av">
+        {agent
+          ? <AgentStar name={agent.name} color={color} level={level?.level ?? 1} streak={level?.streak ?? 0} size={38} online={isOnline(provider?.last_seen_at)} />
+          : <span className="ch-core"><CoreEye size={38} /></span>}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="ch-title">{session.title}</div>
         <div className="ch-sub">
           {agent && <span style={{ color: T.t3 }}>{agent.name}</span>}
+          {agent && level && <span className="ch-lv" title={lang === "uk" ? `${level.xp} XP` : `${level.xp} XP`}>LV {level.level}</span>}
           {provider && <><span className="ch-dot" /><span className="mono">{provider.model}</span></>}
         </div>
       </div>
@@ -336,6 +343,7 @@ export default function ChatPage() {
   const [renameTarget, setRenameTarget] = useState<Session | null>(null)
   const [starting,     setStarting]     = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const { levelOf } = useAgentLevels()
 
   async function load() {
     try {
@@ -345,7 +353,7 @@ export default function ChatPage() {
       const [{ data: sessData }, { data: agentsData }, { data: provsData }] = await Promise.all([
         sb.from("chat_sessions").select("id,user_id,agent_id,title,created_at,updated_at").eq("user_id", user.id).order("updated_at", { ascending: false }),
         sb.from("agents").select("id,name,avatar_color,provider_id").eq("user_id", user.id),
-        sb.from("providers").select("id,name,model,is_active").eq("user_id", user.id),
+        sb.from("providers").select("id,name,model,is_active,last_seen_at").eq("user_id", user.id),
       ])
       setSessions((sessData ?? []) as Session[])
       setAgents((agentsData ?? []) as Agent[])
@@ -505,8 +513,7 @@ export default function ChatPage() {
           border: 0.5px solid ${T.b1}; transition: transform .18s cubic-bezier(.3,1.4,.5,1), border-color .18s, box-shadow .18s, color .18s; }
         .ch-agent:hover { transform: translateY(-2px); color: ${T.t1}; border-color: color-mix(in srgb, var(--c) 55%, transparent);
           box-shadow: 0 8px 22px rgba(0,0,0,.4), 0 0 18px color-mix(in srgb, var(--c) 18%, transparent); }
-        .ch-agent i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 12.5px; color: #fff;
-          font-family: 'Space Grotesk', sans-serif; background: var(--c); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 40%, transparent); }
+        .ch-agent i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-style: normal; color: #fff; }
         .ch-agent .ch-plus { color: ${T.t4}; transition: color .15s, transform .2s; }
         .ch-agent:hover .ch-plus { color: var(--c); transform: rotate(90deg); }
 
@@ -549,9 +556,11 @@ export default function ChatPage() {
           background: var(--c); box-shadow: 0 0 10px var(--c); transition: height .2s cubic-bezier(.3,1.4,.5,1); }
         .ch-row:hover, .ch-row:focus-visible { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 60%); }
         .ch-row:hover::before, .ch-row:focus-visible::before { height: 60%; }
-        .ch-av { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; font-family: 'Space Grotesk', sans-serif;
-          font-size: 14px; font-weight: 700; color: #fff; transition: transform .2s, box-shadow .2s; }
-        .ch-row:hover .ch-av { transform: scale(1.06); box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent); }
+        .ch-av { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; transition: transform .2s, box-shadow .2s; }
+        .ch-row:hover .ch-av { transform: scale(1.08); box-shadow: 0 0 18px color-mix(in srgb, var(--c) 40%, transparent); }
+        .ch-core { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; overflow: hidden;
+          background: radial-gradient(circle, rgba(232,0,42,.14), #0B0A12 72%); box-shadow: inset 0 0 0 .5px rgba(232,0,42,.3); }
+        .ch-lv { font: 600 9.5px 'JetBrains Mono', monospace; color: #F5B13B; padding: 1px 5px; border-radius: 5px; border: .5px solid rgba(245,158,11,.35); background: rgba(245,158,11,.06); }
         .ch-title { font-size: 13.5px; font-weight: 500; color: ${T.t1}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 3px; }
         .ch-sub { display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${T.t4}; overflow: hidden; white-space: nowrap; }
         .ch-sub .mono { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
@@ -614,8 +623,8 @@ export default function ChatPage() {
         {/* ── Body ── */}
         {loaded && sessions.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-            <div style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 20, background: "rgba(232,0,42,0.07)", border: "0.5px solid rgba(232,0,42,0.18)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 32px rgba(232,0,42,0.08)" }}>
-              <MessageSquare size={28} style={{ color: T.red, opacity: 0.7 }} />
+            <div style={{ marginBottom: 14 }}>
+              <CoreEye size={150} track title="AstroCore" />
             </div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.t1, marginBottom: 8 }}>{t.chat.noChatsYet}</div>
             <div style={{ fontSize: 13, color: T.t3, maxWidth: 320, marginBottom: 24, lineHeight: 1.65 }}>{t.chat.noChatsHint}</div>
@@ -623,7 +632,7 @@ export default function ChatPage() {
               <div className="ch-quick" style={{ justifyContent: "center", flexWrap: "wrap", overflow: "visible" }}>
                 {readyAgents.slice(0, 6).map(a => (
                   <button key={a.id} className="ch-agent" style={{ ["--c" as string]: a.avatar_color ?? T.red } as React.CSSProperties} onClick={() => quickStart(a)}>
-                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : a.name.charAt(0).toUpperCase()}</i>{a.name}<Plus size={13} className="ch-plus" />
+                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : <AgentStar name={a.name} color={a.avatar_color} level={levelOf(a.id).level} streak={levelOf(a.id).streak} size={30} />}</i>{a.name}<Plus size={13} className="ch-plus" />
                   </button>
                 ))}
               </div>
@@ -641,7 +650,7 @@ export default function ChatPage() {
                 {readyAgents.map(a => (
                   <button key={a.id} className="ch-agent" style={{ ["--c" as string]: a.avatar_color ?? T.red } as React.CSSProperties}
                     onClick={() => quickStart(a)} disabled={!!starting}>
-                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : a.name.charAt(0).toUpperCase()}</i>
+                    <i>{starting === a.id ? <Loader2 size={13} className="ch-spin" /> : <AgentStar name={a.name} color={a.avatar_color} level={levelOf(a.id).level} streak={levelOf(a.id).streak} size={30} />}</i>
                     {a.name}
                     <Plus size={13} className="ch-plus" />
                   </button>
@@ -741,6 +750,7 @@ export default function ChatPage() {
                             session={session}
                             agent={agent}
                             provider={provider}
+                            level={agent ? levelOf(agent.id) : undefined}
                             msgCount={msgCounts[session.id] ?? 0}
                             onOpen={() => router.push(`/chat/${session.id}`)}
                             onDelete={e => handleDelete(e, session.id)}

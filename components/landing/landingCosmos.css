@@ -1,0 +1,17 @@
+/* "Live universe" section (landingCosmos.ts) */
+.ac-landing .cz .head { margin-inline: auto; text-align: center; justify-items: center; }
+.ac-landing .cz .head h2 em { font-style: normal; color: var(--red); text-shadow: 0 0 34px rgba(232,0,42,.45); }
+.ac-landing .cz-stage { position: relative; height: clamp(320px, 52vw, 520px); border-radius: 22px; overflow: hidden;
+  background: radial-gradient(ellipse 55% 50% at 50% 50%, rgba(232,0,42,.10), transparent 70%), #05050B;
+  border: 1px solid rgba(232,0,42,.18); box-shadow: 0 30px 90px rgba(0,0,0,.55), inset 0 0 80px rgba(0,0,0,.6); }
+.ac-landing .cz-stage canvas { position: absolute; inset: 0; display: block; }
+.ac-landing .cz-count { position: absolute; left: 18px; bottom: 16px; font: 500 12.5px var(--mono); color: var(--fg2, #C8C4D8); }
+.ac-landing .cz-count b { color: #fff; }
+.ac-landing .cz-count i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; background: #22C55E;
+  box-shadow: 0 0 10px #22C55E; vertical-align: 1px; }
+.ac-landing .cz-count:empty { display: none; }
+.ac-landing .cz-hint { position: absolute; right: 18px; bottom: 16px; font: 500 11px var(--mono); color: rgba(255,255,255,.35); letter-spacing: .04em; }
+@media (max-width: 640px) {
+  .ac-landing .cz-count { right: 14px; left: 14px; bottom: 34px; font-size: 11.5px; }
+  .ac-landing .cz-hint { left: 14px; right: auto; bottom: 12px; }
+}

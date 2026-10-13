@@ -1,0 +1,58 @@
+/* AstroCore cosmos: agent star avatars (.acs) and the living Core (.ace) */
+
+/* ── Agent star ─────────────────────────────── */
+.acs { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; line-height: 0; }
+.acs svg { display: block; overflow: visible; }
+.acs-tile { border-radius: 30%; background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c) 16%, #0D0C16) 0%, #0B0A12 72%);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--c) 30%, transparent); }
+.acs-tile svg { width: 100%; height: 100%; }
+.acs-spin { transform-box: fill-box; transform-origin: 50% 50%; animation: acsSpin 20s linear infinite; }
+.acs-slow { animation-duration: 60s; }
+.acs-core { transform-box: fill-box; transform-origin: 50% 50%; animation: acsPulse 3.2s ease-in-out infinite; }
+.acs-rays { transform-box: fill-box; transform-origin: 50% 50%; animation: acsRays 3.2s ease-in-out infinite; }
+.acs-glow { animation: acsGlow 3.2s ease-in-out infinite; }
+.acs-thinking .acs-spin { animation-duration: 2.2s !important; }
+.acs-thinking .acs-core { animation-duration: .9s; }
+.acs-thinking .acs-rays { animation: acsSpin 3s linear infinite; }
+.acs-thinking .acs-glow { animation-duration: .9s; }
+.acs-still .acs-spin, .acs-still .acs-core, .acs-still .acs-rays, .acs-still .acs-glow { animation: none; }
+.acs-online { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%;
+  background: #22C55E; border: 2px solid #08080F; box-shadow: 0 0 8px rgba(34,197,94,.7); }
+@keyframes acsSpin { to { transform: rotate(360deg); } }
+@keyframes acsPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes acsRays { 0%, 100% { opacity: .55; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes acsGlow { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+
+/* ── Living Core ────────────────────────────── */
+.ace { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; line-height: 0; --ex: 0px; --ey: 0px; }
+.ace svg { display: block; }
+.ace-look { transform: translate(var(--ex), var(--ey)); transition: transform .25s cubic-bezier(.2,.8,.3,1); }
+.ace-pupil { transform-box: fill-box; transform-origin: 50% 50%; animation: aceBlink 5.5s infinite; }
+.ace-glow { transform-box: fill-box; transform-origin: 50% 50%; animation: aceBreath 4s ease-in-out infinite; }
+.ace-ball { transform-box: fill-box; transform-origin: 50% 50%; }
+.ace-thinking .ace-glow { animation-duration: 1.1s; }
+.ace-done .ace-glow { animation: aceFlash 1.2s ease-out 1, aceBreath 4s ease-in-out 1.2s infinite; }
+.ace-done .ace-ball { animation: acePop .6s cubic-bezier(.2,1.6,.4,1) 1; }
+.ace-error { filter: saturate(.55) brightness(.8); }
+.ace-error .ace-ball { animation: aceShake .45s ease-in-out 3; }
+@keyframes aceBlink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.08); } }
+@keyframes aceBreath { 0%, 100% { opacity: .7; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes aceFlash { 0% { opacity: 1; transform: scale(1.35); } 100% { opacity: .8; transform: scale(1); } }
+@keyframes acePop { 0% { transform: scale(.85); } 100% { transform: scale(1); } }
+@keyframes aceShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2.5px); } 75% { transform: translateX(2.5px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .acs-spin, .acs-core, .acs-rays, .acs-glow, .ace-pupil, .ace-glow, .ace-ball { animation: none !important; }
+  .ace-look { transition: none; }
+}
+
+/* ── Level bar (agent page) ─────────────────── */
+.alb { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; max-width: 420px; }
+.alb-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.alb-top b { font: 700 12px 'JetBrains Mono', monospace; color: #F5B13B; letter-spacing: .04em; }
+.alb-top span { font: 500 11px 'JetBrains Mono', monospace; color: #8A8AAA; }
+.alb-top .alb-streak { color: #FF8A4D; }
+.alb-bar { height: 5px; border-radius: 5px; background: rgba(255,255,255,.07); overflow: hidden; }
+.alb-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--c), #F5B13B);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent); transition: width .8s cubic-bezier(.2,.8,.3,1); }
+.alb small { font-size: 11px; color: #6A6A8A; }

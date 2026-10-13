@@ -12,6 +12,8 @@ import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import AwayBrief from "@/components/dashboard/AwayBrief"
 import StarterMission from "@/components/dashboard/StarterMission"
+import AgentStar from "@/components/cosmos/AgentStar"
+import { useAgentLevels } from "@/lib/useAgentLevels"
 
 const T = {
   bg:    "#08080F",
@@ -56,18 +58,9 @@ function ago(iso: string, uk: boolean): string {
   return new Date(iso).toLocaleDateString(uk ? "uk-UA" : "en-US", { day: "numeric", month: "short" })
 }
 
-function Avatar({ name, color, size = 30 }: { name: string; color?: string | null; size?: number }) {
-  const c = color ?? T.red
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: Math.round(size * 0.3), flexShrink: 0, background: c,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Space Grotesk', sans-serif", fontSize: Math.round(size * 0.42), fontWeight: 700, color: "#fff",
-      boxShadow: `0 0 14px ${c}40`,
-    }}>
-      {name.charAt(0).toUpperCase()}
-    </div>
-  )
+function Avatar({ name, color, size = 30, id }: { name: string; color?: string | null; size?: number; id?: string }) {
+  const lv = useAgentLevels().levelOf(id)
+  return <AgentStar name={name} color={color ?? T.red} level={lv.level} streak={lv.streak} size={size} />
 }
 
 function SectionHead({ title, action, onAction, onAdd, icon: Icon }: { title: string; action?: string; onAction?: () => void; onAdd?: () => void; icon: React.ElementType }) {
@@ -413,7 +406,7 @@ export default function DashboardPage() {
                         style={{ ["--c" as string]: agent?.avatar_color ?? T.red, animationDelay: `${i * 40}ms` } as React.CSSProperties}>
                         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                           {agent
-                            ? <Avatar name={agent.name} color={agent.avatar_color} size={24} />
+                            ? <Avatar name={agent.name} color={agent.avatar_color} size={24} id={agent.id} />
                             : <div style={{ width: 24, height: 24, borderRadius: 7, display: "grid", placeItems: "center", background: "rgba(232,0,42,.12)" }}><MessageSquare size={12} style={{ color: T.red }} /></div>}
                           <span style={{ fontSize: 11.5, color: T.t3, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent?.name ?? t.dashboard.newChat}</span>
                           <ArrowUpRight size={14} className="db-arr" />
@@ -444,7 +437,7 @@ export default function DashboardPage() {
                         onKeyDown={e => { if (e.key === "Enter") router.push(`/agents/${a.id}`) }}
                         style={{ ["--c" as string]: a.avatar_color ?? T.red, animationDelay: `${i * 40}ms` } as React.CSSProperties}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <Avatar name={a.name} color={a.avatar_color} size={32} />
+                          <Avatar name={a.name} color={a.avatar_color} size={32} id={a.id} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div className="db-card-title" style={{ WebkitLineClamp: 1 }}>{a.name}</div>
                             <div className="db-meta" style={{ marginTop: 2 }}>{prov ? prov.model : (uk ? "без провайдера" : "no provider")}</div>

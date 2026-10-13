@@ -15,6 +15,9 @@ import { AgentKnowledge } from "@/components/agents/AgentKnowledge"
 import { AgentWorkflow }  from "@/components/agents/AgentWorkflow"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import AgentStar from "@/components/cosmos/AgentStar"
+import LevelBar from "@/components/cosmos/LevelBar"
+import { useAgentLevels } from "@/lib/useAgentLevels"
 
 const T = {
   bg:   "#08080F",
@@ -345,9 +348,7 @@ function EditForm({ agent, providers, onSaved, onCancel, t }: {
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 9, background: "rgba(255,255,255,0.03)", border: "0.5px solid rgba(255,255,255,0.07)" }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: avatarColor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-            {name ? name.charAt(0).toUpperCase() : "A"}
-          </div>
+          <AgentStar name={name || "Agent"} color={avatarColor} level={4} size={38} />
           <span style={{ fontSize: 13, color: T.t2 }}>{name || t.agentDetail.nameField}</span>
         </div>
       </div>
@@ -545,6 +546,7 @@ export default function AgentDetailPage() {
   const { t, language } = useLanguage()
 
   const [agent,        setAgent]        = useState<Agent | null>(null)
+  const { levelOf } = useAgentLevels()
   const [provider,     setProvider]     = useState<Provider | undefined>()
   const [allProviders, setAllProviders] = useState<Provider[]>([])
   const [sessions,     setSessions]     = useState<ChatSession[]>([])
@@ -716,15 +718,7 @@ export default function AgentDetailPage() {
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: 16, flexShrink: 0,
-                  background: agent.avatar_color ?? T.red,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 22, fontWeight: 700, color: "#fff",
-                  boxShadow: `0 0 20px ${agent.avatar_color ?? T.red}40`,
-                }}>
-                  {agent.name.charAt(0).toUpperCase()}
-                </div>
+                <AgentStar name={agent.name} color={agent.avatar_color ?? T.red} level={levelOf(agent.id).level} streak={levelOf(agent.id).streak} size={84} tile={false} />
                 <div>
                   <div style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
@@ -748,6 +742,7 @@ export default function AgentDetailPage() {
                   {agent.description && (
                     <p style={{ fontSize: 13, color: T.t3, margin: "4px 0 0" }}>{agent.description}</p>
                   )}
+                  <LevelBar lv={levelOf(agent.id)} lang={language === "uk" ? "uk" : "en"} color={agent.avatar_color} />
                 </div>
               </div>
               <button onClick={handleNewChat} style={{
