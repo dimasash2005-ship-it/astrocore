@@ -11,6 +11,8 @@ import remarkGfm from "remark-gfm"
 import { loadPortal, isUnlocked, portalCookie, portalService, type PortalReport } from "@/lib/server/portal"
 import { PTX, portalLang, fmtDate, PortalHeader, PortalFooter, PORTAL_CSS } from "@/components/clients/portalUi"
 import PortalGate from "@/components/clients/PortalGate"
+import MarketingView from "@/components/reports/MarketingView"
+import { isMarketing } from "@/lib/marketing"
 
 export const dynamic = "force-dynamic"
 
@@ -36,7 +38,7 @@ export default async function PortalReportPage({ params }: { params: Promise<{ s
   }
 
   const { data } = await portalService().from("reports")
-    .select("id, company_name, summary, created_at")
+    .select("*")
     .eq("id", reportId).eq("client_id", c.id).eq("user_id", c.user_id).maybeSingle()
   const r = data as PortalReport | null
   if (!r) notFound()
@@ -51,6 +53,7 @@ export default async function PortalReportPage({ params }: { params: Promise<{ s
         <article className="cp-doc">
           <div className="cp-meta">{fmtDate(r.created_at, t, true)} · {Math.max(1, Math.round(words / 200))} {t.min}</div>
           <h1 className="cp-title">{r.company_name}</h1>
+          {isMarketing(r.marketing) && <div style={{ marginTop: 22 }}><MarketingView m={r.marketing} lang={lang} compact /></div>}
           <div className="cp-md">
             <ReactMarkdown remarkPlugins={[remarkGfm]}
               components={{

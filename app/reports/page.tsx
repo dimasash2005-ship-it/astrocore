@@ -9,6 +9,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { SIDEBAR_W } from "@/components/layout/Sidebar"
 import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
+import { MarketingQuickButton } from "@/components/reports/MarketingQuickStart"
 
 type Report = {
   id: string
@@ -280,7 +281,8 @@ export default function ReportsPage() {
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 600, color: T.t1, margin: 0, letterSpacing: "-0.02em" }}>{uk ? "Звіти" : "Reports"}</h1>
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{uk ? "Ресерчі й аналітика, які зробили твої агенти" : "Research and analytics produced by your agents"}</p>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <MarketingQuickButton lang={uk ? "uk" : "en"} />
               <button onClick={() => router.push("/clients")} title={uk ? "Кабінети клієнтів" : "Client portals"}
                 style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 500,
                   color: "#F0EDF8", background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.14)" }}>

@@ -21,7 +21,7 @@ export type PortalClient = {
   views: number
 }
 
-export type PortalReport = { id: string; company_name: string; summary: string | null; created_at: string }
+export type PortalReport = { id: string; company_name: string; summary: string | null; created_at: string; marketing?: unknown }
 
 export function portalService(): SupabaseClient {
   return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {

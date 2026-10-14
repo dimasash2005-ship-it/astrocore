@@ -14,6 +14,8 @@ import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import ShareButton from "@/components/reports/ShareButton"
 import ExportMenu from "@/components/reports/ExportMenu"
+import MarketingLab from "@/components/reports/MarketingLab"
+import { isMarketing } from "@/lib/marketing"
 import ClientPicker from "@/components/clients/ClientPicker"
 
 type Report = {
@@ -25,6 +27,7 @@ type Report = {
   created_at: string
   notion_url?: string | null
   client_id?: string | null
+  marketing?: unknown
 }
 
 const T = {
@@ -701,7 +704,12 @@ export default function ReportDetailPage() {
   const [committing, setCommitting] = useState(false)
 
   const [showDemo, setShowDemo]   = useState(false)
-  const [tab, setTab]             = useState<"report" | "analytics">("report")
+  const [tab, setTab]             = useState<"report" | "analytics" | "marketing">("report")
+  // Opened from "Marketing analysis" (/reports/<id>?tab=marketing)
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab")
+    if (t === "marketing" || t === "analytics") setTab(t)
+  }, [])
   const [activeSec, setActiveSec] = useState<string>("")
   const [flash, setFlash]         = useState("")
 
@@ -1025,6 +1033,7 @@ export default function ReportDetailPage() {
           {([
             { key: "report",    icon: FileText,  label: uk ? "Звіт" : "Report" },
             { key: "analytics", icon: BarChart3, label: uk ? "Аналітика й графіки" : "Analytics & charts" },
+            { key: "marketing", icon: TrendingUp, label: uk ? "Маркетинг" : "Marketing" },
           ] as const).map(t => {
             const on = tab === t.key
             return (
@@ -1034,6 +1043,14 @@ export default function ReportDetailPage() {
                   color: on ? T.t1 : T.t3, borderBottom: `2px solid ${on ? T.red : "transparent"}`, transition: "color .15s, border-color .15s" }}>
                 <t.icon size={15} style={{ color: on ? T.red : T.t4 }} />
                 {t.label}
+                {t.key === "marketing" && (
+                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "2px 7px", borderRadius: 20,
+                    color: isMarketing(report.marketing) ? "#22C55E" : "#F5B13B",
+                    background: isMarketing(report.marketing) ? "rgba(34,197,94,.1)" : "rgba(245,177,59,.08)",
+                    border: `0.5px solid ${isMarketing(report.marketing) ? "rgba(34,197,94,.3)" : "rgba(245,177,59,.3)"}` }}>
+                    {isMarketing(report.marketing) ? "ROI" : (uk ? "нове" : "new")}
+                  </span>
+                )}
                 {t.key === "analytics" && (
                   <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "2px 7px", borderRadius: 20,
                     color: demo ? T.t4 : "#22C55E", background: demo ? "rgba(255,255,255,.05)" : "rgba(34,197,94,.1)",
@@ -1046,6 +1063,10 @@ export default function ReportDetailPage() {
           })}
         </div>
         <div style={{ height: 24 }} />
+
+        {tab === "marketing" && (
+          <div className="rp-noprint"><MarketingLab reportId={report.id} initial={report.marketing ?? null} lang={uk ? "uk" : "en"} onSaved={mk => setReport({ ...report, marketing: mk })} /></div>
+        )}
 
         {tab === "report" && <>
         {/* ── Key figures pulled from the text ── */}
