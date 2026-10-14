@@ -152,14 +152,32 @@ export function forecast(n: Nums, revenue: number, budget: number, crSale?: numb
 
 // ── Reading CSV / pasted tables ──────────────────────────────────
 
-const HEAD: Record<keyof Nums | "name", RegExp[]> = {
-  name: [/^(campaign|ad set|adset|ad|creative|кампан|креатив|оголош|объявл|назва|name|offer|оффер|гео|geo)/i],
-  spend: [/amount spent|^spend|^cost|^витрат|^сума витрат|потрачен|расход|затрат|^cost \(|cost$/i],
-  impressions: [/^impr|impressions|^покази|^показы|^покази/i],
-  clicks: [/link clicks|^clicks|^кліки|^клики|^переход|outbound clicks|^кліків/i],
-  leads: [/^leads|^лід|^лид|заявк|^results$|^conversions$|^conv\.?$|^конверс|registrations|^реєстрац|^регистрац/i],
-  sales: [/purchases$|^purchases|^sales|^продаж|^покупк|^orders|^замовл|^заказ|approved|^апрув|^підтвердж|^подтвержд/i],
-  revenue: [/conversion value|purchase.*value|^revenue|^conv\. value|^дохід|^доход|^виручк|^выручк|^income|^payout|^виплат|^выплат|^профіт|^profit$/i],
+// Column names are recognised by meaning, in English, Ukrainian and Russian, with any case,
+// currency marks or brackets ("Витрачена сума (USD)", "Amount spent $", "Покази"…).
+// Strong names win over weak ones ("Link clicks" over "Clicks (all)", "Impressions" over "Reach").
+type ColKey = keyof Nums | "name"
+const COL_ORDER: ColKey[] = ["revenue", "sales", "leads", "clicks", "impressions", "spend", "name"]
+const STRONG: Record<ColKey, RegExp> = {
+  revenue: /value|revenue|дохід|доход|виручк|выручк|income|payout|виплат|выплат|прибут|profit|оборот|gmv|цінніст|ценност|сума продаж|сумма продаж|заробі|заработ|earn/,
+  sales: /purchase|sales?\b|продаж|покупк|order|замовл|заказ|approved|апрув|підтвердж|подтвержд|угод|сделк|deals?\b|оплат/,
+  leads: /lead|лід|лид|заявк|registration|реєстрац|регистрац|sign ?ups?|контакт|звернен|обращен|підписк|подписк/,
+  clicks: /link click|клік.* посилан|клики по ссылк|переход/,
+  impressions: /impr|показ/,
+  spend: /spent|spend|^cost$|^cost |cost$|витрач|витрат|затрат|расход|потрач|^сума$|^сумма$|вартість$|стоимость$/,
+  name: /campaign|ad ?set|^ad( name)?$|creative|кампан|креатив|оголош|объявл|реклам|назва|название|^name|offer|оффер|^гео|^geo|джерел|источник|source|канал|channel|група|группа|^group/,
+}
+const WEAK: Partial<Record<ColKey, RegExp>> = {
+  leads: /results?$|результат|conversion|конверс/,
+  clicks: /click|клік|клик/,
+  impressions: /views|перегляд|просмотр|reach|охоплен|охват/,
+  spend: /budget|бюджет|cost|вартість|стоимость/,
+}
+// Rates and "per unit" columns are never raw numbers: CTR, CPC, "Cost per result", "Ціна за результат"…
+const SKIP_COL = /(^|\s)(cpc|cpm|ctr|cpa|cpl|cpr|cpv|roas|roi|aov|epc|cr)(\s|$)|\bper\b|ціна за|цена за|вартість за|стоимость за|за 1|%|\brate\b|частот|\btype\b|тип |status|статус|setting|налаштув|indicator|індикатор|date|дата|(^|\s)(starts?|ends?|reporting)(\s|$)|початок|кінець|frequency|ratio|average|avg|середн|средн/
+
+function normHead(h: string): string {
+  return h.toLowerCase().replace(/[([].*?[)\]]/g, " ").replace(/[$€£₴]|\b(usd|eur|uah|pln|czk|gbp)\b|грн|kč|zł/g, " ")
+    .replace(/[_\-.,:;/|]+/g, " ").replace(/\s+/g, " ").trim()
 }
 
 export function toNumber(raw: string): number {
@@ -195,14 +213,20 @@ function splitLine(line: string, d: string): string[] {
 
 export type ParseResult = { rows: MktRow[]; totals: Nums; found: (keyof Nums)[]; currency: string | null; error?: "empty" | "nocolumns" }
 
-function headerCols(head: string[]): Partial<Record<keyof Nums | "name", number>> {
-  const col: Partial<Record<keyof Nums | "name", number>> = {}
-  head.forEach((h, i) => {
-    const t = h.replace(/\s*\(.*?\)\s*$/, "").trim()
-    for (const k of Object.keys(HEAD) as (keyof Nums | "name")[]) {
-      if (col[k] === undefined && HEAD[k].some(re => re.test(t) || re.test(h))) { col[k] = i; break }
-    }
-  })
+function headerCols(head: string[]): Partial<Record<ColKey, number>> {
+  const col: Partial<Record<ColKey, number>> = {}
+  const used = new Set<number>()
+  for (const pass of [STRONG, WEAK] as Partial<Record<ColKey, RegExp>>[]) {
+    head.forEach((h, i) => {
+      if (used.has(i)) return
+      const t = normHead(h)
+      if (!t || SKIP_COL.test(t)) return
+      for (const k of COL_ORDER) {
+        const re = pass[k]
+        if (re && col[k] === undefined && re.test(t)) { col[k] = i; used.add(i); break }
+      }
+    })
+  }
   return col
 }
 
@@ -218,20 +242,32 @@ export function parseTable(text: string): ParseResult {
     if (cells.every(c => c.length <= 1) && cells.some(c => /[,;]/.test(c[0] ?? ""))) lines = cells.map(c => c[0] ?? "").filter(Boolean)
   }
   if (lines.length < 2) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "empty" }
-  // The header is the first row (among the first 10) that names at least two number columns.
+  // The header is the first row (among the first 10, anywhere: top, below a title, even at the bottom)
+  // that names at least two number columns.
   const delim = (l: string) => l.includes("\t") ? "\t" : (l.split(";").length > l.split(",").length ? ";" : ",")
-  let hi = -1, d = ",", col: Partial<Record<keyof Nums | "name", number>> = {}
-  for (let i = 0; i < Math.min(10, lines.length - 1); i++) {
+  let hi = -1, d = delim(lines[0]), col: Partial<Record<ColKey, number>> = {}
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
     const di = delim(lines[i]), ci = headerCols(splitLine(lines[i], di))
     const n = NUM_KEYS.filter(k => ci[k] !== undefined).length
     if (n >= 2 || (n === 1 && hi < 0)) { hi = i; d = di; col = ci; if (n >= 2) break }
   }
+  // No header at all: "Name, 300, 50000, 400, 20, 3, 360" → read numbers in the usual order
+  // spend, impressions, clicks, leads, sales, revenue.
+  if (hi < 0) {
+    const first = splitLine(lines[0], d)
+    const isNum = (c: string) => /\d/.test(c) && !/[a-zа-яіїєґ]{2,}/i.test(c)
+    const off = isNum(first[0] ?? "") ? 0 : 1
+    if (first.length - off >= 2 && first.slice(off).every(c => !c || isNum(c))) {
+      if (off) col.name = 0
+      NUM_KEYS.forEach((k, j) => { if (off + j < first.length) col[k] = off + j })
+    }
+  }
   const found = NUM_KEYS.filter(k => col[k] !== undefined)
-  if (hi < 0 || found.length === 0) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "nocolumns" }
+  if (found.length === 0) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "nocolumns" }
 
   const cur = text.match(/[$€£₴]|\b(USD|EUR|UAH|PLN|CZK|GBP)\b/)?.[0] ?? null
   const rows: MktRow[] = []
-  for (const line of lines.slice(hi + 1)) {
+  for (const line of lines.filter((_, i) => i !== hi)) {
     const cells = splitLine(line, d)
     const name = col.name !== undefined ? cells[col.name] ?? "" : ""
     if (/^(total|всього|разом|итого|усього|results?)(?=$|[\s:.,])/iu.test(name.trim())) continue
