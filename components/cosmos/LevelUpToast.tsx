@@ -66,6 +66,11 @@ export default function LevelUpToast() {
         <span className="alu-k">LEVEL UP</span>
         <b>{cur.name} <span>LV {cur.from} → <em>LV {cur.to}</em></span></b>
         <small>✨ {uk ? "Відкрито" : "Unlocked"}: {unlockLabel(cur.to, lang)}</small>
+        <div className="alu-row">
+          <button className="alu-share" onClick={e => { e.stopPropagation(); router.push(`/agents/${cur.agentId}?share=1`); close() }}>
+            🚀 {uk ? "Похизуватися" : "Show it off"}
+          </button>
+        </div>
         <div className="alu-bar"><i /></div>
       </div>
       <button className="alu-x" aria-label={uk ? "Закрити" : "Close"} onClick={e => { e.stopPropagation(); close() }}><X size={13} /></button>

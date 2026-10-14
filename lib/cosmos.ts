@@ -83,11 +83,11 @@ export function streakFrom(days: Set<string>, now = new Date()): number {
 /** What a new level adds to the star system (for the level-up toast / Telegram). */
 export function unlockLabel(level: number, lang: "uk" | "en"): string {
   const uk: Record<number, string> = {
-    2: "перша планета", 3: "промені зірки", 4: "друга планета", 5: "супутник",
+    1: "новий агент", 2: "перша планета", 3: "промені зірки", 4: "друга планета", 5: "супутник",
     6: "третя планета", 7: "корона світіння", 8: "четверта планета", 9: "яскравіше ядро", 10: "максимальний рівень",
   }
   const en: Record<number, string> = {
-    2: "first planet", 3: "star rays", 4: "second planet", 5: "a moon",
+    1: "new agent", 2: "first planet", 3: "star rays", 4: "second planet", 5: "a moon",
     6: "third planet", 7: "glowing corona", 8: "fourth planet", 9: "a brighter core", 10: "max level",
   }
   return (lang === "uk" ? uk : en)[Math.min(level, MAX_LEVEL)] ?? (lang === "uk" ? "новий рівень" : "new level")

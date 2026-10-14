@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [bootStart] = useState(() => (typeof performance !== "undefined" ? performance.now() : 0))
 
   const isHome      = pathname === "/"
-  const isOpen      = OPEN_ROUTES.has(pathname) || pathname === "/guides" || pathname.startsWith("/guides/") || pathname.startsWith("/r/")
+  const isOpen      = OPEN_ROUTES.has(pathname) || pathname === "/guides" || pathname.startsWith("/guides/") || pathname.startsWith("/r/") || pathname.startsWith("/s/")
   const isPublic    = PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/auth/")
   const showSidebar = authed && !isPublic && !isOpen
 

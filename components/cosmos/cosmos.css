@@ -110,3 +110,7 @@
 @keyframes aclStep { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes aclDot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .acl, .acl-out { animation-duration: .01s !important; } }
+
+.alu-row { display: flex; margin-top: 6px; }
+.alu-share { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 7px; cursor: pointer; color: #0B0A12; background: #F5B13B; border: none; }
+.alu-share:hover { background: #FFC75A; }

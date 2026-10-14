@@ -39,7 +39,10 @@ export async function notifyLevelUpsTelegram(userId: string, levels: Record<stri
         `🌟 <b>Level up!</b>\n\n<b>${esc(lv.name ?? "Agent")}</b> → <b>LV ${lv.level}</b>\n` +
         `✨ ${uk ? "Відкрито" : "Unlocked"}: ${unlockLabel(lv.level, lang)}\n\n` +
         `<i>${lv.replies} ${uk ? "відповідей" : "replies"} · ${lv.chats} ${uk ? "чатів" : "chats"} · ${lv.missions} ${uk ? "місій" : "missions"}</i>`
-      await sendMessage(conn.chatId, html, [[{ text: uk ? "🪐 Подивитися агента" : "🪐 View agent", url: `${SITE}/agents/${id}` }]])
+      await sendMessage(conn.chatId, html, [[
+        { text: uk ? "🪐 Подивитися агента" : "🪐 View agent", url: `${SITE}/agents/${id}` },
+        { text: uk ? "🚀 Поділитися" : "🚀 Share", url: `${SITE}/agents/${id}?share=1` },
+      ]])
     }
   } catch (err) {
     console.error("[levelups]", err instanceof Error ? err.message : err)

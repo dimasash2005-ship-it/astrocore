@@ -17,6 +17,8 @@ import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import AgentStar from "@/components/cosmos/AgentStar"
 import LevelBar from "@/components/cosmos/LevelBar"
+import ShareAgentModal from "@/components/cosmos/ShareAgentModal"
+import AgentCardTeaser from "@/components/cosmos/AgentCardTeaser"
 import { useAgentLevels } from "@/lib/useAgentLevels"
 
 const T = {
@@ -547,6 +549,11 @@ export default function AgentDetailPage() {
 
   const [agent,        setAgent]        = useState<Agent | null>(null)
   const { levelOf } = useAgentLevels()
+  const [showShare, setShowShare] = useState(false)
+  // Opened from "Level up!" / Telegram with ?share=1
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("share") === "1") setShowShare(true)
+  }, [])
   const [provider,     setProvider]     = useState<Provider | undefined>()
   const [allProviders, setAllProviders] = useState<Provider[]>([])
   const [sessions,     setSessions]     = useState<ChatSession[]>([])
@@ -745,6 +752,9 @@ export default function AgentDetailPage() {
                   <LevelBar lv={levelOf(agent.id)} lang={language === "uk" ? "uk" : "en"} color={agent.avatar_color} />
                 </div>
               </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <AgentCardTeaser name={agent.name} color={agent.avatar_color} level={levelOf(agent.id).level}
+                lang={language === "uk" ? "uk" : "en"} onClick={() => setShowShare(true)} />
               <button onClick={handleNewChat} style={{
                 display: "flex", alignItems: "center", gap: 7,
                 background: T.red, color: "#fff", border: "none",
@@ -756,6 +766,7 @@ export default function AgentDetailPage() {
               >
                 <Plus size={14} /> {t.agentDetail.newChat}
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -918,6 +929,7 @@ export default function AgentDetailPage() {
           </aside>
         </div>
       </div>
+      {showShare && <ShareAgentModal agentId={agent.id} name={agent.name} color={agent.avatar_color} lang={language === "uk" ? "uk" : "en"} onClose={() => setShowShare(false)} />}
     </>
   )
 }
