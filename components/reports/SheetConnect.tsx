@@ -5,7 +5,7 @@
 // Exports: <SheetInput/> (link field), <SheetBar/> (connected state), sheetErrText(), agoText().
 
 import { useState } from "react"
-import { Link2, Loader2, RefreshCw, Unlink, ChevronDown, ExternalLink } from "lucide-react"
+import { Link2, Loader2, RefreshCw, Unlink, ChevronDown, ExternalLink, Download, Plus } from "lucide-react"
 import type { Nums, MktRow, SheetError, SheetLink } from "@/lib/marketing"
 
 type Lang = "uk" | "en"
@@ -21,6 +21,10 @@ const T = {
       "Відкрий потрібну вкладку і скопіюй посилання з адресного рядка",
       "Перший рядок — назви колонок: Витрати, Покази, Кліки, Ліди, Продажі, Дохід (можна англійською)",
     ],
+    tplTitle: "Немає таблиці? Почни з шаблону",
+    tplSteps: ["Скачай шаблон", "Відкрий нову Google Таблицю → «Файл» → «Імпорт» → «Завантажити» → обери шаблон", "Впиши свої цифри, відкрий доступ і встав посилання сюди"],
+    tplDl: "Скачати шаблон", tplNew: "Нова Google Таблиця",
+    tplCsv: "Кампанія,Витрати,Покази,Кліки,Ліди,Продажі,Дохід\nВідео до/після,500,60000,1200,90,18,2160\nКаруселька,300,40000,700,40,7,840\nСтатичний банер,200,50000,300,10,1,120\n",
     synced: "Підключено Google Таблицю", updated: "оновлено", refresh: "Оновити", off: "Відключити", open: "Відкрити",
     auto: "Цифри оновлюються самі: коли відкриваєш звіт і коли клієнт заходить у кабінет.",
     err: {
@@ -43,6 +47,10 @@ const T = {
       "Open the right tab and copy the link from the address bar",
       "First row = column names: Spend, Impressions, Clicks, Leads, Sales, Revenue",
     ],
+    tplTitle: "No sheet yet? Start from a template",
+    tplSteps: ["Download the template", "Open a new Google Sheet → «File» → «Import» → «Upload» → pick the template", "Type your numbers, share it and paste the link here"],
+    tplDl: "Download template", tplNew: "New Google Sheet",
+    tplCsv: "Campaign,Spend,Impressions,Clicks,Leads,Sales,Revenue\nBefore/after video,500,60000,1200,90,18,2160\nCarousel,300,40000,700,40,7,840\nStatic banner,200,50000,300,10,1,120\n",
     synced: "Google Sheet connected", updated: "updated", refresh: "Refresh", off: "Disconnect", open: "Open",
     auto: "Numbers update on their own: when you open the report and when the client opens their portal.",
     err: {
@@ -101,7 +109,19 @@ export function SheetInput({ lang, onParsed, compact }: { lang: Lang; onParsed: 
       </div>
       {err && <div className="gsc-err">{err}</div>}
       <button className="gsc-how" onClick={() => setHow(h => !h)}>{t.how} <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : "none" }} /></button>
-      {how && <ol className="gsc-steps">{t.steps.map(s => <li key={s}>{s}</li>)}</ol>}
+      {how && (
+        <>
+          <ol className="gsc-steps">{t.steps.map(s => <li key={s}>{s}</li>)}</ol>
+          <div className="gsc-tpl">
+            <b>{t.tplTitle}</b>
+            <ol className="gsc-steps">{t.tplSteps.map(s => <li key={s}>{s}</li>)}</ol>
+            <div className="gsc-tpl-a">
+              <button className="gsc-btn" onClick={() => downloadTemplate(t.tplCsv, lang)}><Download size={13} /> {t.tplDl}</button>
+              <a className="gsc-btn ghost" href="https://sheets.new" target="_blank" rel="noopener noreferrer"><Plus size={13} /> {t.tplNew}</a>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -123,6 +143,15 @@ export function SheetBar({ sheet, lang, busy, onRefresh, onDisconnect }: { sheet
       </div>
     </div>
   )
+}
+
+function downloadTemplate(csv: string, lang: Lang) {
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = lang === "uk" ? "astrocore-shablon-reklamy.csv" : "astrocore-ads-template.csv"
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
 function SheetsIcon() {
@@ -152,6 +181,9 @@ const CSS = `
 .gsc-err { font-size: 12.5px; color: #FF6B85; line-height: 1.45; }
 .gsc-how { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 0; cursor: pointer; font-size: 12px; color: #8FD4B0; background: none; border: none; }
 .gsc-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: #C8C4D8; line-height: 1.45; }
+.gsc-tpl { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px; border-radius: 12px; background: rgba(0,0,0,.25); border: .5px dashed rgba(15,157,88,.45); }
+.gsc-tpl b { font-size: 13px; color: #fff; }
+.gsc-tpl-a { display: flex; gap: 6px; flex-wrap: wrap; }
 .gsc-spin { animation: gscSpin .8s linear infinite; } @keyframes gscSpin { to { transform: rotate(360deg); } }
 .gsb { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; flex-wrap: wrap;
   background: linear-gradient(100deg, rgba(15,157,88,.13), rgba(255,255,255,.02) 70%); border: .5px solid rgba(15,157,88,.4); }

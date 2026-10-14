@@ -175,6 +175,9 @@ const WEAK: Partial<Record<ColKey, RegExp>> = {
 // Rates and "per unit" columns are never raw numbers: CTR, CPC, "Cost per result", "Ціна за результат"…
 const SKIP_COL = /(^|\s)(cpc|cpm|ctr|cpa|cpl|cpr|cpv|roas|roi|aov|epc|cr)(\s|$)|\bper\b|ціна за|цена за|вартість за|стоимость за|за 1|%|\brate\b|частот|\btype\b|тип |status|статус|setting|налаштув|indicator|індикатор|date|дата|(^|\s)(starts?|ends?|reporting)(\s|$)|початок|кінець|frequency|ratio|average|avg|середн|средн/
 
+// Date / period column: used to name rows when the table has no campaign column (daily reports).
+const DATE_COL = /^(date|day|дата|день|тиждень|неделя|week|місяць|месяц|month|період|период|period)(?=$|\s)|reporting starts|початок звітн|начало отчетн/
+
 function normHead(h: string): string {
   return h.toLowerCase().replace(/[([].*?[)\]]/g, " ").replace(/[$€£₴]|\b(usd|eur|uah|pln|czk|gbp)\b|грн|kč|zł/g, " ")
     .replace(/[_\-.,:;/|]+/g, " ").replace(/\s+/g, " ").trim()
@@ -267,14 +270,27 @@ export function parseTable(text: string): ParseResult {
 
   const cur = text.match(/[$€£₴]|\b(USD|EUR|UAH|PLN|CZK|GBP)\b/)?.[0] ?? null
   const rows: MktRow[] = []
+  const nameCol = col.name ?? (hi >= 0 ? splitLine(lines[hi], d).findIndex(h => DATE_COL.test(normHead(h))) : -1)
   for (const line of lines.filter((_, i) => i !== hi)) {
     const cells = splitLine(line, d)
-    const name = col.name !== undefined ? cells[col.name] ?? "" : ""
+    const name = nameCol >= 0 ? cells[nameCol] ?? "" : ""
     if (/^(total|всього|разом|итого|усього|results?)(?=$|[\s:.,])/iu.test(name.trim())) continue
     const r: MktRow = { name: name || `#${rows.length + 1}`, ...EMPTY_NUMS }
     for (const k of found) r[k] = toNumber(cells[col[k]!] ?? "")
     if (found.every(k => r[k] === 0)) continue
     rows.push(r)
+  }
+  // A totals row without a "Total" label (first or last row equal to the sum of all others) is dropped.
+  if (rows.length >= 3) {
+    for (const idx of [rows.length - 1, 0]) {
+      const r = rows[idx]
+      const others = rows.filter((_, i) => i !== idx)
+      const isSum = found.some(k => r[k] > 0) && found.every(k => {
+        const sum = others.reduce((a, o) => a + o[k], 0)
+        return Math.abs(r[k] - sum) <= Math.max(1, sum * 0.005)
+      })
+      if (isSum) { rows.splice(idx, 1); break }
+    }
   }
   const totals = rows.reduce<Nums>((a, r) => ({
     spend: a.spend + r.spend, impressions: a.impressions + r.impressions, clicks: a.clicks + r.clicks,
