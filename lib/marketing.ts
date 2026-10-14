@@ -195,12 +195,7 @@ function splitLine(line: string, d: string): string[] {
 
 export type ParseResult = { rows: MktRow[]; totals: Nums; found: (keyof Nums)[]; currency: string | null; error?: "empty" | "nocolumns" }
 
-export function parseTable(text: string): ParseResult {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter(l => l.trim())
-  if (lines.length < 2) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "empty" }
-  const first = lines[0]
-  const d = first.includes("\t") ? "\t" : (first.split(";").length > first.split(",").length ? ";" : ",")
-  const head = splitLine(first, d)
+function headerCols(head: string[]): Partial<Record<keyof Nums | "name", number>> {
   const col: Partial<Record<keyof Nums | "name", number>> = {}
   head.forEach((h, i) => {
     const t = h.replace(/\s*\(.*?\)\s*$/, "").trim()
@@ -208,12 +203,35 @@ export function parseTable(text: string): ParseResult {
       if (col[k] === undefined && HEAD[k].some(re => re.test(t) || re.test(h))) { col[k] = i; break }
     }
   })
-  const found = (["spend", "impressions", "clicks", "leads", "sales", "revenue"] as (keyof Nums)[]).filter(k => col[k] !== undefined)
-  if (found.length === 0) return { rows: [], totals: { ...EMPTY_NUMS }, found, currency: null, error: "nocolumns" }
+  return col
+}
+
+const NUM_KEYS: (keyof Nums)[] = ["spend", "impressions", "clicks", "leads", "sales", "revenue"]
+
+export function parseTable(text: string): ParseResult {
+  // Drop empty rows and rows of empty cells (",,,,," from Google Sheets).
+  let lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(l => l.replace(/[,;\t"\s]/g, ""))
+  // A CSV pasted into Google Sheets often stays in column A, and the sheet is then exported
+  // as one quoted cell per row ("Campaign,Spend,…"). Unwrap it and read the inner CSV.
+  if (lines.length && !text.includes("\t")) {
+    const cells = lines.map(l => splitLine(l, ",").filter(Boolean))
+    if (cells.every(c => c.length <= 1) && cells.some(c => /[,;]/.test(c[0] ?? ""))) lines = cells.map(c => c[0] ?? "").filter(Boolean)
+  }
+  if (lines.length < 2) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "empty" }
+  // The header is the first row (among the first 10) that names at least two number columns.
+  const delim = (l: string) => l.includes("\t") ? "\t" : (l.split(";").length > l.split(",").length ? ";" : ",")
+  let hi = -1, d = ",", col: Partial<Record<keyof Nums | "name", number>> = {}
+  for (let i = 0; i < Math.min(10, lines.length - 1); i++) {
+    const di = delim(lines[i]), ci = headerCols(splitLine(lines[i], di))
+    const n = NUM_KEYS.filter(k => ci[k] !== undefined).length
+    if (n >= 2 || (n === 1 && hi < 0)) { hi = i; d = di; col = ci; if (n >= 2) break }
+  }
+  const found = NUM_KEYS.filter(k => col[k] !== undefined)
+  if (hi < 0 || found.length === 0) return { rows: [], totals: { ...EMPTY_NUMS }, found: [], currency: null, error: "nocolumns" }
 
   const cur = text.match(/[$€£₴]|\b(USD|EUR|UAH|PLN|CZK|GBP)\b/)?.[0] ?? null
   const rows: MktRow[] = []
-  for (const line of lines.slice(1)) {
+  for (const line of lines.slice(hi + 1)) {
     const cells = splitLine(line, d)
     const name = col.name !== undefined ? cells[col.name] ?? "" : ""
     if (/^(total|всього|разом|итого|усього|results?)(?=$|[\s:.,])/iu.test(name.trim())) continue
