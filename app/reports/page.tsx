@@ -281,6 +281,11 @@ export default function ReportsPage() {
               <p style={{ fontSize: 13, color: T.t3, marginTop: 6, marginBottom: 0 }}>{uk ? "Ресерчі й аналітика, які зробили твої агенти" : "Research and analytics produced by your agents"}</p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => router.push("/clients")} title={uk ? "Кабінети клієнтів" : "Client portals"}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 500,
+                  color: "#F0EDF8", background: "rgba(255,255,255,0.05)", border: "0.5px solid rgba(255,255,255,0.14)" }}>
+                <span aria-hidden>👥</span> {uk ? "Кабінети клієнтів" : "Client portals"}
+              </button>
               <button onClick={openNew} className="mem-primary"><Plus size={14} /> {uk ? "Новий звіт" : "New report"}</button>
             </div>
           </div>

@@ -36,11 +36,13 @@ type Mission = {
   last_session_id: string | null
   last_report_id: string | null
   next_run_at?: string | null
+  client_id?: string | null
   created_at: string
 }
+type ClientLite = { id: string; name: string; color: string }
 type Agent = { id: string; name: string; avatar_color: string | null; provider_id: string | null }
 
-type Draft = { title: string; instructions: string; agent_id: string; schedule: Mission["schedule"]; run_time: string; run_weekday: number }
+type Draft = { title: string; instructions: string; agent_id: string; schedule: Mission["schedule"]; run_time: string; run_weekday: number; client_id?: string }
 
 const TEMPLATES = [
   {
@@ -141,6 +143,7 @@ export default function MissionsPage() {
   const [busyId, setBusyId]     = useState<string | null>(null)
   const [error, setError]       = useState("")
   const [demo, setDemo]         = useState(false)
+  const [clients, setClients]   = useState<ClientLite[]>([])
 
   async function load() {
     const sb = getSupabase()
@@ -149,6 +152,8 @@ export default function MissionsPage() {
       sb.from("agents").select("id,name,avatar_color,provider_id").order("created_at", { ascending: false }),
     ])
     if (mErr) setTableMissing(true)
+    // Client portals (optional feature): reports of a client's mission go to their portal.
+    fetch("/api/clients", { cache: "no-store" }).then(r => r.json()).then(d => setClients((d.clients ?? []) as ClientLite[])).catch(() => {})
     setMissions((m ?? []) as Mission[])
     setAgents((a ?? []) as Agent[])
     setReady(true)
@@ -223,6 +228,7 @@ export default function MissionsPage() {
       run_weekday: draft.schedule === "weekly" ? draft.run_weekday : null,
       timezone: tz,
       next_run_at: nextRunAt(draft.schedule, draft.run_time, draft.run_weekday, tz),
+      ...(draft.client_id ? { client_id: draft.client_id } : {}),
     }).select("*").single()
     setSaving(false)
     if (insErr || !data) {
@@ -554,6 +560,9 @@ export default function MissionsPage() {
                           {ag?.name || (uk ? "агента немає" : "no agent")}
                         </span>
                         <span><Clock size={10} />{scheduleLabel(m, uk)}</span>
+                        {m.client_id && clients.find(c => c.id === m.client_id) && (
+                          <span style={{ color: clients.find(c => c.id === m.client_id)!.color }}>👥 {clients.find(c => c.id === m.client_id)!.name}</span>
+                        )}
                         <span>{ago(m.last_run_at, uk)}</span>
                         {m.schedule !== "manual" && m.next_run_at && (
                           <span style={{ color: T.cyan }}>
@@ -637,6 +646,27 @@ export default function MissionsPage() {
                     })}
                   </div>
                 </div>
+
+                {clients.length > 0 && (
+                  <div className="ms-field">
+                    <label>{uk ? "Для клієнта (необов'язково)" : "For a client (optional)"}</label>
+                    <div className="mm-agents">
+                      {[{ id: "", name: uk ? "Для себе" : "Just me", color: "#6A6A8A" }, ...clients].map(c => {
+                        const on = (draft.client_id ?? "") === c.id
+                        return (
+                          <button key={c.id || "none"} type="button" className={`mm-agent${on ? " on" : ""}`}
+                            onClick={() => setDraft({ ...draft, client_id: c.id })}
+                            style={{ ["--c" as string]: c.color } as React.CSSProperties}>
+                            <span className="mm-av">{c.id ? c.name.charAt(0).toUpperCase() : "·"}</span>
+                            <span className="mm-agent-n">{c.name}</span>
+                            {on && <Check size={13} className="mm-tick" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {draft.client_id && <span className="ms-note">{uk ? "Кожен звіт цієї місії сам з'явиться в кабінеті клієнта." : "Every report of this mission will show up in the client's portal."}</span>}
+                  </div>
+                )}
 
                 <div className="ms-field">
                   <label htmlFor="ms-text">{uk ? "Що має зробити агент" : "What the agent should do"}</label>

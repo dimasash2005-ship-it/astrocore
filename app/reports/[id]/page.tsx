@@ -14,6 +14,7 @@ import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import ShareButton from "@/components/reports/ShareButton"
 import ExportMenu from "@/components/reports/ExportMenu"
+import ClientPicker from "@/components/clients/ClientPicker"
 
 type Report = {
   id: string
@@ -23,6 +24,7 @@ type Report = {
   chart_data: unknown
   created_at: string
   notion_url?: string | null
+  client_id?: string | null
 }
 
 const T = {
@@ -997,6 +999,7 @@ export default function ReportDetailPage() {
               onClick={() => { setSummaryDraft(report.summary ?? ""); setEditingSummary(true); setTab("report") }}>
               <Pencil size={13} /> {tr.edit}
             </button>
+            <ClientPicker reportId={report.id} clientId={report.client_id ?? null} />
             <ShareButton reportId={report.id} title={report.company_name} />
             <button style={{ ...actionBtn, color: "#FF6B85", border: "0.5px solid rgba(232,0,42,0.30)" }} title={uk ? "Видалити звіт" : "Delete report"}
               onClick={async () => {

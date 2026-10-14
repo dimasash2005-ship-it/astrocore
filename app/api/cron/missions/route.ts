@@ -86,6 +86,11 @@ async function finishRunning(svc: SupabaseClient) {
         .select("id")
         .single()
       reportId = (rep?.id as string | undefined) ?? null
+      // Mission for a client → the report goes to that client's portal (column exists after the clients SQL).
+      if (reportId) {
+        const { data: mc } = await svc.from("missions").select("client_id").eq("id", m.id).maybeSingle()
+        if (mc?.client_id) await svc.from("reports").update({ client_id: mc.client_id }).eq("id", reportId)
+      }
       // Notion auto export + Telegram message (each only if the user set it up).
       await onReportCreated(m.user_id, reportId)
     }
