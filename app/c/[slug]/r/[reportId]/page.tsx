@@ -12,7 +12,8 @@ import { loadPortal, isUnlocked, portalCookie, portalService, type PortalReport 
 import { PTX, portalLang, fmtDate, PortalHeader, PortalFooter, PORTAL_CSS } from "@/components/clients/portalUi"
 import PortalGate from "@/components/clients/PortalGate"
 import MarketingView from "@/components/reports/MarketingView"
-import { isMarketing } from "@/lib/marketing"
+import { isMarketing, sheetStale } from "@/lib/marketing"
+import { syncWithTimeout } from "@/lib/server/sheets"
 
 export const dynamic = "force-dynamic"
 
@@ -42,6 +43,14 @@ export default async function PortalReportPage({ params }: { params: Promise<{ s
     .eq("id", reportId).eq("client_id", c.id).eq("user_id", c.user_id).maybeSingle()
   const r = data as PortalReport | null
   if (!r) notFound()
+  // Connected Google Sheet: re-read it if the numbers are older than an hour, so the client sees fresh data.
+  if (isMarketing(r.marketing) && sheetStale(r.marketing, 60 * 60 * 1000)) {
+    const fresh = await syncWithTimeout(r.marketing).catch(() => null)
+    if (fresh) {
+      await portalService().from("reports").update({ marketing: fresh }).eq("id", r.id).eq("user_id", c.user_id)
+      if (!fresh.sheet?.error) r.marketing = fresh
+    }
+  }
   const words = (r.summary ?? "").split(/\s+/).filter(Boolean).length
 
   return (

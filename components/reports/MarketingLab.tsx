@@ -9,8 +9,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Upload, ClipboardPaste, PencilLine, Save, Loader2, Check, Trash2, FileSpreadsheet, ChevronDown, Sparkles } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
 import MarketingView, { metricLabel } from "@/components/reports/MarketingView"
+import { SheetInput, SheetBar, sheetErrText, type ParsedSheet } from "@/components/reports/SheetConnect"
 import {
-  emptyMarketing, parseTable, isMarketing, forecast, effectiveRevenue, computeMetrics, fmtMoney, fmtNum,
+  emptyMarketing, parseTable, isMarketing, applyParsed, sheetStale, forecast, effectiveRevenue, computeMetrics, fmtMoney, fmtNum,
   type Marketing, type Channel, type Nums,
 } from "@/lib/marketing"
 
@@ -71,6 +72,8 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
   const [budget, setBudget] = useState<number | null>(null)
   const [crSale, setCrSale] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const change = useCallback((next: Marketing) => { setM({ ...next, updatedAt: new Date().toISOString() }); setDirty(true); setSaved(false) }, [])
 
@@ -79,7 +82,7 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
     if (r.error) { setErr(tx.notFound); return false }
     setErr("")
     const base = m ?? emptyMarketing()
-    change({ ...base, totals: r.totals, rows: r.rows.length >= 2 ? r.rows : [], currency: r.currency ?? base.currency, source })
+    change({ ...applyParsed(base, r, source), sheet: undefined })
     setNote(`${tx.loaded(r.rows.length)} · ${tx.found}: ${r.found.map(k => tx[k]).join(", ")}`)
     setBudget(null); setCrSale(null)
     return true
@@ -104,15 +107,49 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
     return () => document.removeEventListener("paste", onPaste)
   }, [load])
 
-  async function save() {
-    if (!m) return
+  async function save(mm: Marketing | null = m) {
+    if (!mm) return
     setSaving(true); setErr("")
-    const { error } = await getSupabase().from("reports").update({ marketing: m }).eq("id", reportId)
+    const { error } = await getSupabase().from("reports").update({ marketing: mm }).eq("id", reportId)
     setSaving(false)
     if (error) { setErr(tx.setup); return }
     setDirty(false); setSaved(true)
-    onSaved?.(m)
+    onSaved?.(mm)
   }
+
+  // ── Google Sheets ──
+  async function connectSheet(url: string, p: ParsedSheet) {
+    const next: Marketing = { ...applyParsed(m ?? emptyMarketing(), p, "sheet"), sheet: { url, syncedAt: new Date().toISOString() } }
+    setM(next); setSheetOpen(false); setBudget(null); setCrSale(null)
+    setNote(`${tx.loaded(p.rows.length)} · ${tx.found}: ${p.found.map(k => tx[k]).join(", ")}`)
+    await save(next)
+  }
+
+  const refreshSheet = useCallback(async () => {
+    setSyncing(true); setErr("")
+    try {
+      const r = await fetch("/api/marketing/sheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId }) })
+      const d = await r.json() as { marketing?: Marketing; error?: string | null }
+      if (d.marketing && isMarketing(d.marketing)) { setM(d.marketing); setDirty(false); onSaved?.(d.marketing) }
+      if (d.error) setErr(sheetErrText(d.error, lang))
+    } catch { setErr(sheetErrText("network", lang)) }
+    setSyncing(false)
+  }, [reportId, lang, onSaved])
+
+  async function disconnectSheet() {
+    if (!m) return
+    const next: Marketing = { ...m, sheet: undefined, source: "manual" }
+    setM(next)
+    await save(next)
+  }
+
+  // Opening a report with a connected sheet re-reads it when the numbers are older than 30 min.
+  const autoSynced = useRef(false)
+  useEffect(() => {
+    if (autoSynced.current || !m || dirty || !sheetStale(m)) return
+    autoSynced.current = true
+    refreshSheet()
+  }, [m, dirty, refreshSheet])
 
   async function clear() {
     if (!window.confirm(tx.clearQ)) return
@@ -147,6 +184,7 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
           <small><ClipboardPaste size={12} /> {tx.paste}</small>
           <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { readFile(e.target.files?.[0]); e.target.value = "" }} />
         </div>
+        <SheetInput lang={lang} onParsed={connectSheet} />
         {err && <div className="mkl-err">{err}</div>}
         <button className="mkl-how" onClick={() => setHowOpen(o => !o)}>{tx.how} <ChevronDown size={13} style={{ transform: howOpen ? "rotate(180deg)" : "none" }} /></button>
         {howOpen && <ol className="mkl-steps">{tx.howSteps.map(s => <li key={s}>{s}</li>)}</ol>}
@@ -168,9 +206,10 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
       <div className="mkl-top">
         <div className="mkl-h"><b>💹 {tx.title}</b><span>{dirty ? `● ${tx.unsaved}` : tx.showsClient}</span></div>
         <div className="mkl-acts">
+          {!m.sheet && <button className={`mkl-btn${sheetOpen ? " on" : ""}`} onClick={() => setSheetOpen(o => !o)}><FileSpreadsheet size={13} /> Google {lang === "uk" ? "Таблиця" : "Sheet"}</button>}
           <button className="mkl-btn" onClick={() => fileRef.current?.click()}><Upload size={13} /> {tx.update}</button>
           <button className="mkl-btn ghost" onClick={clear}><Trash2 size={13} /> {tx.clear}</button>
-          <button className="mkl-btn pri" onClick={save} disabled={saving || !dirty}>
+          <button className="mkl-btn pri" onClick={() => save()} disabled={saving || !dirty}>
             {saving ? <Loader2 size={13} className="mkl-spin" /> : saved && !dirty ? <Check size={13} /> : <Save size={13} />}
             {saved && !dirty ? tx.saved : tx.save}
           </button>
@@ -178,6 +217,8 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
         </div>
       </div>
       {err && <div className="mkl-err">{err}</div>}
+      {m.sheet && <SheetBar sheet={m.sheet} lang={lang} busy={syncing} onRefresh={refreshSheet} onDisconnect={disconnectSheet} />}
+      {!m.sheet && sheetOpen && <SheetInput lang={lang} onParsed={connectSheet} compact />}
 
       <div className="mkl-grid">
         <aside className="mkl-side">
@@ -250,6 +291,7 @@ const CSS = `
 .mkl-btn:hover:not(:disabled) { background: rgba(255,255,255,.09); }
 .mkl-btn.pri { color: #fff; background: #E8002A; border-color: #E8002A; box-shadow: 0 0 20px rgba(232,0,42,.35); }
 .mkl-btn.pri:hover:not(:disabled) { background: #FF1A3E; }
+.mkl-btn.on { color: #fff; border-color: #0F9D58; background: rgba(15,157,88,.16); }
 .mkl-btn.ghost { color: #A8A4BC; background: transparent; }
 .mkl-btn:disabled { opacity: .5; cursor: default; }
 .mkl-spin { animation: mklSpin .8s linear infinite; } @keyframes mklSpin { to { transform: rotate(360deg); } }

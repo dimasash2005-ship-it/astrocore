@@ -8,7 +8,8 @@ import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { X, Upload, PencilLine, ClipboardPaste, FileSpreadsheet, Loader2, TrendingUp } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
-import { emptyMarketing, parseTable, summary, type Channel, type Marketing } from "@/lib/marketing"
+import { emptyMarketing, parseTable, summary, applyParsed, type Channel, type Marketing } from "@/lib/marketing"
+import { SheetInput, type ParsedSheet } from "@/components/reports/SheetConnect"
 
 type Lang = "uk" | "en"
 
@@ -81,7 +82,12 @@ export default function MarketingQuickStart({ lang, onClose }: { lang: Lang; onC
     const r = parseTable(text)
     if (r.error) { setErr(tx.bad); return }
     const base = emptyMarketing(channel, r.currency ?? "$")
-    create({ ...base, totals: r.totals, rows: r.rows.length >= 2 ? r.rows : [], source })
+    create(applyParsed(base, r, source))
+  }
+
+  async function fromSheet(url: string, p: ParsedSheet) {
+    const base = emptyMarketing(channel, p.currency ?? "$")
+    await create({ ...applyParsed(base, p, "sheet"), sheet: { url, syncedAt: new Date().toISOString() } })
   }
 
   async function readFile(f: File | undefined) {
@@ -137,6 +143,7 @@ export default function MarketingQuickStart({ lang, onClose }: { lang: Lang; onC
           )}
           <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={e => { readFile(e.target.files?.[0]); e.target.value = "" }} />
         </div>
+        {!busy && <SheetInput lang={lang} onParsed={fromSheet} compact />}
         {err && <div className="mqs-err">{err}</div>}
         <button className="mqs-btn manual" disabled={busy} onClick={() => create(emptyMarketing(channel, "$"))}><PencilLine size={14} /> {tx.manual}</button>
       </div>

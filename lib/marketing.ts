@@ -25,9 +25,13 @@ export type Marketing = {
   totals: Nums
   rows: MktRow[]            // campaigns / ad sets / creatives (optional)
   payout?: number           // affiliate: payout per approved conversion
-  source: "manual" | "csv" | "paste" | "agent"
+  source: "manual" | "csv" | "paste" | "agent" | "sheet"
   updatedAt: string
+  sheet?: SheetLink         // connected Google Sheet: numbers are re-read from it automatically
 }
+
+export type SheetLink = { url: string; syncedAt: string; error?: SheetError }
+export type SheetError = "badurl" | "private" | "notfound" | "empty" | "nocolumns" | "network" | "toolarge"
 
 export const EMPTY_NUMS: Nums = { spend: 0, impressions: 0, clicks: 0, leads: 0, sales: 0, revenue: 0 }
 
@@ -224,6 +228,34 @@ export function parseTable(text: string): ParseResult {
   }), { ...EMPTY_NUMS })
   const currency = cur === "USD" ? "$" : cur === "EUR" ? "€" : cur === "UAH" ? "₴" : cur === "GBP" ? "£" : cur === "PLN" ? "zł" : cur === "CZK" ? "Kč" : cur
   return { rows: rows.slice(0, 200), totals, found, currency }
+}
+
+/** Puts freshly parsed numbers into a marketing block, keeping channel, payout and settings. */
+export function applyParsed(base: Marketing, r: Pick<ParseResult, "rows" | "totals" | "currency">, source: Marketing["source"]): Marketing {
+  return { ...base, totals: r.totals, rows: r.rows.length >= 2 ? r.rows : [], currency: r.currency ?? base.currency, source, updatedAt: new Date().toISOString() }
+}
+
+// ── Google Sheets ────────────────────────────────────────────────
+// A sheet shared as "Anyone with the link: Viewer" (or "Published to the web") can be read
+// as CSV without any Google login or API key. Only docs.google.com links are accepted.
+
+export function sheetCsvUrl(raw: string): string | null {
+  let u: URL
+  try { u = new URL(String(raw).trim()) } catch { return null }
+  if (u.protocol !== "https:" || u.hostname !== "docs.google.com") return null
+  const gid = /(?:^|[#&?])gid=(\d+)/.exec(u.hash + "&" + u.search)?.[1]
+  const pub = /^\/spreadsheets\/d\/e\/([\w-]{20,})(?:\/|$)/.exec(u.pathname)
+  if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?output=csv${gid ? `&single=true&gid=${gid}` : ""}`
+  const id = /^\/spreadsheets\/d\/([\w-]{20,})(?:\/|$)/.exec(u.pathname)?.[1]
+  if (!id) return null
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ""}`
+}
+
+/** Older than `ms` → time to re-read the sheet. */
+export function sheetStale(m: Marketing, ms = 30 * 60 * 1000): boolean {
+  if (!m.sheet) return false
+  const t = Date.parse(m.sheet.syncedAt)
+  return !t || Date.now() - t > ms
 }
 
 // ── Summary in plain words ───────────────────────────────────────
