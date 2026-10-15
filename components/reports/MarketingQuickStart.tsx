@@ -8,7 +8,7 @@ import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { X, Upload, PencilLine, ClipboardPaste, FileSpreadsheet, Loader2, TrendingUp } from "lucide-react"
 import { getSupabase } from "@/lib/supabase/client"
-import { emptyMarketing, parseTable, summary, applyParsed, type Channel, type Marketing } from "@/lib/marketing"
+import { emptyMarketing, parseTable, summary, applyParsed, withSnapshot, type Channel, type Marketing } from "@/lib/marketing"
 import { SheetInput, type ParsedSheet } from "@/components/reports/SheetConnect"
 
 type Lang = "uk" | "en"
@@ -65,7 +65,8 @@ export default function MarketingQuickStart({ lang, onClose }: { lang: Lang; onC
 
   useEffect(() => { setMounted(true) }, [])
 
-  async function create(m: Marketing) {
+  async function create(raw: Marketing) {
+    const m = withSnapshot(raw)
     setBusy(true); setErr("")
     const sb = getSupabase()
     const { data: { user } } = await sb.auth.getUser()

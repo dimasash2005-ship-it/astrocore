@@ -28,7 +28,10 @@ export type Marketing = {
   source: "manual" | "csv" | "paste" | "agent" | "sheet"
   updatedAt: string
   sheet?: SheetLink         // connected Google Sheet: numbers are re-read from it automatically
+  history?: Snap[]          // one snapshot of totals per day, for "how it changes over time" charts
 }
+
+export type Snap = { d: string; t: Nums }   // d = "YYYY-MM-DD"
 
 export type SheetLink = { url: string; syncedAt: string; error?: SheetError }
 export type SheetError = "badurl" | "private" | "notfound" | "empty" | "nocolumns" | "network" | "toolarge"
@@ -285,7 +288,8 @@ export function parseTable(text: string): ParseResult {
     for (const idx of [rows.length - 1, 0]) {
       const r = rows[idx]
       const others = rows.filter((_, i) => i !== idx)
-      const isSum = found.some(k => r[k] > 0) && found.every(k => {
+      // Never a date row, and the match must hold in at least two non-empty columns (no coincidences).
+      const isSum = !parseDay(r.name) && found.filter(k => r[k] > 0).length >= 2 && found.every(k => {
         const sum = others.reduce((a, o) => a + o[k], 0)
         return Math.abs(r[k] - sum) <= Math.max(1, sum * 0.005)
       })
@@ -326,6 +330,50 @@ export function sheetStale(m: Marketing, ms = 30 * 60 * 1000): boolean {
   if (!m.sheet) return false
   const t = Date.parse(m.sheet.syncedAt)
   return !t || Date.now() - t > ms
+}
+
+// ── History: one snapshot per day ────────────────────────────────
+
+const MAX_SNAPS = 180
+
+/** Adds (or replaces) today's snapshot of the totals. Called on every save and sheet sync. */
+export function withSnapshot(m: Marketing, now = new Date()): Marketing {
+  if (!Object.values(m.totals).some(v => v > 0)) return m
+  const d = now.toISOString().slice(0, 10)
+  const rest = (m.history ?? []).filter(s => s.d !== d && /^\d{4}-\d{2}-\d{2}$/.test(s.d))
+  const history = [...rest, { d, t: { ...m.totals } }].sort((a, b) => a.d.localeCompare(b.d)).slice(-MAX_SNAPS)
+  return { ...m, history }
+}
+
+/** "2026-10-14", "14.10.2026", "14/10/2026", "14.10" → sortable key + short label "14.10". */
+export function parseDay(raw: string): { key: number; label: string } | null {
+  const s = String(raw).trim()
+  let y: number, mo: number, d: number
+  let r = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s)
+  if (r) { y = +r[1]; mo = +r[2]; d = +r[3] }
+  else if ((r = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/.exec(s))) { d = +r[1]; mo = +r[2]; y = r[3] ? (+r[3] < 100 ? 2000 + +r[3] : +r[3]) : 2000 }
+  else return null
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
+  return { key: y * 10000 + mo * 100 + d, label: `${String(d).padStart(2, "0")}.${String(mo).padStart(2, "0")}` }
+}
+
+export type TimePoint = { label: string; n: Nums }
+
+/**
+ * Points for the "over time" charts:
+ *  - "rows":    the table itself is by day (rows named by dates) → each row is a point;
+ *  - "history": daily snapshots collected on saves / sheet syncs (at least 2 days).
+ */
+export function timeline(m: Marketing): { kind: "rows" | "history"; points: TimePoint[] } | null {
+  if (m.rows.length >= 3) {
+    const days = m.rows.map(r => ({ r, p: parseDay(r.name) }))
+    if (days.every(x => x.p)) {
+      return { kind: "rows", points: days.sort((a, b) => a.p!.key - b.p!.key).map(x => ({ label: x.p!.label, n: x.r })) }
+    }
+  }
+  const h = m.history ?? []
+  if (h.length >= 2) return { kind: "history", points: h.map(s => ({ label: parseDay(s.d)?.label ?? s.d, n: s.t })) }
+  return null
 }
 
 // ── Summary in plain words ───────────────────────────────────────

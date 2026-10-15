@@ -19,6 +19,8 @@ import { createClient as createServiceClient, type SupabaseClient } from "@supab
 import { nextRunAt, type MissionSchedule } from "@/lib/missions/schedule"
 import { notifyAdmin } from "@/lib/server/alert"
 import { onReportCreated } from "@/lib/server/report-hooks"
+import { isMarketing, sheetStale } from "@/lib/marketing"
+import { syncWithTimeout } from "@/lib/server/sheets"
 
 export const dynamic = "force-dynamic"
 
@@ -232,6 +234,30 @@ async function startDue(svc: SupabaseClient) {
   return { started, skipped }
 }
 
+// Connected Google Sheets: re-read the ones not synced for 20h, so every report gets a daily
+// snapshot for its "over time" charts even if nobody opens it. A few per call, never fails the cron.
+const SHEETS_PER_CALL = 4
+async function syncSheets(svc: SupabaseClient): Promise<number> {
+  try {
+    const { data } = await svc.from("reports").select("id, marketing")
+      .not("marketing->sheet", "is", null)
+      .order("marketing->sheet->>syncedAt", { ascending: true })
+      .limit(SHEETS_PER_CALL)
+    let n = 0
+    for (const r of data ?? []) {
+      if (!isMarketing(r.marketing) || !sheetStale(r.marketing, 20 * 3600_000)) continue
+      const fresh = await syncWithTimeout(r.marketing, 8000).catch(() => null)
+      if (!fresh) continue
+      await svc.from("reports").update({ marketing: fresh }).eq("id", r.id)
+      n++
+    }
+    return n
+  } catch (e) {
+    console.error("[cron/missions] sheets:", e instanceof Error ? e.message : e)
+    return 0
+  }
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
@@ -242,7 +268,8 @@ export async function GET(req: NextRequest) {
     await svc.rpc("expire_agent_jobs")
     const finished = await finishRunning(svc)
     const { started, skipped } = await startDue(svc)
-    return NextResponse.json({ ok: true, finished, started, skipped })
+    const sheets = await syncSheets(svc)
+    return NextResponse.json({ ok: true, finished, started, skipped, sheets })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[cron/missions] error:", msg)

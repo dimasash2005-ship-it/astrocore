@@ -4,7 +4,7 @@
 // Works for sheets shared as "Anyone with the link: Viewer" or published to the web.
 // Only docs.google.com URLs are ever fetched (see sheetCsvUrl).
 
-import { parseTable, applyParsed, sheetCsvUrl, type Marketing, type ParseResult, type SheetError } from "@/lib/marketing"
+import { parseTable, applyParsed, sheetCsvUrl, withSnapshot, type Marketing, type ParseResult, type SheetError } from "@/lib/marketing"
 
 const MAX_BYTES = 3 * 1024 * 1024
 
@@ -44,7 +44,7 @@ export async function syncMarketingSheet(m: Marketing, url = m.sheet?.url): Prom
   if (!url) return m
   const r = await readSheet(url)
   if (!r.ok) return { ...m, sheet: { url, syncedAt: now, error: r.error } }
-  return { ...applyParsed(m, r.parsed, "sheet"), sheet: { url, syncedAt: now } }
+  return withSnapshot({ ...applyParsed(m, r.parsed, "sheet"), sheet: { url, syncedAt: now } })
 }
 
 /** Same as syncMarketingSheet, but never waits longer than `ms` (for page renders). */

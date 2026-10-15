@@ -11,7 +11,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import MarketingView, { metricLabel } from "@/components/reports/MarketingView"
 import { SheetInput, SheetBar, sheetErrText, type ParsedSheet } from "@/components/reports/SheetConnect"
 import {
-  emptyMarketing, parseTable, isMarketing, applyParsed, sheetStale, forecast, effectiveRevenue, computeMetrics, fmtMoney, fmtNum,
+  emptyMarketing, parseTable, isMarketing, applyParsed, sheetStale, withSnapshot, forecast, effectiveRevenue, computeMetrics, fmtMoney, fmtNum,
   type Marketing, type Channel, type Nums,
 } from "@/lib/marketing"
 
@@ -107,8 +107,10 @@ export default function MarketingLab({ reportId, initial, lang, onSaved }: { rep
     return () => document.removeEventListener("paste", onPaste)
   }, [load])
 
-  async function save(mm: Marketing | null = m) {
-    if (!mm) return
+  async function save(raw: Marketing | null = m) {
+    if (!raw) return
+    const mm = withSnapshot(raw)
+    setM(mm)
     setSaving(true); setErr("")
     const { error } = await getSupabase().from("reports").update({ marketing: mm }).eq("id", reportId)
     setSaving(false)
