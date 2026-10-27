@@ -204,14 +204,14 @@ export default function SettingsPage() {
 
         .st-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
         .st-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
-        @media (max-width: 1100px) { .st-grid { grid-template-columns: 1fr; } .st-side { position: static; } }
+        @media (max-width: 1100px) { .st-grid { grid-template-columns: minmax(0, 1fr); } .st-side { position: static; } }
         .st-main { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 
         .st-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .st-head span { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1}; }
 
         .st-navs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-        @media (max-width: 1300px) { .st-navs { grid-template-columns: 1fr; } }
+        @media (max-width: 1300px) { .st-navs { grid-template-columns: minmax(0, 1fr); } }
         .st-nav { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 15px; border-radius: 13px; cursor: pointer;
           text-align: left; font-family: inherit; overflow: hidden; min-height: 116px;
           background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1};
@@ -260,7 +260,7 @@ export default function SettingsPage() {
         .st-kv > span:first-child { font-size: 12.5px; color: ${T.t3}; }
         .st-live { width: 7px; height: 7px; border-radius: 50%; background: ${T.green}; animation: stPulse 2s infinite; }
 
-        .st-lang { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .st-lang { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .st-lang button { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 13px; border-radius: 11px; cursor: pointer;
           font-family: inherit; text-align: left; background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1}; transition: all .15s; }
         .st-lang button:hover { border-color: rgba(255,255,255,.2); }

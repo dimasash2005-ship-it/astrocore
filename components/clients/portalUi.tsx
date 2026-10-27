@@ -73,7 +73,7 @@ img.cp-logo { object-fit: contain; padding: 6px; box-sizing: border-box; backgro
 .cp-idtx b { font-size: 24px; letter-spacing: -.02em; } .cp-head.sm .cp-idtx b { font-size: 17px; }
 .cp-idtx small { font: 600 10.5px 'JetBrains Mono', monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--c); filter: brightness(1.3); }
 .cp-intro { margin: 14px 0 0; max-width: 680px; color: #B8B4CC; font-size: 15px; line-height: 1.65; white-space: pre-line; }
-.cp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 26px 0 0; }
+.cp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 26px 0 0; }
 .cp-stat { padding: 16px 18px; border-radius: 14px; background: rgba(255,255,255,.035); border: .5px solid rgba(255,255,255,.09); display: flex; flex-direction: column; gap: 4px; }
 .cp-stat b { font-size: 26px; line-height: 1.1; } .cp-stat span { font-size: 12px; color: #8A8AAA; }
 .cp-k { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .2em; text-transform: uppercase; color: #8A8AAA; margin: 34px 0 12px; }
@@ -133,7 +133,7 @@ img.cp-logo { object-fit: contain; padding: 6px; box-sizing: border-box; backgro
 .cp-gate button:disabled { opacity: .55; cursor: default; }
 .cp-spin { animation: cpSpin .8s linear infinite; } @keyframes cpSpin { to { transform: rotate(360deg); } }
 @media (max-width: 640px) {
-  .cp-stats { grid-template-columns: 1fr 1fr 1fr; gap: 6px; } .cp-stat { padding: 12px; } .cp-stat b { font-size: 20px; }
+  .cp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } .cp-stat { padding: 12px; } .cp-stat b { font-size: 20px; }
   .cp-row { grid-template-columns: 1fr auto; gap: 4px 10px; } .cp-date { grid-column: 1 / -1; }
   .cp-doc { padding: 22px 18px; } .cp-feat { padding: 20px; }
 }

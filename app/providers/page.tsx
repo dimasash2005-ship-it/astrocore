@@ -656,7 +656,7 @@ export default function ProvidersPage() {
           color: #fff; background: rgba(232,0,42,.8); vertical-align: 1px; }
         .pv-or { display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: ${T.t4}; }
         .pv-or::before, .pv-or::after { content: ""; flex: 1; height: 0.5px; background: rgba(255,255,255,.10); }
-        .pv-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .pv-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .pv-x { background: rgba(255,255,255,.04); border: none; cursor: pointer; color: ${T.t4}; line-height: 0; padding: 6px; border-radius: 8px; }
         .pv-x:hover { color: ${T.t1}; background: rgba(255,255,255,.08); }
         .pv-label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4}; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px; }
@@ -691,7 +691,7 @@ export default function ProvidersPage() {
         .pv-chip.on { background: rgba(139,92,246,.14); border-color: rgba(139,92,246,.6); color: ${T.t1}; }
         @media (max-width: 520px) {
           .pv-oc { flex-wrap: wrap; } .pv-oc button { width: 100%; justify-content: center; }
-          .pv-presets { grid-template-columns: 1fr; }
+          .pv-presets { grid-template-columns: minmax(0, 1fr); }
           .pv-mf > div { width: 100%; } .pv-mf .pv-primary { flex: 1; }
         }
         @media (prefers-reduced-motion: reduce) { .pv-mh-line i { animation: none; } }

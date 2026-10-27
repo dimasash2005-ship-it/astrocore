@@ -524,9 +524,9 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, ag
   const displayContent = msg.streaming ? msg.content : (!isUser && !isError) ? revealed : msg.content
 
   const actionsRow = !msg.streaming && !isUser && (
-    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", minWidth: 0 }}>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: T.t4, padding: "0 4px" }}>{timeStr(msg.createdAt, lang)}</span>
-      <div className="astrocore-msg-actions" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <div className="astrocore-msg-actions" style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", minWidth: 0 }}>
         <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
         <CopyBtn text={msg.content} t={t} />
         <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", margin: "0 2px" }} />
@@ -547,7 +547,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, ag
         ...OFFSCREEN_SKIP,
         animation: isNew ? "msgIn 240ms ease-out" : undefined,
       }}>
-        <div style={{ maxWidth: "68%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <div className="cs-user-col" style={{ maxWidth: "68%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           {userImages.length > 0 && <PhotoGrid images={userImages} />}
           {(msg.voice || userText) && <div style={{
             padding: "10px 15px",
@@ -704,7 +704,7 @@ function EmojiPicker({ onPick }: { onPick: (e: string) => void }) {
 // Small round button that sits outside the message box ("+" and emoji).
 function RoundBtn({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} title={title} style={{
+    <button className="cs-round" onClick={onClick} title={title} style={{
       width: 38, height: 38, borderRadius: "50%", flexShrink: 0, marginBottom: 7,
       display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
       background: active ? "rgba(232,0,42,0.16)" : T.s1,
@@ -825,7 +825,7 @@ const ComposerInput = forwardRef<ComposerHandle, ComposerInputProps>(function Co
 
   // Layout like ChatGPT / Claude. "+" and emoji live outside the box.
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+    <div className="cs-composer-row" style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
       {outsideLeft}
 
       <div
@@ -1665,6 +1665,14 @@ export default function SessionPage() {
         @keyframes popIn { from{opacity:0;transform:translateY(6px) scale(.97)} to{opacity:1;transform:none} }
         @keyframes redpulse { 0%,100%{box-shadow:0 0 4px rgba(232,0,42,0.8)} 50%{box-shadow:0 0 10px rgba(232,0,42,1)} }
         @media (max-width: 640px) { .cs-badges { display: none !important; } }
+        /* phones: roomier text box — slimmer side padding, smaller round buttons, emoji via the phone keyboard */
+        @media (max-width: 560px) {
+          .cs-composer { padding: 8px 10px 12px !important; }
+          .cs-composer-row { gap: 6px !important; }
+          .cs-round { width: 34px !important; height: 34px !important; margin-bottom: 9px !important; }
+          .cs-emoji { display: none !important; }
+          .cs-user-col { max-width: 86% !important; }
+        }
         ::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
       `}</style>
 
@@ -1739,7 +1747,7 @@ export default function SessionPage() {
         )}
 
         {/* Composer — PERF: backdropFilter removed (background is 97% opaque, blur was invisible but repainted on every keystroke) */}
-        <div style={{ flexShrink: 0, padding: "10px 24px 18px", background: "rgba(8,8,15,0.99)" }}>
+        <div className="cs-composer" style={{ flexShrink: 0, padding: "10px 24px 18px", background: "rgba(8,8,15,0.99)" }}>
           <div ref={composerRef} style={{ maxWidth: 1240, margin: "0 auto", width: "100%", position: "relative" }}>
 
             {!provider && (
@@ -1843,13 +1851,13 @@ export default function SessionPage() {
                   >
                     <AlarmClock size={17} />
                   </RoundBtn>
-                  <RoundBtn
+                  <span className="cs-emoji" style={{ display: "flex" }}><RoundBtn
                     active={menu === "emoji"}
                     title={language === "uk" ? "Смайлики" : "Emoji"}
                     onClick={() => setMenu(m => m === "emoji" ? null : "emoji")}
                   >
                     <Smile size={17} />
-                  </RoundBtn>
+                  </RoundBtn></span>
                 </div>
               }
               rightSlot={

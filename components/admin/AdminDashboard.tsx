@@ -153,7 +153,7 @@ export default function AdminDashboard() {
         .acp-kpi b { display: block; font: 600 30px 'Space Grotesk', sans-serif; margin-top: 6px; letter-spacing: -.02em; }
         .acp-kpi em { font-style: normal; font-size: 11.5px; color: #8A8AAA; }
         .acp-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; }
-        .acp-grid.eq { grid-template-columns: 1fr 1fr; }
+        .acp-grid.eq { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .acp-card { border: 0.5px solid rgba(255,255,255,.09); border-radius: 16px; background: #0F0F19; padding: 18px; min-width: 0; }
         .acp-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 9px; }
         .acp-card h3 .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: rgba(232,0,42,.12); color: #FF4D6A; }
@@ -195,10 +195,10 @@ export default function AdminDashboard() {
         .acp-search { display: flex; align-items: center; gap: 7px; margin-left: auto; padding: 6px 10px; border-radius: 9px; background: #0A0A12; border: 0.5px solid rgba(255,255,255,.1); }
         .acp-search input { background: transparent; border: 0; outline: none; color: #F0EDF8; font-size: 12.5px; width: 180px; font-family: inherit; }
         .acp-spin { animation: acpSpin .8s linear infinite; } @keyframes acpSpin { to { transform: rotate(360deg) } }
-        @media (max-width: 1200px) { .acp-kpis { grid-template-columns: repeat(3, minmax(0,1fr)); } .acp-grid, .acp-grid.eq { grid-template-columns: 1fr; } }
+        @media (max-width: 1200px) { .acp-kpis { grid-template-columns: repeat(3, minmax(0,1fr)); } .acp-grid, .acp-grid.eq { grid-template-columns: minmax(0, 1fr); } }
         @media (max-width: 640px) {
           .acp-hero { padding: 22px 16px 18px; } .acp-body { padding: 18px 16px 48px; }
-          .acp-kpis { grid-template-columns: 1fr 1fr; } .acp-fr { grid-template-columns: 1fr; gap: 4px; } .acp-fr .n { text-align: left; }
+          .acp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .acp-fr { grid-template-columns: minmax(0, 1fr); gap: 4px; } .acp-fr .n { text-align: left; }
           .acp-search input { width: 120px; }
         }
       `}</style>

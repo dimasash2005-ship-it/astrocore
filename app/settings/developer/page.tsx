@@ -255,7 +255,7 @@ export default function DeveloperPage() {
 
         .dv-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
         .dv-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
-        @media (max-width: 1100px) { .dv-grid { grid-template-columns: 1fr; } .dv-side { position: static; } }
+        @media (max-width: 1100px) { .dv-grid { grid-template-columns: minmax(0, 1fr); } .dv-side { position: static; } }
 
         .dv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .dv-head > span { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1}; }

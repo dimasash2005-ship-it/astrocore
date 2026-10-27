@@ -415,7 +415,7 @@ const CSS = `
 .cl-ic { position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; cursor: pointer; color: #C8C4D8; background: rgba(0,0,0,.3); border: .5px solid rgba(255,255,255,.14); }
 .cl-ic:hover { color: #fff; background: rgba(0,0,0,.5); }
 .cl-body { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 18px; }
-.cl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cl-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .cl-stats div { display: flex; align-items: center; gap: 7px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03); border: .5px solid rgba(255,255,255,.07); color: #8A8AAA; font-size: 12px; }
 .cl-stats svg { color: var(--c); } .cl-stats b { color: #F0EDF8; font-size: 17px; }
 .cl-link { display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 12px; border-radius: 11px; background: rgba(0,0,0,.35); border: .5px solid rgba(255,255,255,.08); }
@@ -492,7 +492,7 @@ const CSS = `
 .pv-head b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-head small { font: 600 8.5px 'JetBrains Mono', monospace; letter-spacing: .18em; text-transform: uppercase; color: var(--c); filter: brightness(1.3); }
 .pv-intro { margin: 0; font-size: 11.5px; line-height: 1.5; color: #A8A4BC; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.pv-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.pv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .pv-stats div { display: flex; flex-direction: column; padding: 7px 8px; border-radius: 8px; background: rgba(255,255,255,.04); border: .5px solid rgba(255,255,255,.08); }
 .pv-stats b { font-size: 14px; } .pv-stats span { font-size: 9px; color: #8A8AAA; }
 .pv-k { font: 600 8.5px 'JetBrains Mono', monospace; letter-spacing: .18em; text-transform: uppercase; color: #8A8AAA; margin-top: 4px; }
@@ -504,7 +504,7 @@ const CSS = `
 .pv-pow { text-align: center; font: 500 8.5px 'JetBrains Mono', monospace; color: #6A6A8A; margin-top: 4px; }
 .pv-pow b { color: #C8C4D8; letter-spacing: .25em; margin-left: 3px; } .pv-pow b span { color: #E8002A; }
 
-@media (max-width: 900px) { .cle { grid-template-columns: 1fr; overflow-y: auto; } .cle-prev { display: none; } .cle-form { max-height: none; } }
-@media (max-width: 760px) { .cl-in { padding: 22px 16px 60px; } .cl-steps { grid-template-columns: 1fr; } .cl-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .cle { grid-template-columns: minmax(0, 1fr); overflow-y: auto; } .cle-prev { display: none; } .cle-form { max-height: none; } }
+@media (max-width: 760px) { .cl-in { padding: 22px 16px 60px; } .cl-steps { grid-template-columns: minmax(0, 1fr); } .cl-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .cl-scan, .cl-sweep, .cl-orbs i, .cl-card, .cle, .cle-glow { animation: none; } .cle-glow { opacity: .24; } }
 `

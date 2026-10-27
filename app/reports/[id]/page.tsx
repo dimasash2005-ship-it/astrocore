@@ -1029,7 +1029,7 @@ export default function ReportDetailPage() {
         )}
 
         {/* ── Tabs: Report / Analytics ── */}
-        <div className="rp-noprint" role="tablist" style={{ display: "flex", gap: 4, marginTop: 22, borderBottom: `0.5px solid ${T.b1}` }}>
+        <div className="rp-noprint" role="tablist" style={{ display: "flex", gap: 4, marginTop: 22, borderBottom: `0.5px solid ${T.b1}`, overflowX: "auto", overflowY: "hidden", scrollbarWidth: "none" }}>
           {([
             { key: "report",    icon: FileText,  label: uk ? "Звіт" : "Report" },
             { key: "analytics", icon: BarChart3, label: uk ? "Аналітика й графіки" : "Analytics & charts" },
@@ -1038,7 +1038,7 @@ export default function ReportDetailPage() {
             const on = tab === t.key
             return (
               <button key={t.key} role="tab" aria-selected={on} onClick={() => setTab(t.key)}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer",
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
                   padding: "10px 14px", marginBottom: -1, fontSize: 14, fontWeight: on ? 600 : 500,
                   color: on ? T.t1 : T.t3, borderBottom: `2px solid ${on ? T.red : "transparent"}`, transition: "color .15s, border-color .15s" }}>
                 <t.icon size={15} style={{ color: on ? T.red : T.t4 }} />

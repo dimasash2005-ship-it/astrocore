@@ -264,7 +264,7 @@ export default function IntegrationsPage() {
         .ig-soon { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         @media (max-width: 1250px) { .ig-soon { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
         @media (max-width: 900px)  { .ig-soon { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 560px)  { .ig-soon { grid-template-columns: 1fr; } }
+        @media (max-width: 560px)  { .ig-soon { grid-template-columns: minmax(0, 1fr); } }
         .ig-sc { position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 14px 15px; border-radius: 14px; min-width: 0;
           background: rgba(255,255,255,.012); border: 0.5px dashed rgba(255,255,255,.12); animation: igIn .4s ease both; transition: border-color .2s; }
         .ig-sc::after { content: ""; position: absolute; right: -40px; top: -40px; width: 110px; height: 110px; border-radius: 50%; pointer-events: none;

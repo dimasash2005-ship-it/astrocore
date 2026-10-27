@@ -292,7 +292,7 @@ export default function AccountPage() {
 
         .ac-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
         .ac-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
-        @media (max-width: 1050px) { .ac-grid { grid-template-columns: 1fr; } .ac-side { position: static; } }
+        @media (max-width: 1050px) { .ac-grid { grid-template-columns: minmax(0, 1fr); } .ac-side { position: static; } }
         .ac-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .ac-head span { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1}; }
 

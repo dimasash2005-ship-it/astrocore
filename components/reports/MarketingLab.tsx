@@ -329,8 +329,8 @@ const CSS = `
 .mkl-sl { display: flex; flex-direction: column; gap: 6px; }
 .mkl-sl span { display: flex; justify-content: space-between; font-size: 13px; color: #C8C4D8; } .mkl-sl b { font-family: 'JetBrains Mono', monospace; color: #fff; }
 .mkl-sl input { width: 100%; accent-color: #F5B13B; }
-.mkl-fc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; border-radius: 12px; background: rgba(34,197,94,.08); border: .5px solid rgba(34,197,94,.3); }
+.mkl-fc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: 12px; background: rgba(34,197,94,.08); border: .5px solid rgba(34,197,94,.3); }
 .mkl-fc.neg { background: rgba(232,0,42,.08); border-color: rgba(232,0,42,.3); }
 .mkl-fc div { display: flex; flex-direction: column; gap: 2px; } .mkl-fc b { font-size: 18px; } .mkl-fc span { font-size: 11px; color: #8A8AAA; }
-@media (max-width: 980px) { .mkl-grid { grid-template-columns: 1fr; } .mkl-side { position: static; } }
+@media (max-width: 980px) { .mkl-grid { grid-template-columns: minmax(0, 1fr); } .mkl-side { position: static; } }
 `

@@ -114,7 +114,7 @@ const CSS = `
   .sa-bar { height: 7px; border-radius: 7px; background: rgba(255,255,255,.08); margin-top: 18px; max-width: 460px; overflow: hidden; }
   .sa-bar i { display: block; height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--c), #F5B13B); }
   .sa-xp { display: block; margin-top: 8px; font: 500 12.5px 'JetBrains Mono', monospace; color: #8A8AAA; }
-  .sa-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 24px; max-width: 520px; }
+  .sa-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 24px; max-width: 520px; }
   .sa-stats div { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.04); border: .5px solid rgba(255,255,255,.09); display: flex; flex-direction: column; gap: 3px; }
   .sa-stats b { font-size: 30px; line-height: 1; }
   .sa-stats span { font-size: 12.5px; color: #8A8AAA; }
@@ -127,7 +127,7 @@ const CSS = `
   .sa-bad { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; }
   .sa-bad h1 { font-size: 28px; margin: 14px 0 0; } .sa-bad p { color: #A8A4BC; margin: 0 0 18px; }
   @media (max-width: 760px) {
-    .sa-card { grid-template-columns: 1fr; padding: 24px 18px; gap: 10px; text-align: left; }
+    .sa-card { grid-template-columns: minmax(0, 1fr); padding: 24px 18px; gap: 10px; text-align: left; }
     .sa-star { transform: scale(.8); margin: -30px 0; }
     .sa-cta { flex-direction: column; align-items: flex-start; padding: 22px 18px; }
   }

@@ -212,7 +212,7 @@ const CSS = `
 .acm-bar { width: 100%; height: 5px; border-radius: 5px; background: rgba(255,255,255,.08); margin-top: 12px; overflow: hidden; }
 .acm-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--c), #F5B13B); }
 .acm-xp { align-self: flex-start; margin-top: 5px; font: 500 10.5px 'JetBrains Mono', monospace; color: #8A8AAA; }
-.acm-stats { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.acm-stats { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .acm-stats div { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 10px; background: rgba(255,255,255,.04); border: .5px solid rgba(255,255,255,.08); }
 .acm-stats b { font-size: 19px; line-height: 1.1; } .acm-stats span { font-size: 10.5px; color: #8A8AAA; }
 .acm-foot { width: 100%; margin-top: auto; display: flex; justify-content: space-between; font: 500 10.5px 'JetBrains Mono', monospace; color: #8A8AAA; padding-top: 8px; }
@@ -230,7 +230,7 @@ const CSS = `
 .acm-btns button.pri { color: #fff; background: #E8002A; border-color: #E8002A; box-shadow: 0 0 24px rgba(232,0,42,.4); }
 .acm-btns button.pri:hover:not(:disabled) { background: #FF1A3E; }
 .acm-btns button:disabled { opacity: .5; cursor: default; }
-.acm-soc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; animation: acmFade .2s ease-out; }
+.acm-soc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; animation: acmFade .2s ease-out; }
 .acm-soc a { display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 11px; color: #fff; text-decoration: none;
   font: 600 13px 'Space Grotesk', system-ui, sans-serif; border: .5px solid rgba(255,255,255,.16); }
 .acm-soc a:hover { filter: brightness(1.2); }

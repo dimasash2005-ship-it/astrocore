@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { Analytics } from "@vercel/analytics/react";
 import CookieConsent from "@/components/CookieConsent";
 import RefTracker from "@/components/analytics/RefTracker";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 
 const DESCRIPTION =
   "AstroCore AI is a web workspace for OpenClaw agents. Connect your OpenClaw agent in 3 clicks and manage it in the browser: chat, memory, files and reports. No terminal, SSH or Telegram bot.";
@@ -17,6 +18,9 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: "AstroCore AI",
+  // Installed on a phone (Add to Home screen): name and icon on iPhone; Android reads app/manifest.ts
+  appleWebApp: { capable: true, title: "AstroCore", statusBarStyle: "black" },
+  icons: { apple: "/apple-touch-icon.png" },
   keywords: ["AstroCore", "AstroCore AI", "OpenClaw", "OpenClaw dashboard", "OpenClaw agent", "AI agent workspace", "AI agent reports"],
   openGraph: {
     type: "website",
@@ -30,6 +34,13 @@ export const metadata: Metadata = {
     title: "AstroCore AI — The Workspace for OpenClaw Agents",
     description: "Connect your OpenClaw agent in 3 clicks. Chat, memory, files and reports in one place.",
   },
+};
+
+// Phone browser bar and installed-app status bar in AstroCore black
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#08080F",
 };
 
 // Structured data: tells Google and AI assistants exactly what AstroCore is
@@ -105,6 +116,7 @@ export default function RootLayout({
         <RefTracker />
         <AuthProvider>{children}</AuthProvider>
         <CookieConsent />
+        <InstallPrompt />
         <Analytics />
 
         {/* Google tag (gtag.js) — loaded after the page is interactive */}

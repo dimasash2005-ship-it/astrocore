@@ -538,7 +538,7 @@ function CreateAgentModal({ providers, onClose, onCreated, t, language }: {
             </div>
 
             <div style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr",
+              display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: 8, maxHeight: 200, overflowY: "auto",
             }}>
               {visibleTemplates.map(tpl => {

@@ -102,7 +102,7 @@ export default function HelpModal({ open, onClose }: { open: boolean; onClose: (
         .hm-x { margin-left: auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; cursor: pointer;
           background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.08); color: #8A8AAA; }
         .hm-x:hover { color: #fff; background: rgba(255,255,255,.08); }
-        .hm-kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 16px; }
+        .hm-kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 16px; }
         .hm-kind { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-radius: 11px; cursor: pointer;
           font-size: 12px; font-family: inherit; color: #B4B0C8; background: rgba(255,255,255,.03); border: 0.5px solid rgba(255,255,255,.08); transition: all .15s; }
         .hm-kind:hover { color: #fff; border-color: color-mix(in srgb, var(--c) 45%, transparent); }
@@ -125,7 +125,7 @@ export default function HelpModal({ open, onClose }: { open: boolean; onClose: (
         .hm-ok i { width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; display: grid; place-items: center;
           background: rgba(34,197,94,.14); border: 0.5px solid rgba(34,197,94,.45); color: #22C55E; }
         .hm-spin { animation: hmSpin .8s linear infinite; } @keyframes hmSpin { to { transform: rotate(360deg) } }
-        @media (max-width: 440px) { .hm-kinds { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 440px) { .hm-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (prefers-reduced-motion: reduce) { .hm, .hm-overlay { animation: none; } }
       `}</style>
 

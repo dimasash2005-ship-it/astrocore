@@ -389,7 +389,7 @@ export default function ForumPage() {
 
         .fm-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
         .fm-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
-        @media (max-width: 1100px) { .fm-grid { grid-template-columns: 1fr; } .fm-side { position: static; order: -1; } }
+        @media (max-width: 1100px) { .fm-grid { grid-template-columns: minmax(0, 1fr); } .fm-side { position: static; order: -1; } }
         .fm-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .fm-head span { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; color: ${T.t1}; }
 
@@ -464,7 +464,7 @@ export default function ForumPage() {
         .fm-catdesc { font-size: 11px; color: ${T.t4}; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fm-catcount { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: ${T.t4}; padding: 1px 7px; border-radius: 5px; background: rgba(255,255,255,.04); }
 
-        .fm-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 13px; overflow: hidden; border: 0.5px solid rgba(255,255,255,.07); background: rgba(255,255,255,.07); gap: 0.5px; }
+        .fm-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 13px; overflow: hidden; border: 0.5px solid rgba(255,255,255,.07); background: rgba(255,255,255,.07); gap: 0.5px; }
         .fm-stat { background: #0D0D15; padding: 12px; text-align: center; }
         .fm-stat b { display: block; font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: ${T.t1}; }
         .fm-stat span { font-size: 10.5px; color: ${T.t4}; }

@@ -299,7 +299,7 @@ export default function MissionsPage() {
 
         .ms-tpls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 30px; }
         @media (max-width: 1300px) { .ms-tpls { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-        @media (max-width: 760px)  { .ms-tpls { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 760px)  { .ms-tpls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         .ms-tpl { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 13px 14px; border-radius: 13px; cursor: pointer; text-align: left; font-family: inherit;
           background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); border: 0.5px solid ${T.b1};
           animation: msIn .4s cubic-bezier(.2,.8,.2,1) both; transition: transform .2s, border-color .2s; }
@@ -317,7 +317,7 @@ export default function MissionsPage() {
         .ms-tpl.own { border-style: dashed; }
 
         .ms-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
-        @media (max-width: 1000px) { .ms-board { grid-template-columns: 1fr; } }
+        @media (max-width: 1000px) { .ms-board { grid-template-columns: minmax(0, 1fr); } }
         .ms-col { border-radius: 13px; padding: 10px; background: #0D0D15; border: 0.5px solid rgba(255,255,255,.07); display: flex; flex-direction: column; gap: 9px; min-height: 140px; }
         .ms-col-h { display: flex; align-items: center; gap: 8px; padding: 4px 4px 2px;
           font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: ${T.t4}; }
@@ -385,7 +385,7 @@ export default function MissionsPage() {
           background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.08); color: ${T.t3}; transition: all .15s; }
         .mm-x:hover { background: rgba(232,0,42,.12); color: #fff; border-color: rgba(232,0,42,.35); }
         .mm-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 22px; padding: 20px 24px; overflow: auto; }
-        @media (max-width: 860px) { .mm-body { grid-template-columns: 1fr; } }
+        @media (max-width: 860px) { .mm-body { grid-template-columns: minmax(0, 1fr); } }
         .mm-form { min-width: 0; }
         .mm-form .ms-field { margin-bottom: 18px; }
         .mm-form .ms-field label { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: ${T.t4}; }

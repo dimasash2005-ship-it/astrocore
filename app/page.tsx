@@ -222,7 +222,7 @@ export default function DashboardPage() {
         /* layout */
         .db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
         .db-side { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 20px; }
-        @media (max-width: 1150px) { .db-grid { grid-template-columns: 1fr; } .db-side { position: static; } }
+        @media (max-width: 1150px) { .db-grid { grid-template-columns: minmax(0, 1fr); } .db-side { position: static; min-width: 0; } }
         .db-main { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 
         .db-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -277,7 +277,7 @@ export default function DashboardPage() {
         .db-row-t { font-size: 12.5px; font-weight: 500; color: ${T.t1}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .db-row-s { font-size: 12px; color: ${T.t4}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 
-        .db-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .db-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .db-quick button { display: flex; align-items: center; gap: 9px; padding: 11px 12px; border-radius: 11px; cursor: pointer; text-align: left;
           font-size: 12px; font-family: inherit; color: ${T.t2}; background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%);
           border: 0.5px solid ${T.b1}; transition: transform .15s, border-color .15s, background .15s; }

@@ -261,7 +261,7 @@ const STYLES = `
   .shr-opt:hover { background: rgba(255,255,255,.03); }
   .shr-opt span:not(.shr-sw) { flex: 1; }
   .shr-opt-ic { color: #6A6A8A; flex: none; }
-  .shr-soc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+  .shr-soc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
   .shr-soc a { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 0; border-radius: 10px; font-size: 12.5px; font-weight: 500; color: #C8C4D8; text-decoration: none;
     background: rgba(255,255,255,.04); border: 0.5px solid rgba(255,255,255,.1); transition: all .13s; }
   .shr-soc a svg { color: var(--b); }

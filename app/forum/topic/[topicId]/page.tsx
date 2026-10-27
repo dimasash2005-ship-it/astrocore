@@ -327,7 +327,7 @@ export default function ForumTopicPage() {
 
         .tp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; align-items: start; }
         .tp-side { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 18px; }
-        @media (max-width: 1100px) { .tp-grid { grid-template-columns: 1fr; } .tp-side { display: none; } }
+        @media (max-width: 1100px) { .tp-grid { grid-template-columns: minmax(0, 1fr); } .tp-side { display: none; } }
 
         /* thread with timeline */
         .tp-thread { position: relative; display: flex; flex-direction: column; gap: 4px; }

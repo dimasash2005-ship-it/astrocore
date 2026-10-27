@@ -649,7 +649,7 @@ export default function AgentDetailPage() {
 
         .agd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
         .agd-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; }
-        @media (max-width: 1150px) { .agd-grid { grid-template-columns: 1fr; } .agd-side { position: static; } }
+        @media (max-width: 1150px) { .agd-grid { grid-template-columns: minmax(0, 1fr); } .agd-side { position: static; } }
 
         .agd-label { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: ${T.t4};
           text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
@@ -657,8 +657,8 @@ export default function AgentDetailPage() {
           cursor: pointer; opacity: .85; padding: 0; }
         .agd-link:hover { opacity: 1; }
 
-        .agd-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; padding-bottom: 18px; border-bottom: 0.5px solid rgba(255,255,255,.06); }
-        @media (max-width: 700px) { .agd-facts { grid-template-columns: 1fr; } }
+        .agd-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; padding-bottom: 18px; border-bottom: 0.5px solid rgba(255,255,255,.06); }
+        @media (max-width: 700px) { .agd-facts { grid-template-columns: minmax(0, 1fr); } }
 
         .agd-prompt { position: relative; font-size: 13.5px; color: ${T.t2}; line-height: 1.75; padding: 16px 18px; border-radius: 12px;
           background: rgba(255,255,255,.025); border: 0.5px solid rgba(255,255,255,.07); white-space: pre-wrap; word-break: break-word;
@@ -672,16 +672,16 @@ export default function AgentDetailPage() {
         .agd-workspace { background: #0A0A10; border: 0.5px solid rgba(232,0,42,0.16); border-radius: 14px; overflow: hidden;
           background-image: linear-gradient(rgba(255,255,255,0.04) 0.5px, transparent 0.5px), linear-gradient(90deg, rgba(255,255,255,0.04) 0.5px, transparent 0.5px);
           background-size: 14px 14px; }
-        .agd-ws-grid { display: grid; grid-template-columns: 1fr 1fr; }
+        .agd-ws-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .agd-ws-cell { padding: 18px 20px; border-bottom: 0.5px solid rgba(255,255,255,.06); }
         .agd-ws-cell:nth-child(odd) { border-right: 0.5px solid rgba(255,255,255,.06); }
         .agd-ws-cell:nth-last-child(-n+2) { border-bottom: 0; }
-        @media (max-width: 800px) { .agd-ws-grid { grid-template-columns: 1fr; } .agd-ws-cell { border-right: 0 !important; border-bottom: 0.5px solid rgba(255,255,255,.06) !important; } }
+        @media (max-width: 800px) { .agd-ws-grid { grid-template-columns: minmax(0, 1fr); } .agd-ws-cell { border-right: 0 !important; border-bottom: 0.5px solid rgba(255,255,255,.06) !important; } }
         .agd-skill { display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; border: 0.5px solid rgba(232,0,42,.22);
           background: rgba(232,0,42,.08); color: ${T.t2}; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .12s, color .12s, transform .12s; }
         .agd-skill:hover { background: rgba(232,0,42,.2); color: ${T.t1}; transform: translateY(-1px); }
 
-        .agd-stats { display: grid; grid-template-columns: 1fr; gap: 1px; border-radius: 14px; overflow: hidden;
+        .agd-stats { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; border-radius: 14px; overflow: hidden;
           border: 0.5px solid rgba(255,255,255,.09); background: rgba(255,255,255,.07); }
         .agd-stat { background: linear-gradient(160deg,#11111C 0%,#0E0E18 100%); padding: 14px 18px; }
       `}</style>
