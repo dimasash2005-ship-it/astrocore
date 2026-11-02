@@ -12,6 +12,7 @@ import { useLanguage } from "@/lib/useLanguage"
 import type { Language } from "@/lib/language"
 import NotionPanel from "@/components/integrations/NotionPanel"
 import TelegramPanel from "@/components/integrations/TelegramPanel"
+import PushPanel from "@/components/integrations/PushPanel"
 import { IntegrationCard, IntegrationDrawer, Chip } from "@/components/integrations/IntegrationUI"
 
 const T = {
@@ -375,6 +376,7 @@ export default function IntegrationsPage() {
             )}
             <NotionPanel onStatus={setNotionOn} delay={60} />
             <TelegramPanel onStatus={setTelegramOn} delay={120} />
+            <PushPanel delay={180} />
           </div>
 
           {/* ── Coming soon ── */}

@@ -15,6 +15,7 @@ import AgentStar from "@/components/cosmos/AgentStar"
 import CoreEye from "@/components/cosmos/CoreEye"
 import { useAgentLevels } from "@/lib/useAgentLevels"
 import { isOnline, type AgentLevel } from "@/lib/cosmos"
+import MessageSearch from "@/components/chat/MessageSearch"
 
 const T = {
   bg:   "#08080F",
@@ -334,6 +335,7 @@ export default function ChatPage() {
   const [loaded,       setLoaded]       = useState(false)
 
   const [search,       setSearch]       = useState("")
+  const [msgHits,      setMsgHits]      = useState(0)
   const [agentFilter,  setAgentFilter]  = useState<string | null>(null)
   const [provFilter,   setProvFilter]   = useState<string | null>(null)
   const [dateFilter,   setDateFilter]   = useState<DateFilter>("all")
@@ -721,10 +723,13 @@ export default function ChatPage() {
               </div>
             )}
 
+            {/* Search inside every message */}
+            <MessageSearch query={search} sessions={sessions} agents={agents} lang={uk ? "uk" : "en"} onCount={setMsgHits} />
+
             {/* List */}
             {!loaded ? (
               <div className="ch-list">{[0, 1, 2, 3, 4].map(i => <div key={i} className="ch-skel" style={{ animationDelay: `${i * 0.1}s` }} />)}</div>
-            ) : filtered.length === 0 ? (
+            ) : filtered.length === 0 && msgHits > 0 ? null : filtered.length === 0 ? (
               <div style={{ padding: "48px 0", textAlign: "center" }}>
                 <div style={{ fontSize: 13, color: T.t4, marginBottom: 10 }}>{t.chat.nothingFound}</div>
                 <button onClick={clearFilters} style={{ fontSize: 12, color: T.red, background: "none", border: "none", cursor: "pointer" }}>{t.chat.clearFilters}</button>

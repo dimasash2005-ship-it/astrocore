@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { nextOccurrence, formatWhen, repeatLabel, safeTz, localParts, zonedToUtc, type Repeat } from "@/lib/reminders/core"
 import { loadTelegram, tg, esc, type Lang, type TelegramConn } from "@/lib/server/telegram"
+import { pushToUser } from "@/lib/server/push"
 
 export type ReminderRow = {
   id: string
@@ -110,6 +111,11 @@ export async function sendDueReminders(svc: SupabaseClient): Promise<{ sent: num
       } catch (err) {
         console.error("[reminders] send failed", r.id, err instanceof Error ? err.message : err)
       }
+    }
+    // Push to the phone / browser too (works without Telegram)
+    if (await pushToUser(r.user_id, { title: lang === "uk" ? "⏰ Нагадування" : "⏰ Reminder", body: r.text.slice(0, 200), url: "/chat", tag: `reminder-${r.id}` }) > 0 && !delivered) {
+      delivered = true
+      sent++
     }
     if (!delivered) skipped++
 

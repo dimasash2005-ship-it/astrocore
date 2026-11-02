@@ -541,7 +541,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, ag
   if (isUser) {
     const { text: userText, images: userImages } = msg.voice ? { text: msg.content, images: [] } : splitImages(msg.content)
     return (
-      <div className="astrocore-msg" style={{
+      <div className="astrocore-msg" id={`msg-${msg.id}`} style={{
         display: "flex", flexDirection: "row-reverse",
         marginBottom: 20,
         ...OFFSCREEN_SKIP,
@@ -571,7 +571,7 @@ const MessageBubble = memo(function MessageBubble({ msg, agentColor, agentId, ag
   }
 
   return (
-    <div className="astrocore-msg" style={{
+    <div className="astrocore-msg" id={`msg-${msg.id}`} style={{
       display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 24,
       animation: isNew ? "msgIn 240ms ease-out" : undefined,
       ...OFFSCREEN_SKIP,
@@ -961,6 +961,7 @@ export default function SessionPage() {
   const composerRef = useRef<HTMLDivElement>(null)
   const sendingRef  = useRef(false)
   const hasScrolledInitially = useRef(false)
+  const jumpedToMsg = useRef(false)
 
   // A background agent reply is still in progress in this chat.
   const hasPendingJob = messages.some(m => m.jobPending)
@@ -1052,9 +1053,22 @@ export default function SessionPage() {
     if (messages.length === 0) return
     if (!hasScrolledInitially.current) {
       hasScrolledInitially.current = true
+      // Opened from search (?m=<message id>): jump to that message and flash it.
+      const target = new URLSearchParams(window.location.search).get("m")
+      const el = target ? document.getElementById(`msg-${target}`) : null
+      if (el) {
+        el.scrollIntoView({ block: "center" })
+        el.classList.add("astrocore-msg-hit")
+        setTimeout(() => el.classList.remove("astrocore-msg-hit"), 2600)
+        jumpedToMsg.current = true
+        return
+      }
       bottomRef.current?.scrollIntoView({ behavior: "auto" })
       return
     }
+    // After a jump from search, don't yank the view to the bottom on background refreshes.
+    if (loading) jumpedToMsg.current = false
+    if (jumpedToMsg.current) return
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, loading])
 
@@ -1665,6 +1679,8 @@ export default function SessionPage() {
         @keyframes popIn { from{opacity:0;transform:translateY(6px) scale(.97)} to{opacity:1;transform:none} }
         @keyframes redpulse { 0%,100%{box-shadow:0 0 4px rgba(232,0,42,0.8)} 50%{box-shadow:0 0 10px rgba(232,0,42,1)} }
         @media (max-width: 640px) { .cs-badges { display: none !important; } }
+        .astrocore-msg-hit { border-radius: 14px; animation: msgHit 2.6s ease-out; }
+        @keyframes msgHit { 0%,30% { background: rgba(232,0,42,.14); box-shadow: 0 0 0 6px rgba(232,0,42,.14); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
         /* phones: roomier text box — slimmer side padding, smaller round buttons, emoji via the phone keyboard */
         @media (max-width: 560px) {
           .cs-composer { padding: 8px 10px 12px !important; }
